@@ -1,0 +1,4641 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Plus,
+  Play,
+  Trash2,
+  CheckCircle2,
+  RotateCcw,
+  Search,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  Target,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  X,
+} from "lucide-react";
+
+const STORAGE_KEY = "quest_planner_v1";
+const LAST_TICK_KEY = "quest_planner_last_tick_v1";
+
+const DEFAULT_TAGS = ["Life", "Game Dev", "Art", "Health", "Chores", "Animal Care", "Other"];
+const DIFFICULTIES = ["Tiny", "Easy", "Medium", "Hard", "Deep Work"];
+const WEEKDAYS = [
+  { key: "sun", label: "Sun", bit: 1 << 0 },
+  { key: "mon", label: "Mon", bit: 1 << 1 },
+  { key: "tue", label: "Tue", bit: 1 << 2 },
+  { key: "wed", label: "Wed", bit: 1 << 3 },
+  { key: "thu", label: "Thu", bit: 1 << 4 },
+  { key: "fri", label: "Fri", bit: 1 << 5 },
+  { key: "sat", label: "Sat", bit: 1 << 6 },
+];
+const EVERY_DAY_MASK = WEEKDAYS.reduce((mask, day) => mask | day.bit, 0);
+const MODES = ["all", "sequence"];
+const COOLDOWN_UNITS = ["days", "weeks", "months", "years"];
+
+function newId(prefix) {
+  return `${prefix}_${crypto.randomUUID()}`;
+}
+
+function todayString() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function weekdayBit(dateString = todayString()) {
+  const date = new Date(dateString + "T00:00:00");
+  return 1 << date.getDay();
+}
+
+function isRoutineActiveOnDate(routine, dateString = todayString()) {
+  const mask = routine.dayMask ?? EVERY_DAY_MASK;
+  return (mask & weekdayBit(dateString)) !== 0;
+}
+
+function formatDayMask(mask = EVERY_DAY_MASK) {
+  const active = WEEKDAYS.filter((day) => (mask & day.bit) !== 0).map((day) => day.label);
+  if (active.length === 7) return "Every day";
+  if (active.length === 0) return "No days";
+  return active.join(", ");
+}
+
+function addDays(dateString, days) {
+  const date = new Date((dateString || todayString()) + "T00:00:00");
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function addMonths(dateString, months) {
+  const date = new Date((dateString || todayString()) + "T00:00:00");
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
+function addCooldown(dateString, amount, unit) {
+  const cleanAmount = Math.max(1, Number(amount) || 1);
+
+  if (unit === "days") return addDays(dateString, cleanAmount);
+  if (unit === "weeks") return addDays(dateString, cleanAmount * 7);
+  if (unit === "months") return addMonths(dateString, cleanAmount);
+  if (unit === "years") return addMonths(dateString, cleanAmount * 12);
+
+  return addDays(dateString, cleanAmount);
+}
+
+function resetObjectives(objectives) {
+  return (objectives || []).map((objective) => ({
+    ...objective,
+    completed: false,
+    countProgress: 0,
+    children: resetObjectives(objective.children || []),
+  }));
+}
+
+function completeObjectives(objectives) {
+  return (objectives || []).map((objective) => ({
+    ...objective,
+    completed: true,
+    children: completeObjectives(objective.children || []),
+  }));
+}
+
+function resetObjectiveSubtree(objective) {
+  return {
+    ...objective,
+    completed: false,
+    countProgress: 0,
+    children: resetObjectives(objective.children || []),
+  };
+}
+
+function makeObjective(overrides = {}) {
+  return {
+    id: newId("obj"),
+    title: "",
+    description: "",
+    mode: "all",
+    completed: false,
+    countTarget: 0,
+    countProgress: 0,
+    children: [],
+    ...overrides,
+  };
+}
+
+function makeQuest(overrides = {}) {
+  return {
+    id: newId("quest"),
+    title: "",
+    description: "",
+    tags: ["Game Dev"],
+    difficulty: "Medium",
+    deadline: "",
+    mode: "all",
+    status: "active",
+    completedAt: "",
+    cooldownEnabled: false,
+    cooldownAmount: 6,
+    cooldownUnit: "months",
+    sourceType: "manual",
+    routineId: null,
+    locked: false,
+    objectives: [],
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeRoutine(overrides = {}) {
+  return {
+    id: newId("routine"),
+    title: "",
+    description: "",
+    tags: ["Life"],
+    difficulty: "Tiny",
+    dayMask: EVERY_DAY_MASK,
+    mode: "sequence",
+    active: true,
+    objectiveTemplate: [],
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function cloneObjectives(objectives) {
+  return (objectives || []).map((objective) => ({
+    ...objective,
+    id: newId("obj"),
+    completed: false,
+    countProgress: 0,
+    children: cloneObjectives(objective.children || []),
+  }));
+}
+
+function createQuestFromRoutine(routine, dueDate) {
+  return makeQuest({
+    title: routine.title,
+    description: routine.description,
+    tags: routine.tags,
+    difficulty: routine.difficulty,
+    deadline: dueDate,
+    mode: routine.mode,
+    sourceType: "routine",
+    routineId: routine.id,
+    locked: true,
+    objectives: cloneObjectives(routine.objectiveTemplate || []),
+  });
+}
+
+function syncGeneratedQuestWithRoutine(quest, routine) {
+  return {
+    ...quest,
+    title: routine.title,
+    description: routine.description,
+    tags: routine.tags,
+    difficulty: routine.difficulty,
+    mode: routine.mode,
+    objectives: cloneObjectives(routine.objectiveTemplate || []),
+  };
+}
+
+function reconcileTodayQuestForRoutine(quests, routine) {
+  const today = todayString();
+  const shouldExist = routine.active && isRoutineActiveOnDate(routine, today);
+
+  const existing = (quests || []).find(
+    (quest) => quest.sourceType === "routine" && quest.routineId === routine.id && quest.deadline === today
+  );
+
+  if (shouldExist) {
+    if (existing) {
+      return quests.map((quest) =>
+        quest.id === existing.id && !isQuestComplete(quest)
+          ? syncGeneratedQuestWithRoutine(quest, routine)
+          : quest
+      );
+    }
+
+    return [createQuestFromRoutine(routine, today), ...(quests || [])];
+  }
+
+  return (quests || []).filter((quest) => {
+    const isTodaysInstance =
+      quest.sourceType === "routine" &&
+      quest.routineId === routine.id &&
+      quest.deadline === today;
+
+    // Keep completed generated quests as a record; remove only the live/incomplete instance.
+    return !(isTodaysInstance && !isQuestComplete(quest));
+  });
+}
+
+function isObjectiveComplete(objective) {
+  return !!objective?.completed;
+}
+
+function hasCountTarget(objective) {
+  return (Number(objective?.countTarget || 0) || 0) > 0 && (objective?.children || []).length === 0;
+}
+
+function getCountTarget(objective) {
+  return Math.max(0, Number(objective?.countTarget || 0));
+}
+
+function isCountReady(objective) {
+  if (!hasCountTarget(objective)) return true;
+  const { target, progress } = getCountProgress(objective);
+  return target > 0 && progress >= target;
+}
+
+function getCountProgress(objective) {
+  const target = getCountTarget(objective);
+  const progress = Math.max(0, Number(objective?.countProgress || 0));
+  return {
+    target,
+    progress: target > 0 ? Math.min(progress, target) : 0,
+  };
+}
+
+function getLeafProgressPercent(objective) {
+  if (!hasCountTarget(objective)) return isObjectiveComplete(objective) ? 100 : 0;
+  const { target, progress } = getCountProgress(objective);
+  if (target <= 0) return 0;
+  return Math.round((progress / target) * 100);
+}
+
+function getKanbanObjectiveTitle(objective, fallbackTitle = "Untitled") {
+  const title = fallbackTitle || objective?.title || "Untitled";
+
+  if (hasCountTarget(objective) && !isObjectiveComplete(objective)) {
+    const { progress, target } = getCountProgress(objective);
+    if (progress < target) return `${title} (${progress}/${target})`;
+  }
+
+  return title;
+}
+
+function getKanbanActionState(objective) {
+  if (hasCountTarget(objective) && !isObjectiveComplete(objective)) {
+    return isCountReady(objective) ? "complete" : "progress";
+  }
+
+  return "complete";
+}
+
+function getKanbanActionTitle(objective) {
+  return getKanbanActionState(objective) === "progress" ? "Progress objective" : "Complete objective";
+}
+
+function areObjectiveChildrenComplete(objective) {
+  const children = objective?.children || [];
+  if (children.length === 0) return true;
+  return children.every(isObjectiveComplete);
+}
+
+function isObjectiveReadyToComplete(objective) {
+  const children = objective?.children || [];
+  return children.length > 0 && !isObjectiveComplete(objective) && children.every(isObjectiveComplete);
+}
+
+function clearAncestorCompletionById(objectives, objectiveId) {
+  let changed = false;
+
+  const next = (objectives || []).map((objective) => {
+    const children = objective.children || [];
+    const hasDirectChild = children.some((child) => child.id === objectiveId);
+    const updatedChildren = clearAncestorCompletionById(children, objectiveId);
+    const childChanged = updatedChildren !== children;
+
+    if (hasDirectChild || childChanged) {
+      changed = true;
+      return {
+        ...objective,
+        completed: false,
+        children: updatedChildren,
+      };
+    }
+
+    return objective;
+  });
+
+  return changed ? next : objectives;
+}
+
+function isQuestComplete(quest) {
+  return quest?.status === "completed";
+}
+
+function isQuestReadyToComplete(quest) {
+  if (!quest || isQuestComplete(quest)) return false;
+  const objectives = quest.objectives || [];
+  if (objectives.length === 0) return true;
+  return objectives.every(isObjectiveComplete);
+}
+
+function getObjectiveCounts(objectives) {
+  let total = 0;
+  let completed = 0;
+
+  function walk(list) {
+    for (const obj of list || []) {
+      total += 1;
+      if (isObjectiveComplete(obj)) completed += 1;
+      walk(obj.children || []);
+    }
+  }
+
+  walk(objectives || []);
+  return { total, completed };
+}
+
+function getObjectiveProgress(objective) {
+  const counts = countLeafProgress(objective);
+  if (counts.total === 0) return isObjectiveComplete(objective) ? 100 : 0;
+  return Math.round((counts.complete / counts.total) * 100);
+}
+
+function getQuestProgress(quest) {
+  let total = 0;
+  let complete = 0;
+
+  function walk(list) {
+    for (const obj of list || []) {
+      total += 1;
+      if (isObjectiveComplete(obj)) complete += 1;
+      walk(obj.children || []);
+    }
+  }
+
+  walk(quest?.objectives || []);
+  if (total === 0) return isQuestComplete(quest) ? 100 : 0;
+  return Math.round((complete / total) * 100);
+}
+
+function nextObjectivesInList(objectives, mode) {
+  const open = (objectives || []).filter((obj) => !isObjectiveComplete(obj));
+  if (mode === "sequence") {
+    return open[0] ? nextObjectivesFromObjective(open[0]) : [];
+  }
+  return open.flatMap(nextObjectivesFromObjective);
+}
+
+function nextObjectivesFromObjective(objective) {
+  if (!objective || isObjectiveComplete(objective)) return [];
+  const children = objective.children || [];
+  if (children.length === 0) return [objective];
+  return nextObjectivesInList(children, objective.mode);
+}
+
+function nextObjectivesForQuest(quest) {
+  if (!quest) return [];
+  return nextObjectivesInList(quest.objectives || [], quest.mode);
+}
+
+function flattenObjectiveTree(objectives, path = []) {
+  const rows = [];
+
+  for (const objective of objectives || []) {
+    const nextPath = [...path, objective];
+    const children = objective.children || [];
+
+    rows.push({
+      objective,
+      path: nextPath,
+      pathText: nextPath.map((item) => item.title || "Untitled").join(" › "),
+      hasChildren: children.length > 0,
+      complete: isObjectiveComplete(objective),
+    });
+
+    rows.push(...flattenObjectiveTree(children, nextPath));
+  }
+
+  return rows;
+}
+
+function readyBranchRows(rows) {
+  return (rows || [])
+    .filter((row) => row.hasChildren && isObjectiveReadyToComplete(row.objective))
+    .map((row) => ({
+      ...row,
+      displayTitle: row.objective.title || "Untitled",
+      isConfirmation: true,
+    }));
+}
+
+function countLeafProgress(objective) {
+  let total = 0;
+  let complete = 0;
+
+  function walk(item) {
+    const children = item.children || [];
+
+    if (children.length === 0) {
+      total += 1;
+      if (isObjectiveComplete(item)) complete += 1;
+      return;
+    }
+
+    children.forEach(walk);
+  }
+
+  walk(objective);
+  return { total, complete };
+}
+
+function buildFocusBoardFromRoot(root) {
+  if (!root) {
+    return {
+      recommended: null,
+      available: [],
+      inProgress: [],
+      completed: [],
+      totalCount: 0,
+      completedCount: 0,
+    };
+  }
+
+  const rows = flattenObjectiveTree(root.objectives || []);
+  const availableIds = new Set(nextObjectivesInList(root.objectives || [], root.mode || "all").map((objective) => objective.id));
+
+  const available = rows
+    .filter((row) => availableIds.has(row.objective.id))
+    .map((row) => ({
+      ...row,
+      displayTitle: getKanbanObjectiveTitle(row.objective, row.objective.title || "Untitled"),
+      isConfirmation: row.hasChildren,
+    }));
+
+  if (root.selfObjective && isObjectiveReadyToComplete(root.selfObjective)) {
+    available.unshift({
+      objective: root.selfObjective,
+      path: root.selfPath || [root.selfObjective],
+      pathText: (root.selfPath || [root.selfObjective]).map((item) => item.title || "Untitled").join(" › "),
+      hasChildren: true,
+      complete: false,
+      displayTitle: root.selfObjective.title || "Untitled",
+      isConfirmation: true,
+    });
+  }
+
+  const existingAvailableIds = new Set(available.map((row) => row.objective.id));
+  for (const readyRow of readyBranchRows(rows)) {
+    if (!existingAvailableIds.has(readyRow.objective.id)) {
+      available.push(readyRow);
+      existingAvailableIds.add(readyRow.objective.id);
+    }
+  }
+  const inProgress = rows
+    .filter((row) => {
+      if (!row.hasChildren || row.complete || isObjectiveReadyToComplete(row.objective)) return false;
+      const progress = countLeafProgress(row.objective);
+      return progress.complete > 0 && progress.complete < progress.total;
+    })
+    .map((row) => ({ ...row, progress: countLeafProgress(row.objective) }));
+
+  const completed = rows.filter((row) => row.complete);
+
+  return {
+    recommended: available[0] || null,
+    available,
+    inProgress,
+    completed,
+    totalCount: rows.length,
+    completedCount: completed.length,
+  };
+}
+
+function buildFocusBoard(quest) {
+  if (!quest) return buildFocusBoardFromRoot(null);
+  return buildFocusBoardFromRoot({ mode: quest.mode, objectives: quest.objectives || [] });
+}
+
+function makeQuestCompletionCard(quest, complete = false) {
+  return {
+    kind: "questCompletion",
+    id: `quest-completion-${quest.id}`,
+    quest,
+    objective: {
+      id: `quest-completion-${quest.id}`,
+      title: "Complete quest",
+      description: "Finalize and complete this quest.",
+      completed: complete,
+      children: [],
+    },
+    path: [{ id: quest.id, title: "Complete quest", type: "questCompletion" }],
+    pathText: "Complete quest",
+    hasChildren: false,
+    complete,
+    displayTitle: "Complete quest",
+  };
+}
+
+function addQuestCompletionCard(board, quest) {
+  if (!quest || !board) return board;
+
+  const next = {
+    ...board,
+    available: [...(board.available || [])],
+    completed: [...(board.completed || [])],
+  };
+
+  if (isQuestComplete(quest)) {
+    next.completed.push(makeQuestCompletionCard(quest, true));
+    next.completedCount += 1;
+    next.totalCount += 1;
+    return next;
+  }
+
+  if (isQuestReadyToComplete(quest)) {
+    next.available.push(makeQuestCompletionCard(quest, false));
+    next.totalCount += 1;
+  }
+
+  return next;
+}
+
+function getBranchFocusInfo(quest, branchObjectiveId) {
+  if (!quest || !branchObjectiveId) return null;
+
+  const path = findObjectivePath(quest.objectives || [], branchObjectiveId) || [];
+  const objective = path[path.length - 1];
+
+  if (!objective || (objective.children || []).length === 0) return null;
+
+  return {
+    objective,
+    path,
+    pathText: [quest.title || "Untitled quest", ...path.map((item) => item.title || "Untitled")].join(" › "),
+    root: {
+      mode: objective.mode,
+      objectives: objective.children || [],
+    },
+  };
+}
+
+function getFocusPathInfo(quest, branchObjectiveId) {
+  if (!quest) {
+    return {
+      quest: null,
+      branchObjective: null,
+      path: [],
+      root: null,
+      parent: null,
+      childBranches: [],
+      progress: 0,
+    };
+  }
+
+  const branchInfo = getBranchFocusInfo(quest, branchObjectiveId);
+  const branchObjective = branchInfo?.objective || null;
+  const path = branchInfo?.path || [];
+
+  const root = branchObjective
+    ? {
+        mode: branchObjective.mode,
+        objectives: branchObjective.children || [],
+        selfObjective: branchObjective,
+        selfPath: path,
+      }
+    : { mode: quest.mode, objectives: quest.objectives || [] };
+
+  const parent = path.length > 1 ? path[path.length - 2] : null;
+  const childBranches = getChildBranches(root.objectives || []);
+
+  const progressRoot = branchObjective || quest;
+  const rawCounts = branchObjective
+    ? countLeafProgress(branchObjective)
+    : getObjectiveCounts(quest.objectives || []);
+
+  const completedCount = Number(rawCounts.completed ?? rawCounts.complete ?? 0);
+  const totalCount = Number(rawCounts.total ?? 0);
+  const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : isQuestComplete(quest) ? 100 : 0;
+
+  return {
+    quest,
+    branchObjective,
+    path,
+    root,
+    parent,
+    childBranches,
+    progress: Number.isFinite(progress) ? progress : 0,
+    completedCount,
+    totalCount,
+    counts: {
+      completed: completedCount,
+      total: totalCount,
+    },
+  };
+}
+
+function getChildBranches(rootObjectives) {
+  return (rootObjectives || []).filter((objective) => (objective.children || []).length > 0);
+}
+
+const SAMPLE_OBJECTIVE_DESCRIPTIONS = {
+  "Modeling": "Build and clean the main mesh before moving into UVs, textures, and rigging.",
+  "Clean shoulder region": "Refine topology and silhouette around the scapula, chest, and front limb transition.",
+  "Model foot": "Block out and refine the foot shape, including toe proportions and weight-bearing contact.",
+  "Refine plates": "Adjust plate shape, spacing, thickness, and silhouette so they read well from gameplay distance.",
+  "UV unwrap": "Prepare UVs for painting by cutting seams, unwrapping, and checking texel density.",
+  "Mark seams": "Place seams in low-visibility regions and around natural anatomical breaks.",
+  "Unwrap islands": "Generate UV islands and reduce stretching before packing.",
+  "Pack UVs": "Pack UV islands cleanly with consistent padding and efficient texture usage.",
+  "Texture Stegosaurus": "Paint the final color, roughness, and surface detail pass for the Stegosaurus.",
+  "Push-ups": "Complete the planned push-up set with controlled form.",
+  "Squats": "Complete the planned squat set, focusing on depth and stable knees.",
+  "Walk": "Take a short walk to finish the routine and cool down.",
+};
+
+function normalizeObjectives(objectives) {
+  return (objectives || []).map((objective) => {
+    const countTarget = Math.max(0, Number(objective.countTarget || 0));
+    const countProgress = Math.min(countTarget, Math.max(0, Number(objective.countProgress || 0)));
+
+    return makeObjective({
+      ...objective,
+      description: objective.description || SAMPLE_OBJECTIVE_DESCRIPTIONS[objective.title] || "",
+      countTarget,
+      countProgress,
+      completed: !!objective.completed,
+      children: normalizeObjectives(objective.children || []),
+    });
+  });
+}
+
+function findObjective(objectives, id, parent = null) {
+  for (const objective of objectives || []) {
+    if (objective.id === id) return { objective, parent };
+    const found = findObjective(objective.children || [], id, objective);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findObjectivePath(objectives, id, path = []) {
+  for (const objective of objectives || []) {
+    const nextPath = [...path, objective];
+
+    if (objective.id === id) return nextPath;
+
+    const found = findObjectivePath(objective.children || [], id, nextPath);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function getObjectiveAncestry(selection, data) {
+  if (!selection || !data) return [];
+
+  if (selection.type === "objective") {
+    const quest = (data.quests || []).find((item) => item.id === selection.questId);
+    if (!quest) return [];
+
+    const path = findObjectivePath(quest.objectives || [], selection.id) || [];
+
+    return [
+      { type: "quest", id: quest.id, title: quest.title },
+      ...path.map((objective) => ({
+        type: "objective",
+        questId: quest.id,
+        id: objective.id,
+        title: objective.title,
+      })),
+    ];
+  }
+
+  if (selection.type === "routineObjective") {
+    const routine = (data.routines || []).find((item) => item.id === selection.routineId);
+    if (!routine) return [];
+
+    const path = findObjectivePath(routine.objectiveTemplate || [], selection.id) || [];
+
+    return [
+      { type: "routine", id: routine.id, title: routine.title },
+      ...path.map((objective) => ({
+        type: "routineObjective",
+        routineId: routine.id,
+        id: objective.id,
+        title: objective.title,
+      })),
+    ];
+  }
+
+  return [];
+}
+
+function updateObjectiveTree(objectives, id, updater) {
+  return (objectives || []).map((objective) => {
+    if (objective.id === id) return updater(objective);
+    return { ...objective, children: updateObjectiveTree(objective.children || [], id, updater) };
+  });
+}
+
+function addObjectiveToTree(objectives, parentId, child) {
+  if (!parentId) return [...(objectives || []), child];
+  return updateObjectiveTree(objectives, parentId, (objective) => ({
+    ...objective,
+    children: [...(objective.children || []), child],
+  }));
+}
+
+function deleteObjectiveFromTree(objectives, id) {
+  return (objectives || [])
+    .filter((objective) => objective.id !== id)
+    .map((objective) => ({ ...objective, children: deleteObjectiveFromTree(objective.children || [], id) }));
+}
+
+function moveObjectiveInTree(objectives, id, direction) {
+  const list = [...(objectives || [])];
+  const index = list.findIndex((objective) => objective.id === id);
+
+  if (index !== -1) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= list.length) return list;
+
+    const copy = [...list];
+    const [item] = copy.splice(index, 1);
+    copy.splice(newIndex, 0, item);
+    return copy;
+  }
+
+  return list.map((objective) => ({
+    ...objective,
+    children: moveObjectiveInTree(objective.children || [], id, direction),
+  }));
+}
+
+const seedData = {
+  activeQuestId: "quest_programming_sample",
+  activeBranchObjectiveId: null,
+  quests: [
+    makeQuest({
+      id: "quest_programming_sample",
+      title: "Small Programming Task",
+      description: "A generic programming quest for finishing one small feature, bug fix, or refactor.",
+      tags: ["Programming"],
+      difficulty: "Medium",
+      mode: "sequence",
+      objectives: [
+        makeObjective({ id: "obj_programming_plan", title: "Plan", description: "Clarify the work before coding.", mode: "sequence", children: [
+            makeObjective({ id: "obj_programming_define", title: "Define the goal", description: "Write down what the feature or fix is supposed to accomplish." }),
+            makeObjective({ id: "obj_programming_breakdown", title: "Break into steps", description: "List the smallest useful changes you can make without trying to solve everything at once." })
+          ] }),
+        makeObjective({ id: "obj_programming_build", title: "Build and verify", description: "Implement the change and check that it works.", mode: "sequence", children: [
+            makeObjective({ id: "obj_programming_implement", title: "Implement first pass", description: "Make the simplest working version before polishing." }),
+            makeObjective({ id: "obj_programming_test", title: "Test behavior", description: "Try the happy path and at least one edge case." }),
+            makeObjective({ id: "obj_programming_cleanup", title: "Clean up notes", description: "Remove temporary code and write down anything important for the next session." })
+          ] }),
+      ],
+    }),
+    makeQuest({
+      id: "quest_oil_change",
+      title: "Change Car Oil",
+      description: "Recurring maintenance task for changing the car oil. Complete it when the oil change is done; the cooldown can reset it later.",
+      tags: ["Maintenance", "Car"],
+      difficulty: "Medium",
+      mode: "sequence",
+      cooldownEnabled: true,
+      cooldownAmount: 6,
+      cooldownUnit: "months",
+      objectives: [
+        makeObjective({ id: "obj_oil_supplies", title: "Gather supplies", description: "Oil, filter, drain pan, funnel, gloves, rags, and the correct tools." }),
+        makeObjective({ id: "obj_oil_drain", title: "Drain old oil", description: "Drain the old oil safely and keep track of the drain plug." }),
+        makeObjective({ id: "obj_oil_filter", title: "Replace filter", description: "Remove the old filter and install the new one." }),
+        makeObjective({ id: "obj_oil_refill", title: "Refill oil", description: "Add the correct amount and type of oil." }),
+        makeObjective({ id: "obj_oil_check", title: "Check level and leaks", description: "Run briefly, check for leaks, then check the dipstick level." }),
+      ],
+    }),
+    makeQuest({
+      id: "quest_laundry",
+      title: "Laundry",
+      description: "Recurring household task for washing, drying, folding, and putting away clothes.",
+      tags: ["Home"],
+      difficulty: "Tiny",
+      mode: "sequence",
+      cooldownEnabled: true,
+      cooldownAmount: 1,
+      cooldownUnit: "weeks",
+      objectives: [
+        makeObjective({ id: "obj_laundry_sort", title: "Gather laundry", description: "Collect clothes, towels, and other washable items." }),
+        makeObjective({ id: "obj_laundry_wash", title: "Wash", description: "Start the washer with the appropriate settings." }),
+        makeObjective({ id: "obj_laundry_dry", title: "Dry", description: "Move items to the dryer or hang dry as needed." }),
+        makeObjective({ id: "obj_laundry_put_away", title: "Put away", description: "Fold or hang clothes and put them back where they belong." }),
+      ],
+    }),
+  ],
+  routines: [
+    makeRoutine({
+      id: "routine_simple_workout",
+      title: "Simple Workout",
+      description: "A simple starter workout routine. Treat each exercise as a small checklist item, and use Count Target for sets or rounds.\n\nGeneral rules:\n- Warm up first\n- Move smoothly\n- Stop before sharp pain\n- Rest as needed\n- Leave a few reps in reserve",
+      tags: ["Health", "Routine"],
+      difficulty: "Medium",
+      dayMask: EVERY_DAY_MASK,
+      mode: "sequence",
+      active: true,
+      objectiveTemplate: [
+        makeObjective({ id: "routine_workout_warmup", title: "Warmup", description: "Do a few easy movements to feel warm: arm circles, hip circles, bodyweight squats, and easy marching in place." }),
+        makeObjective({ id: "routine_workout_pushups", title: "Pushups", description: "Do controlled pushups or incline pushups. Keep the body straight and stop before grinding reps.", countTarget: 3 }),
+        makeObjective({ id: "routine_workout_squats", title: "Squats", description: "Use bodyweight, a dumbbell, or a bag. Sit the hips down and back, then stand smoothly.", countTarget: 3 }),
+        makeObjective({ id: "routine_workout_rows", title: "Rows", description: "Use a dumbbell, band, or bag. Pull toward the ribs/hip and lower under control.", countTarget: 3 }),
+        makeObjective({ id: "routine_workout_carry", title: "Carry", description: "Carry a bag or weight for a short walk. Stand tall and breathe steadily.", countTarget: 2 }),
+      ],
+    }),
+  ],
+};
+function normalizeData(parsed) {
+  if (!parsed || typeof parsed !== "object") return seedData;
+
+  const quests = Array.isArray(parsed.quests)
+    ? parsed.quests.map((quest) =>
+        makeQuest({
+          ...quest,
+          mode: quest.mode || "all",
+          locked: quest.locked ?? quest.sourceType === "routine",
+          completedAt: quest.completedAt || "",
+          cooldownEnabled: quest.cooldownEnabled || false,
+          cooldownAmount: quest.cooldownAmount || 6,
+          cooldownUnit: quest.cooldownUnit || "months",
+          objectives: normalizeObjectives(quest.objectives || []),
+        })
+      )
+    : [];
+
+  const routines = Array.isArray(parsed.routines)
+    ? parsed.routines.map((routine) =>
+        makeRoutine({
+          ...routine,
+          mode: routine.mode || "sequence",
+          dayMask: routine.dayMask ?? EVERY_DAY_MASK,
+          objectiveTemplate: normalizeObjectives(routine.objectiveTemplate || []),
+        })
+      )
+    : [];
+
+  return {
+    activeQuestId: parsed.activeQuestId || quests[0]?.id || null,
+    activeBranchObjectiveId: parsed.activeBranchObjectiveId || null,
+    quests,
+    routines,
+  };
+}
+
+function runDailyMaintenance(data) {
+  const today = todayString();
+
+  let quests = (data.quests || []).map((quest) => {
+    if (
+      quest.sourceType !== "routine" &&
+      quest.cooldownEnabled &&
+      isQuestComplete(quest) &&
+      quest.completedAt
+    ) {
+      const resetDate = addCooldown(quest.completedAt, quest.cooldownAmount, quest.cooldownUnit);
+      if (resetDate <= today) {
+        return {
+          ...quest,
+          status: "active",
+          completedAt: "",
+          objectives: resetObjectives(quest.objectives || []),
+        };
+      }
+    }
+
+    return quest;
+  }).filter((quest) => {
+    const missedGeneratedQuest = quest.sourceType === "routine" && !isQuestComplete(quest) && quest.deadline && quest.deadline < today;
+    return !missedGeneratedQuest;
+  });
+
+  const routines = data.routines || [];
+  const generated = [];
+
+  for (const routine of routines) {
+    quests = reconcileTodayQuestForRoutine(quests, routine);
+  }
+
+  return { ...data, quests, routines };
+}
+
+
+function selectionKey(selection) {
+  if (!selection) return "none";
+  if (selection.type === "quest") return `quest:${selection.id}`;
+  if (selection.type === "routine") return `routine:${selection.id}`;
+  if (selection.type === "objective") return `objective:${selection.questId}:${selection.id}`;
+  if (selection.type === "routineObjective") return `routineObjective:${selection.routineId}:${selection.id}`;
+  return "none";
+}
+
+function isTreeObjectiveSelected(selection, treeContext, objective) {
+  if (!selection || !objective || !treeContext) return false;
+
+  if ((treeContext.type === "quest" || treeContext.type === "focus") && selection.type === "objective") {
+    return selection.questId === treeContext.quest?.id && selection.id === objective.id;
+  }
+
+  if (treeContext.type === "routine" && selection.type === "routineObjective") {
+    return selection.routineId === treeContext.routine?.id && selection.id === objective.id;
+  }
+
+  return false;
+}
+
+function getTreeContext(selection, data, activeQuest) {
+  if (selection?.type === "routine") {
+    const routine = data.routines.find((item) => item.id === selection.id);
+    if (routine) {
+      return { type: "routine", routine, title: `Routine Template: ${routine.title}` };
+    }
+  }
+
+  if (selection?.type === "routineObjective") {
+    const routine = data.routines.find((item) => item.id === selection.routineId);
+    if (routine) {
+      return { type: "routine", routine, title: `Routine Template: ${routine.title}` };
+    }
+  }
+
+  if (selection?.type === "quest") {
+    const quest = data.quests.find((item) => item.id === selection.id);
+    if (quest) {
+      return { type: "quest", quest, title: `Quest Tree: ${quest.title}` };
+    }
+  }
+
+  if (selection?.type === "objective") {
+    const quest = data.quests.find((item) => item.id === selection.questId);
+    if (quest) {
+      return { type: "quest", quest, title: `Quest Tree: ${quest.title}` };
+    }
+  }
+
+  if (activeQuest) {
+    return { type: "focus", quest: activeQuest, title: `Focus Tree: ${activeQuest.title}` };
+  }
+
+  return { type: "empty", title: "Tree" };
+}
+
+function treeModeClass(treeContext) {
+  if (treeContext.type === "routine") return "tree-panel routine-tree";
+  if (treeContext.type === "quest" || treeContext.type === "focus") return "tree-panel quest-type-regular-tree";
+  return "tree-panel";
+}
+
+function treeModeLabel(treeContext) {
+  if (treeContext.type === "routine") return "Routine template";
+  if (treeContext.type === "quest") return "Selected quest";
+  if (treeContext.type === "focus") return "Current focus";
+  return "No tree";
+}
+
+function questTypeClass(quest) {
+  if (!quest) return "";
+  if (quest.sourceType === "routine") return "quest-type-routine";
+  if (quest.cooldownEnabled) return "quest-type-cooldown";
+  return "quest-type-regular";
+}
+
+function questTypeLabel(quest) {
+  if (!quest) return "Quest";
+  if (quest.sourceType === "routine") return "Routine";
+  if (quest.cooldownEnabled) return "Cooldown";
+  return "Quest";
+}
+
+export default function App() {
+  const [data, setData] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    let loaded = seedData;
+
+    if (saved) {
+      try {
+        loaded = normalizeData(JSON.parse(saved));
+      } catch {
+        loaded = seedData;
+      }
+    }
+
+    const maintained = runDailyMaintenance(loaded);
+    localStorage.setItem(LAST_TICK_KEY, todayString());
+    return maintained;
+  });
+
+  const [libraryTab, setLibraryTab] = useState("quests");
+  const [selection, setSelectionRaw] = useState({ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null });
+  const [history, setHistory] = useState([{ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null }]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("All");
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [expanded, setExpanded] = useState({});
+  const [treeEditMode, setTreeEditMode] = useState(false);
+  const [rightSplit, setRightSplit] = useState(62);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(360);
+  const [rightPanelWidth, setRightPanelWidth] = useState(430);
+  const [expandedKanbanCards, setExpandedKanbanCards] = useState({});
+
+  const quests = data.quests || [];
+  const routines = data.routines || [];
+  const activeQuest = quests.find((quest) => quest.id === data.activeQuestId) || quests[0] || null;
+  const focusPathInfo = getFocusPathInfo(activeQuest, data.activeBranchObjectiveId);
+  const actionable = nextObjectivesInList(focusPathInfo.root?.objectives || [], focusPathInfo.root?.mode || "all");
+  const focusBoard = addQuestCompletionCard(
+    buildFocusBoardFromRoot(focusPathInfo.root),
+    activeQuest
+  );
+
+  function setSelection(next) {
+    setSelectionRaw(next);
+
+    setHistory((old) => {
+      const trimmed = old.slice(0, historyIndex + 1);
+      const last = trimmed[trimmed.length - 1];
+
+      if (selectionKey(last) === selectionKey(next)) return old;
+
+      const nextHistory = [...trimmed, next];
+      setHistoryIndex(nextHistory.length - 1);
+      return nextHistory;
+    });
+  }
+
+  function goBack() {
+    if (historyIndex <= 0) return;
+    const i = historyIndex - 1;
+    setHistoryIndex(i);
+    setSelectionRaw(history[i]);
+  }
+
+  function goForward() {
+    if (historyIndex >= history.length - 1) return;
+    const i = historyIndex + 1;
+    setHistoryIndex(i);
+    setSelectionRaw(history[i]);
+  }
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }, [data]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const today = todayString();
+      const lastTick = localStorage.getItem(LAST_TICK_KEY);
+
+      if (lastTick !== today) {
+        setData((old) => runDailyMaintenance(old));
+        localStorage.setItem(LAST_TICK_KEY, today);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const allTags = useMemo(() => {
+    const set = new Set(DEFAULT_TAGS);
+    quests.forEach((quest) => (quest.tags || []).forEach((tag) => set.add(tag)));
+    routines.forEach((routine) => (routine.tags || []).forEach((tag) => set.add(tag)));
+    return Array.from(set).sort();
+  }, [quests, routines]);
+
+  const filteredQuests = useMemo(() => {
+    return quests
+      .filter((quest) => {
+        const text = `${quest.title} ${quest.description} ${(quest.tags || []).join(" ")}`.toLowerCase();
+        return (
+          text.includes(search.toLowerCase()) &&
+          (tagFilter === "All" || (quest.tags || []).includes(tagFilter)) &&
+          (!hideCompleted || !isQuestComplete(quest))
+        );
+      })
+      .sort((a, b) => {
+        const completeCompare = Number(isQuestComplete(a)) - Number(isQuestComplete(b));
+        if (completeCompare !== 0) return completeCompare;
+        return (a.deadline || "9999-99-99").localeCompare(b.deadline || "9999-99-99") || a.title.localeCompare(b.title);
+      });
+  }, [quests, search, tagFilter, hideCompleted]);
+
+  const filteredRoutines = useMemo(() => {
+    return routines
+      .filter((routine) => {
+        const text = `${routine.title} ${routine.description} ${(routine.tags || []).join(" ")}`.toLowerCase();
+        return text.includes(search.toLowerCase()) && (tagFilter === "All" || (routine.tags || []).includes(tagFilter));
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [routines, search, tagFilter]);
+
+  function createQuest() {
+    const quest = makeQuest({ title: "New Quest" });
+    setData((old) => ({ ...old, quests: [quest, ...old.quests] }));
+    setSelection({ type: "quest", id: quest.id });
+  }
+
+  function createRoutine() {
+    const routine = makeRoutine({ title: "New Routine" });
+    setData((old) => ({ ...old, routines: [routine, ...old.routines] }));
+    setSelection({ type: "routine", id: routine.id });
+  }
+
+  function createQuestObjective(questId, parentId = null) {
+    const objective = makeObjective({ title: "New Objective" });
+
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) =>
+        quest.id === questId
+          ? { ...quest, objectives: addObjectiveToTree(quest.objectives, parentId, objective) }
+          : quest
+      ),
+    }));
+
+    if (parentId) setExpanded((old) => ({ ...old, [parentId]: true }));
+    setSelection({ type: "objective", questId, id: objective.id });
+  }
+
+  function createRoutineObjective(routineId, parentId = null) {
+    const objective = makeObjective({ title: "New Objective" });
+
+    setData((old) => {
+      let updatedRoutine = null;
+      const routines = old.routines.map((routine) => {
+        if (routine.id !== routineId) return routine;
+        updatedRoutine = { ...routine, objectiveTemplate: addObjectiveToTree(routine.objectiveTemplate, parentId, objective) };
+        return updatedRoutine;
+      });
+
+      return {
+        ...old,
+        routines,
+        quests: updatedRoutine
+          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
+          : old.quests,
+      };
+    });
+
+    if (parentId) setExpanded((old) => ({ ...old, [parentId]: true }));
+    setSelection({ type: "routineObjective", routineId, id: objective.id });
+  }
+
+  function deleteQuest(questId) {
+    setData((old) => {
+      const quests = old.quests.filter((quest) => quest.id !== questId);
+      return {
+        ...old,
+        quests,
+        activeQuestId: old.activeQuestId === questId ? quests[0]?.id || null : old.activeQuestId,
+        activeBranchObjectiveId: old.activeQuestId === questId ? null : old.activeBranchObjectiveId,
+      };
+    });
+
+    setSelection({ type: "none" });
+  }
+
+  function deleteRoutine(routineId) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.filter((quest) => quest.routineId !== routineId),
+      routines: old.routines.filter((routine) => routine.id !== routineId),
+    }));
+
+    setSelection({ type: "none" });
+  }
+
+  function deleteQuestObjective(questId, objectiveId) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) =>
+        quest.id === questId
+          ? { ...quest, objectives: deleteObjectiveFromTree(quest.objectives, objectiveId) }
+          : quest
+      ),
+    }));
+
+    setSelection({ type: "quest", id: questId });
+  }
+
+  function deleteRoutineObjective(routineId, objectiveId) {
+    setData((old) => {
+      let updatedRoutine = null;
+      const routines = old.routines.map((routine) => {
+        if (routine.id !== routineId) return routine;
+        updatedRoutine = { ...routine, objectiveTemplate: deleteObjectiveFromTree(routine.objectiveTemplate, objectiveId) };
+        return updatedRoutine;
+      });
+
+      return {
+        ...old,
+        routines,
+        quests: updatedRoutine
+          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
+          : old.quests,
+      };
+    });
+
+    setSelection({ type: "routine", id: routineId });
+  }
+
+  function moveQuestObjective(questId, objectiveId, direction) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) =>
+        quest.id === questId
+          ? { ...quest, objectives: moveObjectiveInTree(quest.objectives, objectiveId, direction) }
+          : quest
+      ),
+    }));
+  }
+
+  function moveRoutineObjective(routineId, objectiveId, direction) {
+    setData((old) => {
+      let updatedRoutine = null;
+      const routines = old.routines.map((routine) => {
+        if (routine.id !== routineId) return routine;
+        updatedRoutine = { ...routine, objectiveTemplate: moveObjectiveInTree(routine.objectiveTemplate, objectiveId, direction) };
+        return updatedRoutine;
+      });
+
+      return {
+        ...old,
+        routines,
+        quests: updatedRoutine
+          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
+          : old.quests,
+      };
+    });
+  }
+
+  function toggleObjective(questId, objectiveId) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) => {
+        if (quest.id !== questId) return quest;
+
+        let nextCompleted = null;
+        let objectives = updateObjectiveTree(quest.objectives, objectiveId, (objective) => {
+          const children = objective.children || [];
+          if (children.length > 0 && !areObjectiveChildrenComplete(objective)) return objective;
+
+          if (hasCountTarget(objective) && !objective.completed) {
+            const { target, progress } = getCountProgress(objective);
+
+            if (progress < target) {
+              nextCompleted = null;
+              return {
+                ...objective,
+                countProgress: Math.min(target, progress + 1),
+                completed: false,
+              };
+            }
+
+            nextCompleted = true;
+            return {
+              ...objective,
+              completed: true,
+              countProgress: target,
+            };
+          }
+
+          nextCompleted = !objective.completed;
+          return {
+            ...objective,
+            completed: nextCompleted,
+            countProgress: nextCompleted ? getCountProgress(objective).progress : 0,
+          };
+        });
+
+        if (nextCompleted === false) {
+          objectives = clearAncestorCompletionById(objectives, objectiveId);
+        }
+
+        return {
+          ...quest,
+          status: "active",
+          completedAt: "",
+          objectives,
+        };
+      }),
+    }));
+  }
+
+  function uncompleteObjective(questId, objectiveId) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) => {
+        if (quest.id !== questId) return quest;
+
+        const resetObjectivesForTarget = updateObjectiveTree(quest.objectives, objectiveId, (objective) => resetObjectiveSubtree(objective));
+        const objectives = clearAncestorCompletionById(resetObjectivesForTarget, objectiveId);
+
+        return {
+          ...quest,
+          status: "active",
+          completedAt: "",
+          objectives,
+        };
+      }),
+    }));
+  }
+
+  function makeFocus(questId) {
+    setData((old) => ({ ...old, activeQuestId: questId, activeBranchObjectiveId: null }));
+  }
+
+  function setBranchFocus(objectiveId) {
+    setData((old) => ({ ...old, activeBranchObjectiveId: objectiveId }));
+  }
+
+  function clearBranchFocus() {
+    setData((old) => ({ ...old, activeBranchObjectiveId: null }));
+  }
+
+  function completeQuest(questId) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) => {
+        if (quest.id !== questId) return quest;
+        if (!isQuestReadyToComplete(quest)) return quest;
+
+        return {
+          ...quest,
+          status: "completed",
+          completedAt: todayString(),
+        };
+      }),
+    }));
+  }
+
+  function restoreQuest(questId) {
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) =>
+        quest.id === questId
+          ? {
+              ...quest,
+              status: "active",
+              completedAt: "",
+              objectives: resetObjectives(quest.objectives || []),
+            }
+          : quest
+      ),
+    }));
+  }
+
+  function exportJson() {
+    const payload = {
+      app: "quest-planner",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const date = todayString();
+    anchor.href = url;
+    anchor.download = `quest-planner-${date}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importJsonFile(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || "{}"));
+        const rawData = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
+        const imported = runDailyMaintenance(normalizeData(rawData));
+
+        setData(imported);
+        setSelection({ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null });
+        setHistory([{ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null }]);
+        setHistoryIndex(0);
+        setExpanded({});
+        setTreeEditMode(false);
+        setExpandedKanbanCards({});
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+        localStorage.setItem(LAST_TICK_KEY, todayString());
+      } catch (error) {
+        window.alert("Could not load that JSON file. It may not be a valid quest planner export.");
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
+  function runMaintenanceNow() {
+    setData((old) => runDailyMaintenance(old));
+    localStorage.setItem(LAST_TICK_KEY, todayString());
+  }
+
+  function dueBadge(item) {
+    const today = todayString();
+    if (!item?.deadline) return null;
+    if (item.deadline < today) return <span className="badge bg-red-950 text-red-200">Overdue</span>;
+    if (item.deadline === today) return <span className="badge bg-amber-950 text-amber-200">Today</span>;
+    return <span className="badge bg-neutral-800 text-neutral-300">Due {item.deadline}</span>;
+  }
+
+  function beginLeftPanelDrag(event) {
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = leftPanelWidth;
+
+    function onMove(moveEvent) {
+      const delta = moveEvent.clientX - startX;
+      const next = Math.min(520, Math.max(240, startWidth + delta));
+      setLeftPanelWidth(next);
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    }
+
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function beginRightPanelDrag(event) {
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = rightPanelWidth;
+
+    function onMove(moveEvent) {
+      const delta = startX - moveEvent.clientX;
+      const next = Math.min(620, Math.max(320, startWidth + delta));
+      setRightPanelWidth(next);
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    }
+
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  return (
+    <div className="h-screen overflow-hidden bg-neutral-950 p-4 text-neutral-100">
+      <div className="app-root">
+        <LibraryPanel
+          panelWidth={leftPanelWidth}
+          tab={libraryTab}
+          setTab={setLibraryTab}
+          search={search}
+          setSearch={setSearch}
+          tagFilter={tagFilter}
+          setTagFilter={setTagFilter}
+          allTags={allTags}
+          hideCompleted={hideCompleted}
+          setHideCompleted={setHideCompleted}
+          quests={filteredQuests}
+          routines={filteredRoutines}
+          activeQuestId={data.activeQuestId}
+          dueBadge={dueBadge}
+          createQuest={createQuest}
+          createRoutine={createRoutine}
+          exportJson={exportJson}
+          importJsonFile={importJsonFile}
+          selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
+          selectRoutine={(routine) => setSelection({ type: "routine", id: routine.id })}
+        />
+
+        <div
+          className="column-splitter"
+          onPointerDown={beginLeftPanelDrag}
+          title="Drag to resize Library"
+        />
+
+        <FocusPanel
+          quest={activeQuest}
+          actionable={actionable}
+          focusBoard={focusBoard}
+          focusPathInfo={focusPathInfo}
+          branchFocusId={data.activeBranchObjectiveId}
+          setBranchFocus={setBranchFocus}
+          clearBranchFocus={clearBranchFocus}
+          dueBadge={dueBadge}
+          selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
+          selectObjective={(objective) => setSelection({ type: "objective", questId: activeQuest.id, id: objective.id })}
+          toggleObjective={(rowOrObjective) => {
+            const objective = rowOrObjective.objective || rowOrObjective;
+            return rowOrObjective.kind === "questCompletion"
+              ? completeQuest(activeQuest.id)
+              : toggleObjective(activeQuest.id, objective.id);
+          }}
+          uncompleteObjective={(rowOrObjective) => {
+            const objective = rowOrObjective.objective || rowOrObjective;
+            return rowOrObjective.kind === "questCompletion"
+              ? restoreQuest(activeQuest.id)
+              : uncompleteObjective(activeQuest.id, objective.id);
+          }}
+          expandedKanbanCards={expandedKanbanCards}
+          setExpandedKanbanCards={setExpandedKanbanCards}
+        />
+
+
+        <div
+          className="column-splitter"
+          onPointerDown={beginRightPanelDrag}
+          title="Drag to resize Inspector / Tree column"
+        />
+        <RightPanel
+          panelWidth={rightPanelWidth}
+          selection={selection}
+          data={data}
+          setData={setData}
+          setSelection={setSelection}
+          allTags={allTags}
+          activeQuest={activeQuest}
+          activeQuestId={data.activeQuestId}
+          expanded={expanded}
+          setExpanded={setExpanded}
+          treeEditMode={treeEditMode}
+          setTreeEditMode={setTreeEditMode}
+          rightSplit={rightSplit}
+          setRightSplit={setRightSplit}
+          goBack={goBack}
+          goForward={goForward}
+          canGoBack={historyIndex > 0}
+          canGoForward={historyIndex < history.length - 1}
+          makeFocus={makeFocus}
+          activeQuestId={data.activeQuestId}
+          activeBranchObjectiveId={data.activeBranchObjectiveId}
+          setBranchFocus={setBranchFocus}
+          clearBranchFocus={clearBranchFocus}
+          completeQuest={completeQuest}
+          restoreQuest={restoreQuest}
+          createQuestObjective={createQuestObjective}
+          createRoutineObjective={createRoutineObjective}
+          deleteQuest={deleteQuest}
+          deleteRoutine={deleteRoutine}
+          deleteQuestObjective={deleteQuestObjective}
+          deleteRoutineObjective={deleteRoutineObjective}
+          moveQuestObjective={moveQuestObjective}
+          moveRoutineObjective={moveRoutineObjective}
+          toggleObjective={toggleObjective}
+          runMaintenanceNow={runMaintenanceNow}
+        />
+      </div>
+
+      <DarkStyles />
+    </div>
+  );
+}
+
+function LibraryPanel({
+  panelWidth,
+  tab,
+  setTab,
+  search,
+  setSearch,
+  tagFilter,
+  setTagFilter,
+  allTags,
+  hideCompleted,
+  setHideCompleted,
+  quests,
+  routines,
+  activeQuestId,
+  dueBadge,
+  createQuest,
+  createRoutine,
+  exportJson,
+  importJsonFile,
+  selectQuest,
+  selectRoutine,
+}) {
+  return (
+    <section className="panel panel-scroll library-col" style={{ flexBasis: `${panelWidth}px` }}>
+      <LibraryTabBar tab={tab} setTab={setTab} />
+      <div className="panel-content">
+        {tab !== "save" && (
+          <>
+            <div className="mt-4 space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 text-neutral-500" size={16} />
+                <input className="field py-2 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="" />
+              </div>
+
+              <select className="field py-2" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
+                <option>All</option>
+                {allTags.map((tag) => <option key={tag}>{tag}</option>)}
+              </select>
+
+              {tab === "quests" && (
+                <label className="flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+                  <input type="checkbox" checked={hideCompleted} onChange={(e) => setHideCompleted(e.target.checked)} />
+                  Hide complete
+                </label>
+              )}
+            </div>
+
+            <div className="mt-4">
+              {tab === "quests" ? (
+                <button onClick={createQuest} className="primary-button w-full"><Plus size={18} /> New quest</button>
+              ) : (
+                <button onClick={createRoutine} className="primary-button w-full"><Plus size={18} /> New routine</button>
+              )}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {tab === "quests" && quests.map((quest) => (
+                <button
+                  key={quest.id}
+                  onClick={() => selectQuest(quest)}
+                  className={`library-card text-left ${questTypeClass(quest)} ${isQuestComplete(quest) ? "library-card-complete" : ""} ${quest.id === activeQuestId ? "border-neutral-300 bg-neutral-800" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-semibold">{quest.title}</div>
+                    {dueBadge(quest)}
+                  </div>
+
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-800">
+                    <div className="h-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isQuestComplete(quest) && <span className="pill-complete">Completed</span>}
+                    {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
+                    {quest.sourceType === "routine" && <span className="pill-blue">Routine</span>}
+                  </div>
+                </button>
+              ))}
+
+              {tab === "routines" && routines.map((routine) => (
+                <button key={routine.id} onClick={() => selectRoutine(routine)} className="library-card text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-semibold">{routine.title}</div>
+                    <span className={routine.active ? "pill-green" : "pill-red"}>{routine.active ? "Active" : "Paused"}</span>
+                  </div>
+
+                  <div className="mt-1 text-sm text-neutral-400">{formatDayMask(routine.dayMask)}</div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(routine.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {tab === "save" && (
+          <div className="mt-4 space-y-3">
+            <button type="button" onClick={exportJson} className="primary-button w-full justify-center">Export JSON</button>
+            <label className="primary-button w-full cursor-pointer justify-center">
+              Load JSON
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={(event) => {
+                  importJsonFile(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
+              Export creates a backup file of your quests and routines. Load replaces the current app state with the selected JSON file.
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectObjective, toggleObjective, uncompleteObjective, expandedKanbanCards, setExpandedKanbanCards }) {
+  if (!quest) {
+    return (
+      <main className="panel panel-scroll focus-col">
+        <PanelTitleBar title="Current Focus" />
+        <div className="panel-content text-neutral-400">Create or select a quest, then make it the current focus.</div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="panel panel-scroll focus-col">
+      <PanelTitleBar title="Current Focus" />
+      <div className="panel-content focus-panel-content">
+      <FocusDocumentHeader
+        quest={quest}
+        focusPathInfo={focusPathInfo}
+        selectQuest={selectQuest}
+        selectObjective={selectObjective}
+        setBranchFocus={setBranchFocus}
+        clearBranchFocus={clearBranchFocus}
+      />
+
+      {focusBoard.available.some((row) => row.kind === "questCompletion") || isQuestComplete(quest) ? (
+        <div className="complete-quest-celebration">
+          <button
+            onClick={() => {
+              const completionRow = focusBoard.available.find((row) => row.kind === "questCompletion");
+              if (completionRow) toggleObjective(completionRow);
+            }}
+            className={isQuestComplete(quest) ? "recommended-complete-quest-button recommended-complete-quest-button-done" : "recommended-complete-quest-button"}
+            disabled={isQuestComplete(quest)}
+          >
+            <span className="complete-quest-icon">◆</span>
+            <span className="complete-quest-label">{isQuestComplete(quest) ? "Quest completed" : "Complete quest"}</span>
+            <span className="complete-quest-icon">◆</span>
+          </button>
+        </div>
+      ) : (
+        <section className="mt-5 focus-recommend-panel">
+          <h3 className="text-lg font-bold">Recommended</h3>
+          {focusBoard.recommended ? (
+            <div className="recommended-task-row">
+              <div className="recommended-task-text">
+                <FocusPathLinks row={focusBoard.recommended} selectObjective={selectObjective} />
+                {focusBoard.recommended.objective.description && (
+                  <div className="mt-1 text-sm text-neutral-400">{focusBoard.recommended.objective.description}</div>
+                )}
+              </div>
+              <button onClick={() => toggleObjective(focusBoard.recommended)} className="primary-button recommended-action-button">
+                {getKanbanActionState(focusBoard.recommended.objective) === "progress" ? <Play size={16} /> : <CheckCircle2 size={16} />}
+                {getKanbanActionState(focusBoard.recommended.objective) === "progress" ? "Progress" : "Complete"}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 text-sm text-neutral-500">No available objective. This quest may be complete.</div>
+          )}
+        </section>
+      )}
+
+      <div className="branch-progress-line">
+        <div className="branch-progress-label">
+          <span>Progress</span>
+          <span>{Number.isFinite(focusPathInfo.progress) ? focusPathInfo.progress : 0}%</span>
+        </div>
+        <div className="branch-progress-track">
+          <div className="branch-progress-fill" style={{ width: `${Number.isFinite(focusPathInfo.progress) ? focusPathInfo.progress : 0}%` }} />
+        </div>
+      </div>
+
+      <section className="mt-5 focus-board">
+        <FocusColumn
+          title="Available"
+          rows={focusBoard.available}
+          emptyText="No available objectives."
+          selectObjective={selectObjective}
+          toggleObjective={toggleObjective}
+          expandedKanbanCards={expandedKanbanCards}
+          setExpandedKanbanCards={setExpandedKanbanCards}
+          showCompleteButton
+        />
+        <FocusColumn
+          title="In Progress"
+          rows={focusBoard.inProgress}
+          emptyText="No parent objectives in progress."
+          selectObjective={selectObjective}
+          expandedKanbanCards={expandedKanbanCards}
+          setExpandedKanbanCards={setExpandedKanbanCards}
+          showProgress
+        />
+        <FocusColumn
+          title="Completed"
+          rows={focusBoard.completed}
+          emptyText="Nothing completed yet."
+          selectObjective={selectObjective}
+          uncompleteObjective={uncompleteObjective}
+          expandedKanbanCards={expandedKanbanCards}
+          setExpandedKanbanCards={setExpandedKanbanCards}
+          completed
+          showUncompleteButton
+          summary={`${focusBoard.completedCount} / ${focusBoard.totalCount}`}
+        />
+      </section>
+      </div>
+    </main>
+  );
+}
+
+function getFocusDisplayNode(quest, focusPathInfo) {
+  if (!quest) return null;
+  return focusPathInfo?.branchObjective || quest;
+}
+
+function getFocusDisplayPath(quest, focusPathInfo) {
+  if (!quest) return [];
+
+  return [
+    { id: quest.id, title: quest.title || "Untitled quest", type: "quest" },
+    ...(focusPathInfo?.path || []).map((objective) => ({
+      id: objective.id,
+      title: objective.title || "Untitled",
+      type: "objective",
+    })),
+  ];
+}
+
+function FocusDirectoryPath({ quest, focusPathInfo, selectQuest, setBranchFocus, clearBranchFocus }) {
+  const items = getFocusDisplayPath(quest, focusPathInfo);
+
+  return (
+    <div className="focus-directory-path">
+      <span className="focus-relation-label">Path:</span>
+      {items.map((item, index) => (
+        <React.Fragment key={`${item.type}-${item.id}`}>
+          {index > 0 && <span className="focus-directory-separator">›</span>}
+          <button
+            className="focus-directory-link"
+            onClick={() => {
+              if (item.type === "quest") {
+                clearBranchFocus();
+              } else {
+                setBranchFocus(item.id);
+              }
+            }}
+          >
+            {item.title}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function FocusRelations({ quest, focusPathInfo, setBranchFocus, clearBranchFocus, selectQuest }) {
+  const childBranches = focusPathInfo?.childBranches || [];
+  return (
+    <div className="focus-relations">
+
+      <div className="focus-relation-line">
+        <span className="focus-relation-label">Subquests:</span>
+        {childBranches.length === 0 && <span className="focus-relation-muted">No subquests</span>}
+        {childBranches.map((objective) => (
+          <button type="button" key={objective.id} className="focus-relation-chip" onClick={() => setBranchFocus(objective.id)}>
+            {objective.title || "Untitled"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectObjective, setBranchFocus, clearBranchFocus }) {
+  const displayNode = getFocusDisplayNode(quest, focusPathInfo);
+  const description = displayNode?.description || "";
+
+  return (
+    <div className="focus-document-header">
+      <button
+        className="focus-document-title focus-document-title-button"
+        onClick={() => {
+          if (focusPathInfo?.branchObjective) {
+            selectObjective(focusPathInfo.branchObjective);
+          } else {
+            selectQuest(quest);
+          }
+        }}
+        title="Select in inspector"
+      >
+        {displayNode?.title || "Untitled"}
+      </button>
+
+      {(focusPathInfo?.path || []).length > 0 && (
+        <FocusDirectoryPath
+          quest={quest}
+          focusPathInfo={focusPathInfo}
+          selectQuest={selectQuest}
+          setBranchFocus={setBranchFocus}
+          clearBranchFocus={clearBranchFocus}
+        />
+      )}
+
+      <FocusRelations
+        quest={quest}
+        focusPathInfo={focusPathInfo}
+        setBranchFocus={setBranchFocus}
+        clearBranchFocus={clearBranchFocus}
+        selectQuest={selectQuest}
+      />
+
+      {description.trim() !== "" && (
+        <div className="focus-description-section">
+          <h3 className="focus-description-title">Description</h3>
+          <p className="focus-description-text">{description}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FocusPathTitle({ quest, focusPathInfo, selectQuest, setBranchFocus, clearBranchFocus }) {
+  const pathItems = focusPathInfo?.path || [];
+
+  return (
+    <div className="focus-path-title">
+      <button onClick={() => { clearBranchFocus(); selectQuest(quest); }} className="focus-path-title-link">
+        {quest.title || "Untitled quest"}
+      </button>
+      {pathItems.map((objective) => (
+        <React.Fragment key={objective.id}>
+          <span className="focus-path-title-separator">›</span>
+          <button onClick={() => setBranchFocus(objective.id)} className="focus-path-title-link">
+            {objective.title || "Untitled"}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function FocusBranchNav({ focusPathInfo, setBranchFocus }) {
+  const childBranches = focusPathInfo?.childBranches || [];
+
+  return (
+    <div className="focus-branch-nav">
+      <span className="focus-branch-label">Child branches:</span>
+      {childBranches.length === 0 && <span className="focus-nav-muted">None</span>}
+      {childBranches.map((objective) => (
+        <button key={objective.id} className="focus-nav-chip" onClick={() => setBranchFocus(objective.id)}>
+          {objective.title || "Untitled"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FocusNavigation({ quest, focusPathInfo, setBranchFocus, clearBranchFocus }) {
+  if (!quest) return null;
+
+  const childBranches = focusPathInfo?.childBranches || [];
+  const pathItems = focusPathInfo?.path || [];
+
+  return (
+    <section className="focus-nav">
+      <div className="focus-nav-line">
+        <span className="focus-nav-label">Focus Root:</span>
+        <button className="focus-nav-link" onClick={clearBranchFocus}>{quest.title || "Untitled quest"}</button>
+        {pathItems.map((objective) => (
+          <React.Fragment key={objective.id}>
+            <span className="focus-nav-separator">›</span>
+            <button className="focus-nav-link" onClick={() => setBranchFocus(objective.id)}>
+              {objective.title || "Untitled"}
+            </button>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {focusPathInfo?.branchObjective && (
+        <div className="focus-nav-line">
+          <span className="focus-nav-label">Up:</span>
+          {focusPathInfo.parent ? (
+            <button className="focus-nav-link" onClick={() => setBranchFocus(focusPathInfo.parent.id)}>
+              {focusPathInfo.parent.title || "Untitled"}
+            </button>
+          ) : (
+            <button className="focus-nav-link" onClick={clearBranchFocus}>{quest.title || "Untitled quest"}</button>
+          )}
+        </div>
+      )}
+
+      <div className="focus-nav-line">
+        <span className="focus-nav-label">Child Branches:</span>
+        {childBranches.length === 0 && <span className="focus-nav-muted">None</span>}
+        {childBranches.map((objective) => (
+          <button key={objective.id} className="focus-nav-chip" onClick={() => setBranchFocus(objective.id)}>
+            {objective.title || "Untitled"}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FocusPathLinks({ row, selectObjective }) {
+  return (
+    <div className="focus-path-links">
+      {row.path.map((objective, index) => (
+        <React.Fragment key={objective.id}>
+          {index > 0 && <span className="focus-path-separator">›</span>}
+          <button
+            className="focus-path-link"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (row.kind !== "questCompletion") selectObjective(objective);
+            }}
+            title="Select in inspector"
+          >
+            {index === row.path.length - 1 && row.displayTitle ? row.displayTitle : objective.title || "Untitled"}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function FocusColumn({
+  title,
+  rows,
+  emptyText,
+  selectObjective,
+  toggleObjective,
+  uncompleteObjective,
+  expandedKanbanCards = {},
+  setExpandedKanbanCards,
+  showCompleteButton = false,
+  showUncompleteButton = false,
+  showProgress = false,
+  completed = false,
+  summary = null,
+}) {
+  return (
+    <div className="focus-column">
+      <div className="focus-column-title">
+        <span>{title}</span>
+        <span className="focus-column-count">{summary || rows.length}</span>
+      </div>
+
+      <div className="focus-column-list">
+        {rows.length === 0 && <div className="focus-empty">{emptyText}</div>}
+
+        {rows.map((row) => {
+          const hasDescription = Boolean((row.objective.description || "").trim());
+          const expanded = Boolean(expandedKanbanCards[row.objective.id]);
+
+          return (
+            <div
+              key={row.objective.id}
+              className={completed ? "focus-card focus-card-complete" : "focus-card"}
+            >
+              <div
+                className="focus-card-bar"
+                onClick={() => row.kind !== "questCompletion" && selectObjective(row.objective)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    if (row.kind !== "questCompletion") selectObjective(row.objective);
+                  }
+                }}
+              >
+                <div className="focus-card-main">
+                  <div className="focus-card-title-line">
+                    {hasDescription && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedKanbanCards?.((old) => ({ ...old, [row.objective.id]: !old[row.objective.id] }));
+                        }}
+                        className="focus-card-done focus-card-dropdown"
+                        title={expanded ? "Hide description" : "Show description"}
+                      >
+                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                    )}
+                    <FocusPathLinks row={row} selectObjective={selectObjective} />
+                  </div>
+                  {showProgress && row.progress && (
+                    <div className="focus-card-progress-bar" title={`${row.progress.complete} / ${row.progress.total}`}>
+                      <div
+                        className="focus-card-progress-fill"
+                        style={{ width: `${row.progress.total > 0 ? Math.round((row.progress.complete / row.progress.total) * 100) : 0}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="focus-card-actions">
+                  {showCompleteButton && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleObjective(row);
+                      }}
+                      className={`focus-card-done ${getKanbanActionState(row.objective) === "progress" ? "focus-card-action-progress" : "focus-card-action-complete"}`}
+                      title={getKanbanActionTitle(row.objective)}
+                    >
+                      {getKanbanActionState(row.objective) === "progress" ? <Play size={14} /> : <CheckCircle2 size={14} />}
+                    </button>
+                  )}
+
+                  {showUncompleteButton && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        uncompleteObjective(row);
+                      }}
+                      className="focus-card-done focus-card-action-uncomplete"
+                      title="Mark incomplete"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {hasCountTarget(row.objective) && !row.objective.completed && (
+                <div className="focus-card-progress-bar focus-card-progress-full" title={`${getCountProgress(row.objective).progress} / ${getCountProgress(row.objective).target}`}>
+                  <div
+                    className="focus-card-progress-fill"
+                    style={{ width: `${getLeafProgressPercent(row.objective)}%` }}
+                  />
+                </div>
+              )}
+
+              {hasDescription && expanded && (
+                <div className="focus-card-body">
+                  {row.objective.description}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RightPanel(props) {
+  const {
+    panelWidth,
+    selection,
+    data,
+    activeQuest,
+    expanded,
+    setExpanded,
+    treeEditMode,
+    setTreeEditMode,
+    rightSplit,
+    setRightSplit,
+    setSelection,
+    createQuestObjective,
+    createRoutineObjective,
+    deleteQuestObjective,
+    deleteRoutineObjective,
+    moveQuestObjective,
+    moveRoutineObjective,
+    toggleObjective,
+  } = props;
+
+  const treeContext = getTreeContext(selection, data, activeQuest);
+  const effectiveTreeEditMode = treeContext.quest?.locked ? false : treeEditMode;
+  const rightColumnRef = useRef(null);
+
+  function beginRightSplitDrag(event) {
+    event.preventDefault();
+
+    const startY = event.clientY;
+    const startSplit = rightSplit;
+    const rect = rightColumnRef.current?.getBoundingClientRect();
+    const totalHeight = rect?.height || 1;
+
+    function onMove(moveEvent) {
+      const delta = moveEvent.clientY - startY;
+      const deltaPercent = (delta / totalHeight) * 100;
+      const next = Math.min(82, Math.max(28, startSplit + deltaPercent));
+      setRightSplit(next);
+    }
+
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    }
+
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "row-resize";
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  return (
+    <aside className="right-column" ref={rightColumnRef} style={{ flexBasis: `${panelWidth}px` }}>
+      <section
+        className="panel panel-scroll inspector-panel"
+        style={{ flexBasis: `${rightSplit}%` }}
+      >
+        <InspectorTitleBar {...props} />
+        <div className="panel-content">
+          <Inspector {...props} />
+        </div>
+      </section>
+
+      <div
+        className="right-splitter"
+        onPointerDown={beginRightSplitDrag}
+        title="Drag to resize Inspector / Tree View"
+      />
+
+      <section
+        className={`panel panel-scroll ${treeModeClass(treeContext)}`}
+        style={{ flexBasis: `${100 - rightSplit}%` }}
+      >
+        <PanelTitleBar title="Tree View">
+          {effectiveTreeEditMode && treeContext.type === "routine" && (
+            <button onClick={() => createRoutineObjective(treeContext.routine.id, null)} className="title-secondary-button">+ Objective</button>
+          )}
+          {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
+            <button onClick={() => createQuestObjective(treeContext.quest.id, null)} className="title-secondary-button">+ Objective</button>
+          )}
+          <button
+            onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
+            disabled={Boolean(treeContext.quest?.locked)}
+            className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
+            title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
+          >
+            {effectiveTreeEditMode ? "Done" : "Edit"}
+          </button>
+        </PanelTitleBar>
+        <div className="panel-content">
+
+        {treeContext.type === "routine" && (
+          <TreeRootRow
+            title={treeContext.routine.title}
+            kind="routine"
+            selected={selection.type === "routine" && selection.id === treeContext.routine.id}
+            onSelect={() => !treeEditMode && setSelection({ type: "routine", id: treeContext.routine.id })}
+          />
+        )}
+
+        {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
+          <TreeRootRow
+            title={treeContext.quest.title}
+            kind={`root-${treeContext.type === "focus" ? questTypeClass(treeContext.quest) : questTypeClass(treeContext.quest)}`}
+            selected={selection.type === "quest" && selection.id === treeContext.quest.id}
+            onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
+          />
+        )}
+
+        {treeContext.type === "routine" && (
+          <ObjectiveTree
+            objectives={treeContext.routine.objectiveTemplate}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            onSelect={(objective) => setSelection({ type: "routineObjective", routineId: treeContext.routine.id, id: objective.id })}
+            onAddChild={(objective) => createRoutineObjective(treeContext.routine.id, objective.id)}
+            onDelete={(objective) => deleteRoutineObjective(treeContext.routine.id, objective.id)}
+            onMoveUp={(objective) => moveRoutineObjective(treeContext.routine.id, objective.id, -1)}
+            onMoveDown={(objective) => moveRoutineObjective(treeContext.routine.id, objective.id, 1)}
+            onToggleComplete={() => {}}
+            treeEditMode={effectiveTreeEditMode}
+            selection={selection}
+            treeContext={treeContext}
+            template
+          />
+        )}
+
+        {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
+          <ObjectiveTree
+            objectives={treeContext.quest.objectives}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            onSelect={(objective) => setSelection({ type: "objective", questId: treeContext.quest.id, id: objective.id })}
+            onAddChild={(objective) => createQuestObjective(treeContext.quest.id, objective.id)}
+            onDelete={(objective) => deleteQuestObjective(treeContext.quest.id, objective.id)}
+            onMoveUp={(objective) => moveQuestObjective(treeContext.quest.id, objective.id, -1)}
+            onMoveDown={(objective) => moveQuestObjective(treeContext.quest.id, objective.id, 1)}
+            onToggleComplete={(objective) => toggleObjective(treeContext.quest.id, objective.id)}
+            treeEditMode={effectiveTreeEditMode}
+            selection={selection}
+            treeContext={treeContext}
+          />
+        )}
+
+        {treeContext.type === "empty" && (
+          <div className="text-sm text-neutral-500">No quest or routine selected.</div>
+        )}
+        </div>
+      </section>
+    </aside>
+  );
+}
+
+function getSelectionType(selection) {
+  const type = selection?.type || "none";
+  if (type === "quest") return "Quest";
+  if (type === "routine") return "Routine";
+  if (type === "objective") return "Objective";
+  if (type === "routineObjective") return "Template Objective";
+  return "Nothing";
+}
+
+function getInspectorBarClass(selection) {
+  const type = selection?.type || "none";
+  if (type === "quest") return "inspector-title-quest";
+  if (type === "routine") return "inspector-title-routine";
+  if (type === "objective") return "inspector-title-objective";
+  if (type === "routineObjective") return "inspector-title-routineObjective";
+  return "";
+}
+
+function getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveId) {
+  if (!selection || !data) return null;
+
+  if (selection.type === "quest") {
+    const quest = data.quests.find((item) => item.id === selection.id);
+    if (!quest) return null;
+
+    const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchObjectiveId;
+    return {
+      label: "Goto",
+      disabled: alreadyAtQuestRoot,
+      title: alreadyAtQuestRoot ? "Already focused here" : "Set focus path to this quest",
+      actionType: "quest",
+      questId: quest.id,
+    };
+  }
+
+  if (selection.type === "objective") {
+    const quest = data.quests.find((item) => item.id === selection.questId);
+    if (!quest) return null;
+
+    const found = findObjective(quest.objectives || [], selection.id);
+    const objective = found?.objective;
+    if (!objective || (objective.children || []).length === 0) return null;
+
+    const alreadyAtBranch = activeQuestId === quest.id && activeBranchObjectiveId === objective.id;
+    return {
+      label: "Goto",
+      disabled: alreadyAtBranch,
+      title: alreadyAtBranch ? "Already focused here" : "Set focus path to this branch",
+      actionType: "objective",
+      questId: quest.id,
+      objectiveId: objective.id,
+    };
+  }
+
+  return null;
+}
+
+function InspectorTitleBar({
+  selection,
+  data,
+  activeQuestId,
+  activeBranchObjectiveId,
+  makeFocus,
+  setBranchFocus,
+  goBack,
+  goForward,
+  canGoBack,
+  canGoForward,
+}) {
+  const goto = getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveId);
+
+  function runGoto() {
+    if (!goto || goto.disabled) return;
+
+    if (goto.actionType === "quest") {
+      makeFocus(goto.questId);
+    }
+
+    if (goto.actionType === "objective") {
+      makeFocus(goto.questId);
+      setBranchFocus(goto.objectiveId);
+    }
+  }
+
+  return (
+    <PanelTitleBar title={`Inspector - ${getSelectionType(selection)}`} className={getInspectorBarClass(selection)}>
+      <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30"><ArrowLeft size={16} /></button>
+      <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30"><ArrowRight size={16} /></button>
+      {goto && (
+        <button
+          onClick={runGoto}
+          disabled={goto.disabled}
+          className="title-secondary-button"
+          title={goto.title}
+        >
+          Goto
+        </button>
+      )}
+    </PanelTitleBar>
+  );
+}
+
+function Inspector({
+  selection,
+  data,
+  setData,
+  setSelection,
+  allTags,
+  activeQuestId,
+  goBack,
+  goForward,
+  canGoBack,
+  canGoForward,
+  makeFocus,
+  activeBranchObjectiveId,
+  setBranchFocus,
+  clearBranchFocus,
+  completeQuest,
+  restoreQuest,
+  createQuestObjective,
+  createRoutineObjective,
+  deleteQuest,
+  deleteRoutine,
+  deleteQuestObjective,
+  deleteRoutineObjective,
+  toggleObjective,
+  runMaintenanceNow,
+}) {
+  const selected = resolveSelection(selection, data);
+  const title = inspectorTitle(selection, selected);
+
+  return (
+    <div>
+
+
+      {selection.type === "quest" && selected?.quest && (
+        <QuestInspector
+          quest={selected.quest}
+          allTags={allTags}
+          isFocus={selected.quest.id === activeQuestId && !activeBranchObjectiveId}
+          isQuestRoot={selected.quest.id === activeQuestId}
+          activeBranchObjectiveId={activeBranchObjectiveId}
+          setData={setData}
+          routines={data.routines || []}
+          setSelection={setSelection}
+          makeFocus={() => makeFocus(selected.quest.id)}
+          completeQuest={() => completeQuest(selected.quest.id)}
+          restoreQuest={() => restoreQuest(selected.quest.id)}
+          deleteQuest={() => deleteQuest(selected.quest.id)}
+        />
+      )}
+
+      {selection.type === "routine" && selected?.routine && (
+        <RoutineInspector
+          routine={selected.routine}
+          allTags={allTags}
+          setData={setData}
+          deleteRoutine={() => deleteRoutine(selected.routine.id)}
+          runMaintenanceNow={runMaintenanceNow}
+        />
+      )}
+
+      {selection.type === "objective" && selected?.quest && selected?.objective && (
+        <ObjectiveInspector
+          objective={selected.objective}
+          parent={selected.parent}
+          ownerTitle={selected.quest.title}
+          ancestry={getObjectiveAncestry(selection, data)}
+          setSelection={setSelection}
+          locked={selected.quest.locked}
+          canFocusBranch={selected.quest.id === activeQuestId && (selected.objective.children || []).length > 0}
+          isBranchFocused={activeBranchObjectiveId === selected.objective.id}
+          setBranchFocus={() => setBranchFocus(selected.objective.id)}
+          clearBranchFocus={clearBranchFocus}
+          updateObjective={(updater) => {
+            setData((old) => ({
+              ...old,
+              quests: old.quests.map((quest) =>
+                quest.id === selected.quest.id
+                  ? { ...quest, objectives: updateObjectiveTree(quest.objectives, selection.id, updater) }
+                  : quest
+              ),
+            }));
+          }}
+          toggleComplete={() => toggleObjective(selected.quest.id, selected.objective.id)}
+          template={false}
+        />
+      )}
+
+      {selection.type === "routineObjective" && selected?.routine && selected?.objective && (
+        <ObjectiveInspector
+          objective={selected.objective}
+          parent={selected.parent}
+          ownerTitle={selected.routine.title}
+          ancestry={getObjectiveAncestry(selection, data)}
+          setSelection={setSelection}
+          locked={false}
+          updateObjective={(updater) => {
+            setData((old) => {
+              let updatedRoutine = null;
+              const routines = old.routines.map((routine) => {
+                if (routine.id !== selected.routine.id) return routine;
+                updatedRoutine = { ...routine, objectiveTemplate: updateObjectiveTree(routine.objectiveTemplate, selection.id, updater) };
+                return updatedRoutine;
+              });
+
+              return {
+                ...old,
+                routines,
+                quests: updatedRoutine
+                  ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
+                  : old.quests,
+              };
+            });
+          }}
+          template
+        />
+      )}
+
+      {(!selected || selection.type === "none") && (
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 text-neutral-400">
+          Select an item from the library or focus tree.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function resolveSelection(selection, data) {
+  if (!selection || selection.type === "none") return null;
+
+  if (selection.type === "quest") {
+    return { quest: data.quests.find((quest) => quest.id === selection.id) };
+  }
+
+  if (selection.type === "routine") {
+    return { routine: data.routines.find((routine) => routine.id === selection.id) };
+  }
+
+  if (selection.type === "objective") {
+    const quest = data.quests.find((item) => item.id === selection.questId);
+    const found = quest ? findObjective(quest.objectives, selection.id) : null;
+    return { quest, objective: found?.objective, parent: found?.parent };
+  }
+
+  if (selection.type === "routineObjective") {
+    const routine = data.routines.find((item) => item.id === selection.routineId);
+    const found = routine ? findObjective(routine.objectiveTemplate, selection.id) : null;
+    return { routine, objective: found?.objective, parent: found?.parent };
+  }
+
+  return null;
+}
+
+function inspectorTitle(selection, selected) {
+  if (selection.type === "quest" && selected?.quest) return `Quest: ${selected.quest.title || "Untitled"}`;
+  if (selection.type === "routine" && selected?.routine) return `Routine: ${selected.routine.title || "Untitled"}`;
+  if (selection.type === "objective" && selected?.objective) return `Objective: ${selected.objective.title || "Untitled"}`;
+  if (selection.type === "routineObjective" && selected?.objective) return `Template Objective: ${selected.objective.title || "Untitled"}`;
+  return "Nothing selected";
+}
+
+function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBranchObjectiveId = null, setData, routines, setSelection, makeFocus, completeQuest, restoreQuest, deleteQuest }) {
+  function updateQuest(patch) {
+    if (quest.locked) return;
+
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((item) => (item.id === quest.id ? { ...item, ...patch } : item)),
+    }));
+  }
+
+  const complete = isQuestComplete(quest);
+  const hasCompletionStamp = Boolean(quest.completedAt);
+  const sourceRoutine = (routines || []).find((routine) => routine.id === quest.routineId);
+
+  return (
+    <div className="space-y-4">
+      <div className="wiki-meta-block">
+        <QuestChildrenSummary quest={quest} setSelection={setSelection} />
+      </div>
+
+      <div className="main-action-row">
+        <ProgressActionButton
+          progress={getQuestProgress(quest)}
+          label="Complete quest"
+          readyLabel="Complete quest"
+          complete={complete && hasCompletionStamp}
+          completeLabel="Reopen quest"
+          onComplete={completeQuest}
+          onReopen={restoreQuest}
+          disabled={!isQuestReadyToComplete(quest)}
+          disabledTitle="Complete all root objectives first."
+        />
+      </div>
+
+      <InspectorProgressBar progress={getQuestProgress(quest)} label="Quest progress" />
+
+      {quest.locked && (
+        <div className="locked-notice">
+          This is a read-only instance generated from a routine.
+          {sourceRoutine && (
+            <button className="wiki-link-button ml-1" onClick={() => setSelection({ type: "routine", id: sourceRoutine.id })}>
+              Edit source routine
+            </button>
+          )}
+        </div>
+      )}
+
+      <FormText label="Title" value={quest.title} onChange={(value) => updateQuest({ title: value })} disabled={quest.locked} />
+      <FormTextarea label="Description" value={quest.description} onChange={(value) => updateQuest({ description: value })} disabled={quest.locked} />
+      <TagEditor tags={quest.tags || []} allTags={allTags} onChange={(tags) => updateQuest({ tags })} disabled={quest.locked} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <SelectField label="Difficulty" value={quest.difficulty} options={DIFFICULTIES} onChange={(value) => updateQuest({ difficulty: value })} disabled={quest.locked} />
+        <SelectField label="Rule" value={quest.mode} options={MODES} onChange={(value) => updateQuest({ mode: value })} disabled={quest.locked} />
+      </div>
+
+      <FormDate label="Deadline" value={quest.deadline} onChange={(value) => updateQuest({ deadline: value })} disabled={quest.locked} />
+
+      {!quest.locked && (
+        <div className="cooldown-box">
+          <label className="flex items-center gap-2 text-sm text-neutral-300">
+            <input
+              type="checkbox"
+              checked={quest.cooldownEnabled}
+              onChange={(event) => updateQuest({ cooldownEnabled: event.target.checked })}
+            />
+            Reset after cooldown
+          </label>
+
+          {quest.cooldownEnabled && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <FormNumber
+                label="Cooldown amount"
+                value={quest.cooldownAmount}
+                onChange={(value) => updateQuest({ cooldownAmount: value })}
+              />
+              <SelectField
+                label="Cooldown unit"
+                value={quest.cooldownUnit}
+                options={COOLDOWN_UNITS}
+                onChange={(value) => updateQuest({ cooldownUnit: value })}
+              />
+            </div>
+          )}
+
+          {quest.cooldownEnabled && quest.completedAt && (
+            <div className="mt-2 text-xs text-neutral-400">
+              Completed {quest.completedAt}. Resets after {quest.cooldownAmount} {quest.cooldownUnit}.
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
+        <div className="mb-2 flex justify-between text-sm">
+          <span className="text-neutral-400">Progress</span>
+          <span>{getQuestProgress(quest)}%</span>
+        </div>
+        <div className="h-3 overflow-hidden rounded-full bg-neutral-800">
+          <div className="h-full rounded-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
+        </div>
+      </div>
+
+      <div className="danger-zone">
+        <button
+          onClick={deleteQuest}
+          disabled={quest.locked}
+          className="danger-button w-full disabled:opacity-40 disabled:cursor-not-allowed"
+          title={quest.locked ? "Routine-generated quests cannot be deleted from the quest inspector." : "Delete quest"}
+        >
+          <Trash2 size={16} /> Delete quest
+        </button>
+      </div>
+
+
+    </div>
+  );
+}
+
+function RoutineInspector({ routine, allTags, setData, deleteRoutine, runMaintenanceNow }) {
+  function updateRoutine(patch) {
+    setData((old) => {
+      const updatedRoutine = { ...routine, ...patch };
+      return {
+        ...old,
+        routines: old.routines.map((item) => (item.id === routine.id ? updatedRoutine : item)),
+        quests: reconcileTodayQuestForRoutine(old.quests, updatedRoutine),
+      };
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="main-action-row">
+      </div>
+
+      <FormText label="Title" value={routine.title} onChange={(value) => updateRoutine({ title: value })} />
+      <FormTextarea label="Description" value={routine.description} onChange={(value) => updateRoutine({ description: value })} />
+      <TagEditor tags={routine.tags || []} allTags={allTags} onChange={(tags) => updateRoutine({ tags })} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <SelectField label="Difficulty" value={routine.difficulty} options={DIFFICULTIES} onChange={(value) => updateRoutine({ difficulty: value })} />
+        <SelectField label="Quest rule" value={routine.mode} options={MODES} onChange={(value) => updateRoutine({ mode: value })} />
+      </div>
+
+      <DayMaskEditor
+        label="Active days"
+        value={routine.dayMask ?? EVERY_DAY_MASK}
+        onChange={(value) => updateRoutine({ dayMask: value })}
+      />
+
+      <label className="flex items-center gap-2 text-sm text-neutral-300">
+        <input type="checkbox" checked={routine.active} onChange={(e) => updateRoutine({ active: e.target.checked })} />
+        Active
+      </label>
+
+      <div className="danger-zone">
+        <button onClick={deleteRoutine} className="danger-button w-full"><Trash2 size={16} /> Delete routine</button>
+      </div>
+
+
+    </div>
+  );
+}
+
+function InspectorProgressBar({ progress, label = "Progress", detail = "" }) {
+  const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
+
+  return (
+    <div className="inspector-progress-block">
+      <div className="inspector-progress-header">
+        <span>{label}</span>
+        <span>{detail || `${safeProgress}%`}</span>
+      </div>
+      <div className="inspector-progress-bar">
+        <div className="inspector-progress-fill" style={{ width: `${safeProgress}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function ProgressActionButton({
+  progress,
+  label,
+  readyLabel,
+  complete,
+  completeLabel = "Reopen",
+  onComplete,
+  onReopen,
+  disabled = false,
+  disabledTitle = "",
+}) {
+  const safeProgress = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
+
+  if (complete) {
+    return (
+      <button onClick={onReopen} className="main-action-button progress-action-button">
+        <RotateCcw size={18} /> {completeLabel}
+      </button>
+    );
+  }
+
+  if (safeProgress >= 100 && !disabled) {
+    return (
+      <button onClick={onComplete} className="main-action-button progress-action-button">
+        <CheckCircle2 size={18} /> {readyLabel}
+      </button>
+    );
+  }
+
+  return (
+    <button className="main-action-button progress-action-button" disabled title={disabledTitle}>
+      <CheckCircle2 size={18} /> {label}
+    </button>
+  );
+}
+
+function ObjectiveProgressBar({ objective }) {
+  const progress = getObjectiveProgress(objective);
+  const counts = countLeafProgress(objective);
+
+  return (
+    <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+      <div className="mb-2 flex justify-between text-sm">
+        <span className="text-neutral-400">Progress</span>
+        <span>{counts.complete} / {counts.total} · {progress}%</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded bg-neutral-800">
+        <div className="h-full rounded bg-neutral-200" style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function CounterField({ label, value, onChange, disabled = false, min = 0 }) {
+  const safeValue = Math.max(min, Number(value || min));
+
+  return (
+    <div>
+      <InputLabel text={label} />
+      <div className="counter-field mt-1">
+        <input
+          className="field counter-input"
+          type="number"
+          min={min}
+          value={safeValue}
+          onChange={(event) => onChange(Math.max(min, Number(event.target.value || min)))}
+          disabled={disabled}
+        />
+        <div className="counter-stepper">
+          <button type="button" onClick={() => onChange(safeValue + 1)} disabled={disabled}>+</button>
+          <button type="button" onClick={() => onChange(Math.max(min, safeValue - 1))} disabled={disabled}>−</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ObjectiveInspector({ objective, parent, ownerTitle, ancestry, setSelection, locked = false, canFocusBranch = false, isBranchFocused = false, setBranchFocus, clearBranchFocus, updateObjective, toggleComplete, template }) {
+  const hasChildren = (objective.children || []).length > 0;
+  const complete = isObjectiveComplete(objective);
+
+  return (
+    <div className="space-y-4">
+      <div className="wiki-meta-block">
+        <AncestryPath ancestry={ancestry || []} setSelection={setSelection} />
+        <ChildrenSummary objective={objective} ancestry={ancestry || []} setSelection={setSelection} />
+      </div>
+
+      {!template && (
+        <div className="main-action-row">
+          {hasChildren ? (
+            <ProgressActionButton
+              progress={getObjectiveProgress(objective)}
+              label="Complete objective"
+              readyLabel="Complete objective"
+              complete={complete}
+              completeLabel="Mark incomplete"
+              onComplete={toggleComplete}
+              onReopen={toggleComplete}
+              disabled={!areObjectiveChildrenComplete(objective)}
+              disabledTitle="Complete all child objectives first."
+            />
+          ) : (
+            <button onClick={toggleComplete} className="main-action-button">
+              {complete ? <RotateCcw size={18} /> : hasCountTarget(objective) && !isCountReady(objective) ? <Play size={18} /> : <CheckCircle2 size={18} />}
+              {complete ? "Mark incomplete" : hasCountTarget(objective) && !isCountReady(objective) ? "Progress objective" : "Complete objective"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {hasChildren && (
+        <InspectorProgressBar progress={getObjectiveProgress(objective)} label="Objective progress" />
+      )}
+
+      {!hasChildren && hasCountTarget(objective) && (
+        <InspectorProgressBar
+          progress={getLeafProgressPercent(objective)}
+          label="Count progress"
+          detail={`${getCountProgress(objective).progress} / ${getCountProgress(objective).target}`}
+        />
+      )}
+
+      <FormText label="Title" value={objective.title} onChange={(value) => updateObjective((old) => ({ ...old, title: value }))} disabled={locked} />
+      <FormTextarea label="Description" value={objective.description} onChange={(value) => updateObjective((old) => ({ ...old, description: value }))} disabled={locked} />
+      <SelectField label="Child rule" value={objective.mode} options={MODES} onChange={(value) => updateObjective((old) => ({ ...old, mode: value }))} disabled={locked} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <CounterField
+          label="Count target"
+          value={objective.countTarget || 0}
+          min={0}
+          disabled={locked || hasChildren}
+          onChange={(value) => updateObjective((old) => {
+            const nextTarget = Math.max(0, Number(value || 0));
+            const nextProgress = Math.min(nextTarget, Math.max(0, Number(old.countProgress || 0)));
+            return {
+              ...old,
+              countTarget: nextTarget,
+              countProgress: nextProgress,
+              completed: false,
+            };
+          })}
+        />
+        <CounterField
+          label="Count progress"
+          value={objective.countProgress || 0}
+          disabled={hasChildren || !(objective.countTarget > 0)}
+          onChange={(value) => updateObjective((old) => {
+            const target = Math.max(0, Number(old.countTarget || 0));
+            const progress = Math.min(target, Math.max(0, Number(value || 0)));
+            return {
+              ...old,
+              countProgress: progress,
+              completed: false,
+            };
+          }, { allowLockedProgress: true })}
+        />
+      </div>
+
+      <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
+        {hasChildren
+          ? "Parent objective: can be completed after its children are complete."
+          : objective.countTarget > 0
+            ? "Counted leaf objective: progress clicks advance the counter until complete."
+            : template
+              ? "Template leaf: generated copies can be completed later."
+              : "Leaf objective: can be completed directly."}
+      </div>
+
+    </div>
+  );
+}
+
+function QuestChildrenSummary({ quest, setSelection }) {
+  const children = quest?.objectives || [];
+  if (children.length === 0) {
+    return (
+      <div className="wiki-meta-line">
+        <span className="wiki-meta-label">Children:</span>{" "}
+        <span className="text-neutral-500">None</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wiki-meta-line">
+      <span className="wiki-meta-label">Children:</span>{" "}
+      {children.map((child, index) => (
+        <React.Fragment key={child.id}>
+          {index > 0 && <span>, </span>}
+          <button
+            className="wiki-link-button"
+            onClick={() => setSelection({ type: "objective", questId: quest.id, id: child.id })}
+          >
+            {child.title || "Untitled"}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function ChildrenSummary({ objective, ancestry, setSelection }) {
+  const children = objective?.children || [];
+  if (children.length === 0) return null;
+
+  const owner = ancestry?.[0];
+
+  return (
+    <div className="wiki-meta-line">
+      <span className="wiki-meta-label">Children:</span>{" "}
+      {children.map((child, index) => (
+        <React.Fragment key={child.id}>
+          {index > 0 && <span>, </span>}
+          <button
+            className="wiki-link-button"
+            onClick={() => {
+              if (owner?.type === "quest" && setSelection) {
+                setSelection({ type: "objective", questId: owner.id, id: child.id });
+              }
+              if (owner?.type === "routine" && setSelection) {
+                setSelection({ type: "routineObjective", routineId: owner.id, id: child.id });
+              }
+            }}
+          >
+            {child.title || "Untitled"}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function AncestryPath({ ancestry, setSelection }) {
+  if (!ancestry || ancestry.length === 0) return null;
+
+  return (
+    <div className="ancestry-path">
+      {ancestry.map((item, index) => (
+        <React.Fragment key={`${item.type}-${item.id}-${index}`}>
+          {index > 0 && <span className="ancestry-separator">›</span>}
+          <button
+            className="ancestry-button"
+            onClick={() => {
+              if (item.type === "quest") setSelection({ type: "quest", id: item.id });
+              if (item.type === "routine") setSelection({ type: "routine", id: item.id });
+              if (item.type === "objective") setSelection({ type: "objective", questId: item.questId, id: item.id });
+              if (item.type === "routineObjective") setSelection({ type: "routineObjective", routineId: item.routineId, id: item.id });
+            }}
+          >
+            {item.title || "Untitled"}
+          </button>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function TreeRootRow({ title, kind, selected, onSelect }) {
+  const className = ["tree-row", "tree-root-row", selected ? "tree-row-selected" : "", `tree-root-${kind}`].join(" ");
+
+  return (
+    <div className={className} onClick={onSelect}>
+      <div className="tree-root-content">
+        <div className="tree-root-icon">◆</div>
+        <div className="tree-root-title">{title || "Untitled"}</div>
+        <div className="tree-root-icon">◆</div>
+      </div>
+    </div>
+  );
+}
+
+function ObjectiveTree({ objectives, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null }) {
+  if (!objectives || objectives.length === 0) return <div className="text-sm text-neutral-500">No objectives yet.</div>;
+
+  return (
+    <div className="tree-node-list">
+      {objectives.map((objective) => {
+        const children = objective.children || [];
+        const hasChildren = children.length > 0;
+        const open = expanded[objective.id] ?? true;
+        const complete = isObjectiveComplete(objective);
+
+        const selected = isTreeObjectiveSelected(selection, treeContext, objective);
+        const rowClass = [
+          "tree-row",
+          complete ? "tree-row-complete" : "",
+          selected ? "tree-row-selected" : "",
+          treeEditMode ? "tree-row-edit" : "",
+        ].join(" ");
+
+        return (
+          <div key={objective.id} className="tree-node-wrap">
+            <div className={[depth > 0 ? "tree-row-wrap tree-node-child" : "tree-row-wrap tree-node-root", hasChildren ? "tree-row-branch" : "tree-row-leaf"].join(" ")}>
+              <div className="tree-disclosure-gutter">
+                {hasChildren ? (
+                  <button
+                    className="tree-disclosure"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setExpanded({ ...expanded, [objective.id]: !open });
+                    }}
+                  >
+                    {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                ) : (
+                  <div className="tree-disclosure-spacer" />
+                )}
+              </div>
+
+              <div
+                className={rowClass}
+                onClick={() => !treeEditMode && onSelect(objective)}
+              >
+                <div className="tree-row-main">
+                  <div className="tree-row-title">
+                    {objective.title || "Untitled objective"}
+                    {hasCountTarget(objective) && (
+                      <span className="tree-count-suffix"> ({getCountProgress(objective).progress}/{getCountProgress(objective).target})</span>
+                    )}
+                  </div>
+                  {hasChildren && <div className="tree-row-mode">{objective.mode === "sequence" ? "seq" : "all"}</div>}
+                </div>
+
+                <div className="tree-row-buttons" onClick={(event) => event.stopPropagation()}>
+                  {treeEditMode ? (
+                    <>
+                      <button onClick={() => onMoveUp?.(objective)} className="tree-icon-button" title="Move up"><ArrowUp size={14} /></button>
+                      <button onClick={() => onMoveDown?.(objective)} className="tree-icon-button" title="Move down"><ArrowDown size={14} /></button>
+                      <button onClick={() => onAddChild(objective)} className="tree-icon-button" title="Add child"><Plus size={14} /></button>
+                      <button onClick={() => onDelete?.(objective)} className="tree-icon-button danger-tree-button" title="Delete"><Trash2 size={14} /></button>
+                    </>
+                  ) : (
+                    !template && (!hasChildren || complete || isObjectiveReadyToComplete(objective)) && (
+                      <button
+                        onClick={() => onToggleComplete(objective)}
+                        className="tree-icon-button"
+                        title={complete ? "Mark incomplete" : hasChildren ? "Confirm complete" : "Complete"}
+                      >
+                        {complete ? <X size={14} /> : hasCountTarget(objective) && !isCountReady(objective) ? <Play size={14} /> : <CheckCircle2 size={14} />}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {hasChildren && open && (
+              <div className="tree-children-group">
+                <ObjectiveTree
+                  objectives={children}
+                  expanded={expanded}
+                  setExpanded={setExpanded}
+                  onSelect={onSelect}
+                  onAddChild={onAddChild}
+                  onDelete={onDelete}
+                  onMoveUp={onMoveUp}
+                  onMoveDown={onMoveDown}
+                  onToggleComplete={onToggleComplete}
+                  depth={depth + 1}
+                  template={template}
+                  treeEditMode={treeEditMode}
+                  selection={selection}
+                  treeContext={treeContext}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DayMaskEditor({ label, value, onChange, disabled = false }) {
+  function toggleDay(bit) {
+    if (disabled) return;
+    onChange(value ^ bit);
+  }
+
+  return (
+    <div>
+      <InputLabel text={label} />
+      <div className="day-mask-row">
+        {WEEKDAYS.map((day) => {
+          const active = (value & day.bit) !== 0;
+          return (
+            <button
+              key={day.key}
+              type="button"
+              className={active ? "day-button day-button-active" : "day-button"}
+              onClick={() => toggleDay(day.bit)}
+              disabled={disabled}
+            >
+              {day.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TagEditor({ tags, allTags, onChange, disabled = false }) {
+  const [custom, setCustom] = useState("");
+
+  function toggle(tag) {
+    onChange(tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]);
+  }
+
+  function addCustom() {
+    const clean = custom.trim();
+    if (!clean) return;
+    if (!tags.includes(clean)) onChange([...tags, clean]);
+    setCustom("");
+  }
+
+  return (
+    <div>
+      <InputLabel text="Tags" />
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        {allTags.map((tag) => (
+          <button key={tag} onClick={() => !disabled && toggle(tag)} disabled={disabled} className={tags.includes(tag) ? "pill-green" : "pill"}>{tag}</button>
+        ))}
+      </div>
+
+      <div className="mt-2 flex gap-2">
+        <input className="field" value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Custom tag" disabled={disabled} />
+        <button className="secondary-button" onClick={addCustom} disabled={disabled}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+function LibraryTabBar({ tab, setTab }) {
+  return (
+    <div className="panel-title-bar library-tab-bar">
+      <button
+        onClick={() => setTab("quests")}
+        className={tab === "quests" ? "library-title-tab library-title-tab-active" : "library-title-tab"}
+      >
+        Quests
+      </button>
+      <button
+        onClick={() => setTab("routines")}
+        className={tab === "routines" ? "library-title-tab library-title-tab-active" : "library-title-tab"}
+      >
+        Routines
+      </button>
+      <button
+        onClick={() => setTab("save")}
+        className={tab === "save" ? "library-title-tab library-title-tab-active" : "library-title-tab"}
+      >
+        Save/Load
+      </button>
+    </div>
+  );
+}
+
+function PanelTitleBar({ title, children, className = "" }) {
+  return (
+    <div className={`panel-title-bar ${className}`}>
+      <div className="panel-title-text">{title}</div>
+      {children && <div className="panel-title-actions">{children}</div>}
+    </div>
+  );
+}
+
+function InputLabel({ text }) {
+  return <label className="block text-sm font-medium text-neutral-300">{text}</label>;
+}
+
+function FormText({ label, value, onChange, disabled = false }) {
+  return (
+    <div>
+      <InputLabel text={label} />
+      <input className="field mt-1" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+    </div>
+  );
+}
+
+function FormTextarea({ label, value, onChange, disabled = false }) {
+  return (
+    <div>
+      <InputLabel text={label} />
+      <textarea className="field mt-1 min-h-24" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+    </div>
+  );
+}
+
+function FormNumber({ label, value, onChange, disabled = false }) {
+  return (
+    <div>
+      <InputLabel text={label} />
+      <input
+        className="field mt-1"
+        type="number"
+        min="1"
+        value={value || 1}
+        onChange={(e) => onChange(Number(e.target.value))}
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+function FormDate({ label, value, onChange, disabled = false }) {
+  return (
+    <div>
+      <InputLabel text={label} />
+      <input className="field mt-1" type="date" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+    </div>
+  );
+}
+
+function SelectField({ label, value, options, onChange, disabled = false }) {
+  return (
+    <div>
+      <InputLabel text={label} />
+      <select className="field mt-1" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+        {options.map((option) => <option key={option}>{option}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function DarkStyles() {
+  return (
+    <style>{`
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      .app-root {
+        height: 100%;
+        display: flex;
+        gap: 0.35rem;
+        overflow: hidden;
+      }
+      .column-splitter {
+        flex: 0 0 0.45rem;
+        cursor: col-resize;
+        border: 1px solid transparent;
+        background: rgb(23 23 23);
+      }
+      .column-splitter:hover {
+        border-color: rgb(82 82 82);
+        background: rgb(38 38 38);
+      }
+      .column-splitter::before {
+        content: "";
+        display: block;
+        width: 1px;
+        height: 3rem;
+        margin: 2rem auto 0;
+        background: rgb(82 82 82);
+      }
+      .panel {
+        border-radius: 0.25rem;
+        border: 1px solid rgb(38 38 38);
+        background: rgb(23 23 23);
+        padding: 0;
+        box-shadow: 0 20px 40px rgb(0 0 0 / 0.18);
+        min-height: 0;
+      }
+      .panel-title-bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        min-height: 1.55rem;
+        border-bottom: 1px solid rgb(38 38 38);
+        border-radius: 0.35rem 0.35rem 0 0;
+        background: rgb(38 38 38);
+        padding: 0.25rem 0.75rem;
+      }
+      .panel-title-text {
+        font-size: 0.9rem;
+        font-weight: 800;
+        color: rgb(229 229 229);
+      }
+      .library-tab-bar {
+        justify-content: flex-start;
+        gap: 0.25rem;
+        padding: 0.25rem 0.35rem 0;
+        min-height: 2.15rem;
+      }
+      .library-title-tab {
+        align-self: stretch;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 0.28rem 0.28rem 0 0;
+        padding: 0.25rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: rgb(163 163 163);
+      }
+      .library-title-tab:hover {
+        background: rgb(64 64 64);
+        color: rgb(229 229 229);
+      }
+      .library-title-tab-active {
+        border-color: rgb(64 64 64);
+        background: rgb(23 23 23);
+        color: rgb(245 245 245);
+      }
+      .panel-title-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .title-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 0.35rem;
+        color: rgb(229 229 229);
+      }
+      .title-icon-button:hover {
+        background: rgb(64 64 64);
+      }
+      .title-secondary-button,
+      .title-primary-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.35rem;
+        padding: 0.18rem 0.45rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+      }
+      .title-secondary-button {
+        background: rgb(23 23 23);
+        color: rgb(229 229 229);
+      }
+      .title-secondary-button:hover {
+        background: rgb(64 64 64);
+      }
+      .title-secondary-button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .title-secondary-button:disabled:hover {
+        background: rgb(23 23 23);
+      }
+      .title-primary-button {
+        background: rgb(229 229 229);
+        color: rgb(23 23 23);
+      }
+      .title-button-disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .main-action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .main-action-button {
+        display: inline-flex;
+        flex: 1 1 auto;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        border-radius: 0.32rem;
+        background: rgb(229 229 229);
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        font-weight: 800;
+        color: rgb(23 23 23);
+      }
+            .progress-action-button {
+        min-height: 2.75rem;
+      }
+
+
+      .main-action-button:disabled {
+        background: rgb(38 38 38);
+        border-color: rgb(64 64 64);
+        color: rgb(120 120 120);
+        cursor: default;
+        opacity: 0.75;
+      }
+
+      .main-action-button:disabled:hover {
+        background: rgb(38 38 38);
+        border-color: rgb(64 64 64);
+        color: rgb(120 120 120);
+      }
+
+.main-action-button:hover {
+        background: white;
+      }
+      .main-action-complete {
+        display: inline-flex;
+        flex: 1 1 auto;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.32rem;
+        border: 1px solid rgb(21 128 61);
+        background: rgb(20 83 45);
+        padding: 0.75rem 1rem;
+        font-weight: 800;
+        color: rgb(187 247 208);
+      }
+      .main-action-placeholder {
+        flex: 1 1 auto;
+        border-radius: 0.32rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.75rem 1rem;
+        text-align: center;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: rgb(163 163 163);
+      }
+      .danger-zone {
+        margin-top: 1rem;
+        border-top: 1px solid rgb(38 38 38);
+        padding-top: 1rem;
+      }
+      .wiki-meta-block {
+        display: grid;
+        gap: 0.25rem;
+        font-size: 0.78rem;
+        line-height: 1.35;
+        color: rgb(163 163 163);
+      }
+      .wiki-meta-line {
+        color: rgb(163 163 163);
+      }
+      .wiki-meta-label {
+        font-weight: 800;
+        color: rgb(212 212 212);
+      }
+      .ancestry-path {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.2rem;
+      }
+      .ancestry-path::before {
+        content: "Path:";
+        margin-right: 0.25rem;
+        font-weight: 800;
+        color: rgb(212 212 212);
+      }
+      .ancestry-button {
+        border-radius: 0.3rem;
+        padding: 0 0.15rem;
+        color: rgb(212 212 212);
+        text-decoration: underline;
+        text-decoration-color: rgb(82 82 82);
+        text-underline-offset: 2px;
+      }
+      .ancestry-button:hover {
+        color: white;
+        text-decoration-color: white;
+      }
+      .wiki-link-button {
+        border-radius: 0.3rem;
+        padding: 0 0.15rem;
+        color: rgb(212 212 212);
+        text-decoration: underline;
+        text-decoration-color: rgb(82 82 82);
+        text-underline-offset: 2px;
+      }
+      .wiki-link-button:hover {
+        color: white;
+        text-decoration-color: white;
+      }
+      .ancestry-separator {
+        color: rgb(115 115 115);
+      }
+      .inspector-title-quest {
+        background: rgb(20 83 45);
+        border-bottom-color: rgb(21 128 61);
+      }
+      .inspector-title-objective {
+        background: rgb(30 58 138);
+        border-bottom-color: rgb(30 64 175);
+      }
+      .inspector-title-routine {
+        background: rgb(120 53 15);
+        border-bottom-color: rgb(217 119 6);
+      }
+      .inspector-title-routineObjective {
+        background: rgb(120 53 15);
+        border-bottom-color: rgb(217 119 6);
+      }
+      .inspector-action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        border-radius: 0.32rem;
+        border: 1px solid rgb(38 38 38);
+        background: rgb(10 10 10);
+        padding: 0.65rem;
+      }
+      .focus-status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 0.28rem;
+        border: 1px solid rgb(21 128 61);
+        background: rgb(20 83 45);
+        padding: 0.5rem 0.75rem;
+        font-weight: 700;
+        color: rgb(187 247 208);
+      }
+      .panel-content {
+        padding: 1rem;
+      }
+      .panel-scroll {
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .library-col {
+        flex: 0 0 auto;
+      }
+      .focus-col {
+        flex: 1 1 auto;
+        min-width: 420px;
+      }
+      .right-column {
+        flex: 0 0 auto;
+        min-width: 360px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        overflow: hidden;
+      }
+      .right-splitter {
+        flex: 0 0 0.45rem;
+        cursor: row-resize;
+        border: 1px solid transparent;
+        background: rgb(23 23 23);
+      }
+      .right-splitter:hover {
+        border-color: rgb(82 82 82);
+        background: rgb(38 38 38);
+      }
+      .right-splitter::before {
+        content: "";
+        display: block;
+        height: 1px;
+        margin: 0.2rem auto 0;
+        width: 3rem;
+        background: rgb(82 82 82);
+      }
+      .inspector-panel {
+        flex: 0 0 auto;
+      }
+      .tree-panel {
+        flex: 0 0 auto;
+        transition: border-color 0.15s ease, background 0.15s ease;
+      
+      }
+      .focus-tree {
+        border-color: rgb(30 64 175);
+      }
+      .quest-tree {
+        border-color: rgb(21 128 61);
+              }
+      .routine-tree {
+        border-color: rgb(217 119 6);
+      }
+      .quest-type-regular-tree {
+        border-color: rgb(21 128 61);
+      }
+      .quest-type-routine-tree {
+        border-color: rgb(217 119 6);
+      }
+      .quest-type-cooldown-tree {
+        border-color: rgb(126 34 206);
+      }
+      .tree-mode-pill {
+        display: inline-flex;
+        border-radius: 0.35rem;
+        padding: 0.25rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: rgb(64 64 64);
+        color: rgb(229 229 229);
+      }
+      .tree-edit-pill {
+        display: inline-flex;
+        border-radius: 0.35rem;
+        padding: 0.25rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+        background: rgb(234 179 8);
+        color: rgb(23 23 23);
+      }
+      .tree-node-list {
+        display: grid;
+        gap: 0.15rem;
+      }
+      .tree-node-wrap {
+        position: relative;
+        display: grid;
+        gap: 0.15rem;
+      }
+      .tree-row-wrap {
+        position: relative;
+        display: flex;
+        align-items: stretch;
+        gap: 0.25rem;
+      }
+      .tree-children-group {
+        position: relative;
+        margin-left: 1.35rem;
+        padding-left: 0.55rem;
+        display: grid;
+        gap: 0.15rem;
+      }
+      .tree-row-wrap.tree-node-child::after {
+        content: "";
+        position: absolute;
+        left: calc(-0.55rem - 12px);
+        top: -0.15rem;
+        bottom: calc(50% - 1px);
+        width: 2px;
+        background: rgb(82 82 82);
+        opacity: 0.9;
+      }
+      .tree-node-wrap:not(:last-child) > .tree-row-wrap.tree-node-child::after {
+        bottom: -0.15rem;
+      }
+      .tree-row-wrap.tree-node-child::before {
+        content: "";
+        position: absolute;
+        left: calc(-0.55rem - 12px);
+        top: 0.78rem;
+        width: calc(0.55rem + 12px);
+        height: 2px;
+        background: rgb(82 82 82);
+        opacity: 0.9;
+      }
+      .tree-row-wrap.tree-node-child.tree-row-leaf::before {
+        width: calc(1.9rem + 12px);
+      }
+      .tree-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-height: 1.55rem;
+        border-radius: 0.25rem;
+        border: 1px solid transparent;
+        background: rgb(23 23 23);
+        padding: 0.12rem 0.3rem;
+        cursor: pointer;
+      
+        flex: 1 1 auto;}
+      .tree-row:hover {
+        border-color: rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .tree-row-selected {
+        border-color: rgb(229 229 229);
+        background: rgb(38 38 38);
+      }
+      .tree-root-row {
+        margin-bottom: 0.5rem;
+        font-weight: 800;
+        justify-content: center;
+      }
+      .tree-root-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.85rem;
+        width: 100%;
+        min-width: 0;
+        text-align: center;
+      }
+      .tree-root-icon {
+        flex: 0 0 auto;
+        width: 1.35rem;
+        text-align: center;
+        color: rgb(229 229 229);
+      }
+      .tree-root-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: center;
+      }
+      .tree-root-quest {
+        border-color: rgb(21 128 61);
+      }
+      .tree-root-routine {
+        border-color: rgb(217 119 6);
+      }
+      .tree-root-focus {
+        border-color: rgb(30 64 175);
+      }
+      .tree-root-quest-type-regular {
+        border-color: rgb(21 128 61);
+      }
+      .tree-root-quest-type-routine {
+        border-color: rgb(217 119 6);
+      }
+      .tree-root-quest-type-cooldown {
+        border-color: rgb(126 34 206);
+      }
+      .tree-root-root-quest-type-regular {
+        border-width: 2px;
+      }
+      .tree-root-root-quest-type-routine {
+        border-width: 2px;
+      }
+      .tree-root-root-quest-type-cooldown {
+        border-width: 2px;
+      }
+      .tree-row-complete {
+        background: rgb(52 68 58);
+      }
+      .tree-row-complete:hover {
+        background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)), rgb(52 68 58);
+      }
+      .tree-row-edit {
+        cursor: default;
+      }
+      .tree-row-main {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        gap: 0.35rem;
+      }
+      .tree-row-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.9rem;
+        font-weight: 650;
+      }
+      .tree-count-suffix {
+        color: rgb(163 163 163);
+        font-weight: 650;
+      }
+      .tree-row-mode {
+        flex: 0 0 auto;
+        border-radius: 0.35rem;
+        background: rgb(64 64 64);
+        padding: 0.1rem 0.35rem;
+        font-size: 0.65rem;
+        font-weight: 800;
+        color: rgb(212 212 212);
+      }
+      .tree-row-buttons {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 0.25rem;
+      }
+            .tree-disclosure-gutter {
+        display: inline-flex;
+        flex: 0 0 1.35rem;
+        align-items: center;
+        justify-content: center;
+      }
+.tree-disclosure,
+      .tree-icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 0.25rem;
+        color: rgb(229 229 229);
+      }
+      .tree-disclosure-spacer {
+        display: inline-flex;
+        width: 1.35rem;
+        height: 1.35rem;
+        flex: 0 0 1.35rem;
+      }
+
+      .tree-disclosure:hover,
+      .tree-icon-button:hover {
+        background: rgb(64 64 64);
+      }
+      .danger-tree-button:hover {
+        background: rgb(127 29 29);
+      }
+      .selection-type-card {
+        margin-bottom: 1rem;
+        border-radius: 0.25rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        padding: 0.75rem;
+      }
+      .selection-type-label {
+        display: inline-flex;
+        border-radius: 0.35rem;
+        padding: 0.25rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .selection-type-title {
+        margin-top: 0.5rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: rgb(245 245 245);
+      }
+      .selection-quest {
+        border-color: rgb(21 128 61);
+      }
+      .selection-quest .selection-type-label {
+        background: rgb(20 83 45);
+        color: rgb(187 247 208);
+      }
+      .selection-objective {
+        border-color: rgb(30 64 175);
+      }
+      .selection-objective .selection-type-label {
+        background: rgb(30 58 138);
+        color: rgb(191 219 254);
+      }
+      .selection-routine {
+        border-color: rgb(126 34 206);
+      }
+      .selection-routine .selection-type-label {
+        background: rgb(88 28 135);
+        color: rgb(233 213 255);
+      }
+      .selection-routineObjective {
+        border-color: rgb(147 51 234);
+      }
+      .selection-routineObjective .selection-type-label {
+        background: rgb(107 33 168);
+        color: rgb(243 232 255);
+      }
+      .focus-panel-content {
+        min-height: calc(100% - 2rem);
+        display: flex;
+        flex-direction: column;
+      }
+      .focus-document-header {
+        padding: 0.25rem 0 0;
+      }
+      .focus-document-title {
+        display: block;
+        font-size: 2rem;
+        line-height: 1.1;
+        font-weight: 900;
+        color: rgb(245 245 245);
+        text-align: left;
+      }
+      .focus-document-title-button {
+        text-decoration: underline;
+        text-decoration-color: transparent;
+        text-underline-offset: 3px;
+      }
+      .focus-document-title-button:hover {
+        text-decoration-color: currentColor;
+      }
+      .focus-directory-path {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.3rem;
+        margin-top: 0.45rem;
+        font-size: 1rem;
+        color: rgb(212 212 212);
+      }
+      .focus-directory-link {
+        text-align: left;
+        color: rgb(212 212 212);
+        text-decoration: underline;
+        text-decoration-color: transparent;
+        text-underline-offset: 2px;
+      }
+      .focus-directory-link:hover {
+        color: white;
+        text-decoration-color: currentColor;
+      }
+      .focus-directory-separator {
+        color: rgb(115 115 115);
+      }
+      .focus-relations {
+        display: grid;
+        gap: 0.25rem;
+        margin-top: 0.45rem;
+        font-size: 1rem;
+        color: rgb(212 212 212);
+      }
+      .focus-relation-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .focus-relation-label {
+        font-weight: 800;
+        color: rgb(212 212 212);
+      }
+      .focus-relation-muted {
+        color: rgb(115 115 115);
+      }
+      .focus-relation-chip {
+        color: rgb(212 212 212);
+        text-decoration: underline;
+        text-decoration-color: transparent;
+        text-underline-offset: 2px;
+      }
+      .focus-relation-chip:hover {
+        color: white;
+        text-decoration-color: currentColor;
+      }
+      .focus-description-section {
+        margin-top: 0.85rem;
+      }
+      .focus-description-title {
+        font-size: 1.2rem;
+        font-weight: 900;
+        color: rgb(245 245 245);
+      }
+      .focus-description-text {
+        margin-top: 0.25rem;
+        white-space: pre-wrap;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: rgb(212 212 212);
+      }
+      .focus-path-header {
+        padding: 0.25rem 0 0;
+      }
+      .focus-path-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.25rem;
+        font-size: 1.5rem;
+        font-weight: 800;
+      }
+      .focus-path-title-link {
+        color: rgb(245 245 245);
+        text-align: left;
+      }
+      .focus-path-title-link:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .focus-path-title-separator {
+        color: rgb(115 115 115);
+      }
+      .focus-branch-nav {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.45rem;
+        font-size: 0.8rem;
+      }
+      .focus-branch-label {
+        font-weight: 800;
+        color: rgb(212 212 212);
+      }
+      .branch-progress-line {
+        margin-top: 0.75rem;
+      }
+      .branch-progress-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        font-size: 0.82rem;
+        font-weight: 750;
+        color: rgb(212 212 212);
+      }
+      .branch-progress-track {
+        margin-top: 0.35rem;
+        height: 0.45rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+      }
+      .branch-progress-fill {
+        height: 100%;
+        background: rgb(212 212 212);
+      }
+      .focus-nav {
+        display: grid;
+        gap: 0.3rem;
+        margin-top: 0.75rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        padding: 0.55rem;
+        font-size: 0.8rem;
+      }
+      .focus-nav-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .focus-nav-label {
+        font-weight: 800;
+        color: rgb(212 212 212);
+      }
+      .focus-nav-link {
+        color: rgb(212 212 212);
+        text-decoration: underline;
+        text-decoration-color: rgb(82 82 82);
+        text-underline-offset: 2px;
+      }
+      .focus-nav-link:hover {
+        color: white;
+        text-decoration-color: white;
+      }
+      .focus-nav-separator,
+      .focus-nav-muted {
+        color: rgb(115 115 115);
+      }
+      .focus-nav-chip {
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.1rem 0.35rem;
+        color: rgb(212 212 212);
+      }
+      .focus-nav-chip:hover {
+        background: rgb(38 38 38);
+      }
+
+
+      .complete-quest-celebration {
+        display: flex;
+        justify-content: center;
+        margin: 1.5rem 1.5rem 1rem;
+      }
+      .recommended-complete-quest-button {
+        width: min(38rem, 100%);
+        border: 1px solid rgb(74 222 128);
+        background: linear-gradient(135deg, rgb(22 101 52), rgb(34 140 84));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 0 1.4rem rgba(34, 197, 94, 0.18);
+        padding: 1.35rem 1.75rem;
+        display: grid;
+        grid-template-columns: 2rem minmax(0, 1fr) 2rem;
+        align-items: center;
+        justify-items: center;
+        gap: 1rem;
+        font-size: 1.2rem;
+        font-weight: 950;
+        letter-spacing: 0.02em;
+      }
+      .recommended-complete-quest-button:hover {
+        background: linear-gradient(rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14)), linear-gradient(135deg, rgb(22 101 52), rgb(34 140 84));
+      }
+      .recommended-complete-quest-button-done,
+      .recommended-complete-quest-button-done:hover,
+      .recommended-complete-quest-button-done:disabled {
+        border-color: rgb(115 115 115);
+        background: linear-gradient(135deg, rgb(64 64 64), rgb(82 82 82));
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        color: rgb(229 229 229);
+        cursor: default;
+        opacity: 1;
+      }
+      .complete-quest-icon {
+        color: rgb(220 252 231);
+        font-size: 1rem;
+        line-height: 1;
+      }
+      .recommended-complete-quest-button-done .complete-quest-icon {
+        color: rgb(212 212 212);
+      }
+      .complete-quest-label {
+        min-width: 0;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .recommended-task-row {
+        margin-top: 0.5rem;
+        min-height: 3rem;
+        padding-right: 8.5rem;
+      }
+      .recommended-task-text {
+        min-width: 0;
+        text-align: left;
+      }
+      .recommended-action-button {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        min-width: 7.5rem;
+      }
+      .focus-recommend-panel {
+        position: relative;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        padding: 0.9rem;
+      
+      
+        padding-right: 9.5rem;
+      }
+      .focus-board {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.75rem;
+        height: 50vh;
+        min-height: 50vh;
+        max-height: 50vh;
+        overflow: hidden;
+      }
+      .focus-column {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        max-height: 100%;
+        flex-direction: column;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        overflow: hidden;
+      }
+      .focus-column-title {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        border-bottom: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.45rem 0.55rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+      }
+      .focus-column-count {
+        color: rgb(163 163 163);
+        font-size: 0.75rem;
+      }
+      .focus-column-list {
+        display: flex;
+        flex: 1 1 0;
+        min-height: 0;
+        max-height: 100%;
+        flex-direction: column;
+        gap: 0.35rem;
+        padding: 0.45rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .focus-card {
+        flex: 0 0 auto;
+        border: 1px solid rgb(38 38 38);
+        background: rgb(23 23 23);
+        overflow: hidden;
+      
+      }
+      .focus-card-bar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.35rem;
+        background: rgb(38 38 38);
+        padding: 0.3rem 0.35rem;
+        cursor: pointer;
+      
+      }
+      .focus-card-body {
+        border-top: 1px solid rgb(38 38 38);
+        background: rgb(10 10 10);
+        padding: 0.5rem;
+        white-space: pre-wrap;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        color: rgb(212 212 212);
+      }
+      .focus-card-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex: 0 0 auto;
+      }
+      .focus-card:hover {
+        border-color: rgb(82 82 82);
+      }
+      .focus-card-bar:focus-visible {
+        outline: 2px solid rgb(163 163 163);
+        outline-offset: -2px;
+      }
+
+
+      .focus-card-title-line {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .focus-card-dropdown {
+        flex: 0 0 auto;
+      }
+      .focus-card-progress-full {
+        width: 100%;
+        border-left: 0;
+        border-right: 0;
+        border-top: 1px solid rgb(38 38 38);
+        border-bottom: 0;
+        height: 0.42rem;
+      }
+      .focus-card-main {
+        min-width: 0;
+        text-align: left;
+      }
+      .focus-card-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.82rem;
+        font-weight: 650;
+      }
+      .focus-path-links {
+        display: flex;
+        min-width: 0;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.2rem;
+        font-size: 0.82rem;
+        font-weight: 650;
+      }
+      .focus-path-link {
+        max-width: 100%;
+        padding: 0 0.05rem;
+        color: rgb(212 212 212);
+        text-align: left;
+        text-decoration: underline;
+        text-decoration-color: transparent;
+        text-underline-offset: 2px;
+      }
+      .focus-path-link:hover {
+        color: white;
+        text-decoration-color: currentColor;
+      }
+      .focus-path-separator {
+        color: rgb(115 115 115);
+      }
+      .focus-card-progress-bar {
+        margin-top: 0.3rem;
+        height: 0.35rem;
+        overflow: hidden;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+      }
+      .focus-card-progress-fill {
+        height: 100%;
+        background: rgb(163 163 163);
+      }
+
+      .focus-card-action-progress {
+        border-color: rgb(245 158 11);
+        background: rgb(180 95 18);
+      }
+      .focus-card-action-progress:hover {
+        background: linear-gradient(rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14)), rgb(180 95 18);
+      }
+      
+      .focus-card-action-uncomplete:hover {
+        border-color: rgb(248 113 113);
+        background: rgb(185 45 45);
+      }
+.focus-card-action-complete {
+        border-color: rgb(74 222 128);
+        background: rgb(34 140 84);
+      }
+      .focus-card-action-complete:hover {
+        background: linear-gradient(rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14)), rgb(34 140 84);
+      }
+      .focus-card-done {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        border: 1px solid rgb(64 64 64);
+        color: rgb(212 212 212);
+      }
+      .focus-card-done:hover {
+        color: inherit;
+      }
+      .focus-card-complete {
+        color: rgb(163 163 163);
+      }
+      .focus-empty {
+        font-size: 0.78rem;
+        color: rgb(115 115 115);
+        padding: 0.25rem;
+      }
+
+      .objective-action-stack {
+        display: grid;
+        flex: 1 1 auto;
+        gap: 0.45rem;
+      }
+      .counter-field {
+        display: flex;
+        align-items: stretch;
+        gap: 0.35rem;
+      }
+      .counter-input {
+        min-width: 0;
+        text-align: center;
+        appearance: textfield;
+        -moz-appearance: textfield;
+      }
+      .counter-input::-webkit-outer-spin-button,
+      .counter-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      .counter-stepper {
+        display: flex;
+        flex: 0 0 1.7rem;
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .counter-stepper button {
+        flex: 1 1 0;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(38 38 38);
+        font-size: 0.75rem;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .counter-stepper button:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .inspector-progress-block {
+        display: grid;
+        gap: 0.35rem;
+        width: 100%;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        padding: 0.65rem;
+      }
+      .inspector-progress-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        color: rgb(212 212 212);
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+      .inspector-progress-line {
+        display: grid;
+        gap: 0.3rem;
+        width: 100%;
+        color: rgb(212 212 212);
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+      .inspector-progress-bar {
+        height: 0.5rem;
+        overflow: hidden;
+        border: 1px solid rgb(82 82 82);
+        background: rgb(38 38 38);
+      }
+      .inspector-progress-fill {
+        height: 100%;
+        background: rgb(229 229 229);
+        opacity: 0.28;
+      }
+
+
+      select.field {
+        appearance: none;
+        -webkit-appearance: none;
+        background-color: rgb(23 23 23);
+        color: rgb(245 245 245);
+        border-color: rgb(64 64 64);
+      }
+      select.field option {
+        background-color: rgb(23 23 23);
+        color: rgb(245 245 245);
+      }
+
+      .field {
+        width: 100%;
+        border-radius: 0.28rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        padding: 0.5rem 0.75rem;
+        color: rgb(245 245 245);
+        outline: none;
+      }
+      .field:focus { border-color: rgb(163 163 163); }
+      .field:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+      }
+      .locked-notice {
+        border-radius: 0.28rem;
+        border: 1px solid rgb(30 64 175);
+        background: rgb(23 23 23);
+        padding: 0.65rem;
+        font-size: 0.85rem;
+        color: rgb(191 219 254);
+      }
+      .cooldown-box {
+        border-radius: 0.32rem;
+        border: 1px solid rgb(38 38 38);
+        background: rgb(10 10 10);
+        padding: 0.75rem;
+      }
+      .day-mask-row {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 0.35rem;
+        margin-top: 0.35rem;
+      }
+      .day-button {
+        border-radius: 0.25rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(10 10 10);
+        padding: 0.35rem 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: rgb(163 163 163);
+      }
+      .day-button:hover {
+        background: rgb(38 38 38);
+      }
+      .day-button-active {
+        border-color: rgb(126 34 206);
+        background: rgb(88 28 135);
+        color: rgb(243 232 255);
+      }
+      .primary-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        border-radius: 0.28rem;
+        background: rgb(229 229 229);
+        padding: 0.5rem 1rem;
+        font-weight: 700;
+        color: rgb(23 23 23);
+      }
+      .primary-button:hover { background: white; }
+      .secondary-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        border-radius: 0.28rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        color: rgb(229 229 229);
+      }
+      .secondary-button:hover { background: rgb(38 38 38); }
+      .danger-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        border-radius: 0.28rem;
+        border: 1px solid rgb(127 29 29);
+        background: rgb(69 10 10);
+        padding: 0.5rem 1rem;
+        font-weight: 700;
+        color: rgb(254 202 202);
+      }
+      .danger-button:hover { background: rgb(127 29 29); }
+      .icon-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.28rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.5rem;
+        color: rgb(229 229 229);
+      }
+      .icon-button:hover { background: rgb(38 38 38); }
+      .library-card {
+        width: 100%;
+        border-radius: 0.25rem;
+        border: 1px solid rgb(38 38 38);
+        background: rgb(10 10 10);
+        padding: 1rem;
+      }
+      .library-card:hover {
+        background: rgb(38 38 38);
+      }
+      .quest-type-regular {
+        border-color: rgb(21 128 61);
+      }
+      .quest-type-routine {
+        border-color: rgb(217 119 6);
+      }
+      .quest-type-cooldown {
+        border-color: rgb(126 34 206);
+      }
+      .library-card-complete {
+        border-color: rgb(64 64 64);
+        background: rgb(23 23 23);
+        color: rgb(163 163 163);
+      }
+      .library-card-complete:hover {
+        background: rgb(38 38 38);
+      }
+      .library-card-complete .font-semibold {
+        color: rgb(163 163 163);
+      }
+      .library-card-complete .text-neutral-400 {
+        color: rgb(115 115 115);
+      }
+      .pill-complete {
+        border-radius: 0.35rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        background: rgb(20 83 45);
+        color: rgb(187 247 208);
+      }
+      .tab {
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        color: rgb(163 163 163);
+        font-weight: 700;
+      }
+      .tab-active {
+        border-radius: 0.25rem;
+        background: rgb(64 64 64);
+        padding: 0.5rem;
+        color: rgb(245 245 245);
+        font-weight: 700;
+      }
+      .badge, .pill, .pill-blue, .pill-green, .pill-red {
+        border-radius: 0.35rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+      .pill { background: rgb(38 38 38); color: rgb(212 212 212); }
+      .pill-blue { background: rgb(30 58 138); color: rgb(191 219 254); }
+      .pill-green { background: rgb(20 83 45); color: rgb(187 247 208); }
+      .pill-red { background: rgb(127 29 29); color: rgb(254 202 202); }
+    `}</style>
+  );
+}
