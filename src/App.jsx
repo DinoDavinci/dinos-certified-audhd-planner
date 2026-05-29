@@ -779,26 +779,26 @@ const seedData = {
     makeQuest({
       id: "quest_programming_sample",
       title: "Small Programming Task",
-      description: "A generic programming quest for finishing one small feature, bug fix, or refactor.",
+      description: "Use this as a template for one small programming task, feature, bug fix, or refactor.\n\nGoal:\nBreak the work into clear steps so the task does not become one vague blob.",
       tags: ["Programming"],
       difficulty: "Medium",
       mode: "sequence",
       objectives: [
-        makeObjective({ id: "obj_programming_plan", title: "Plan", description: "Clarify the work before coding.", mode: "sequence", children: [
-            makeObjective({ id: "obj_programming_define", title: "Define the goal", description: "Write down what the feature or fix is supposed to accomplish." }),
-            makeObjective({ id: "obj_programming_breakdown", title: "Break into steps", description: "List the smallest useful changes you can make without trying to solve everything at once." })
+        makeObjective({ id: "obj_programming_plan", title: "Plan", description: "Figure out what you are trying to do before opening too many files.\n\nOutput:\nA short written goal and a small step list.", mode: "sequence", children: [
+            makeObjective({ id: "obj_programming_define", title: "Define the goal", description: "Write one or two sentences describing the intended outcome.\n\nUseful questions:\n- What should change?\n- What should stay the same?\n- How will I know it worked?" }),
+            makeObjective({ id: "obj_programming_breakdown", title: "Break into steps", description: "Split the work into small steps.\n\nAim for steps that can be tested independently.\n\nAvoid:\nA giant all-in-one refactor unless the task truly requires it." })
           ] }),
-        makeObjective({ id: "obj_programming_build", title: "Build and verify", description: "Implement the change and check that it works.", mode: "sequence", children: [
-            makeObjective({ id: "obj_programming_implement", title: "Implement first pass", description: "Make the simplest working version before polishing." }),
-            makeObjective({ id: "obj_programming_test", title: "Test behavior", description: "Try the happy path and at least one edge case." }),
-            makeObjective({ id: "obj_programming_cleanup", title: "Clean up notes", description: "Remove temporary code and write down anything important for the next session." })
+        makeObjective({ id: "obj_programming_build", title: "Build and verify", description: "Make the planned change, then verify it.\n\nKeep the first pass simple. Polish after the behavior works.", mode: "sequence", children: [
+            makeObjective({ id: "obj_programming_implement", title: "Implement first pass", description: "Build the simplest version that proves the idea works.\n\nDo not polish too early.\n\nGood first-pass goal:\nWorking, understandable, and easy to revise." }),
+            makeObjective({ id: "obj_programming_test", title: "Test behavior", description: "Check that the task actually works.\n\nTest:\n- The normal expected case\n- At least one edge case\n- Anything that previously broke" }),
+            makeObjective({ id: "obj_programming_cleanup", title: "Clean up notes", description: "Clean up after the task.\n\nChecklist:\n- Remove temporary logs or scratch code\n- Rename unclear variables if needed\n- Write down any follow-up task\n- Commit if the change is good" })
           ] }),
       ],
     }),
     makeQuest({
       id: "quest_oil_change",
       title: "Change Car Oil",
-      description: "Recurring maintenance task for changing the car oil. Complete it when the oil change is done; the cooldown can reset it later.",
+      description: "Recurring maintenance task for changing car oil.\n\nComplete this quest after the oil change is done.\n\nThe cooldown can reset it later.",
       tags: ["Maintenance", "Car"],
       difficulty: "Medium",
       mode: "sequence",
@@ -806,17 +806,17 @@ const seedData = {
       cooldownAmount: 6,
       cooldownUnit: "months",
       objectives: [
-        makeObjective({ id: "obj_oil_supplies", title: "Gather supplies", description: "Oil, filter, drain pan, funnel, gloves, rags, and the correct tools." }),
-        makeObjective({ id: "obj_oil_drain", title: "Drain old oil", description: "Drain the old oil safely and keep track of the drain plug." }),
-        makeObjective({ id: "obj_oil_filter", title: "Replace filter", description: "Remove the old filter and install the new one." }),
-        makeObjective({ id: "obj_oil_refill", title: "Refill oil", description: "Add the correct amount and type of oil." }),
-        makeObjective({ id: "obj_oil_check", title: "Check level and leaks", description: "Run briefly, check for leaks, then check the dipstick level." }),
+        makeObjective({ id: "obj_oil_supplies", title: "Gather supplies", description: "Gather everything before starting.\n\nChecklist:\n- Oil\n- Oil filter\n- Drain pan\n- Funnel\n- Gloves\n- Rags\n- Correct tools" }),
+        makeObjective({ id: "obj_oil_drain", title: "Drain old oil", description: "Drain the old oil safely.\n\nRemember:\n- Let the oil drain fully\n- Keep track of the drain plug\n- Avoid spills where possible" }),
+        makeObjective({ id: "obj_oil_filter", title: "Replace filter", description: "Replace the oil filter.\n\nBasic reminder:\n- Remove old filter\n- Check that the old gasket came off\n- Install the new filter correctly" }),
+        makeObjective({ id: "obj_oil_refill", title: "Refill oil", description: "Refill with the correct oil.\n\nCheck:\n- Correct oil type\n- Correct amount\n- Oil cap replaced afterward" }),
+        makeObjective({ id: "obj_oil_check", title: "Check level and leaks", description: "Verify the oil change.\n\nChecklist:\n- Run briefly\n- Check for leaks\n- Turn off and wait briefly\n- Check dipstick level\n- Top off if needed" }),
       ],
     }),
     makeQuest({
       id: "quest_laundry",
       title: "Laundry",
-      description: "Recurring household task for washing, drying, folding, and putting away clothes.",
+      description: "Recurring household task for laundry.\n\nGoal:\nMove clothes all the way from dirty to put away, not just washed.",
       tags: ["Home"],
       difficulty: "Tiny",
       mode: "sequence",
@@ -824,10 +824,41 @@ const seedData = {
       cooldownAmount: 1,
       cooldownUnit: "weeks",
       objectives: [
-        makeObjective({ id: "obj_laundry_sort", title: "Gather laundry", description: "Collect clothes, towels, and other washable items." }),
-        makeObjective({ id: "obj_laundry_wash", title: "Wash", description: "Start the washer with the appropriate settings." }),
-        makeObjective({ id: "obj_laundry_dry", title: "Dry", description: "Move items to the dryer or hang dry as needed." }),
-        makeObjective({ id: "obj_laundry_put_away", title: "Put away", description: "Fold or hang clothes and put them back where they belong." }),
+        makeObjective({ id: "obj_laundry_sort", title: "Gather laundry", description: "Collect laundry from the usual places.\n\nInclude:\n- Clothes\n- Towels\n- Washable cloth items\n- Anything that needs special handling" }),
+        makeObjective({ id: "obj_laundry_wash", title: "Wash", description: "Start the wash.\n\nCheck:\n- Load size\n- Detergent\n- Water temperature\n- Any special settings" }),
+        makeObjective({ id: "obj_laundry_dry", title: "Dry", description: "Move laundry out of the washer.\n\nUse dryer or hang dry as needed.\n\nDo not leave wet laundry sitting too long." }),
+        makeObjective({ id: "obj_laundry_put_away", title: "Put away", description: "Finish the laundry loop.\n\nChecklist:\n- Fold or hang\n- Pair socks if needed\n- Put everything away" }),
+      ],
+    }),
+    makeQuest({
+      id: "quest_update_website",
+      title: "Update Website",
+      description: "Reference quest for publishing changes to the GitHub Pages web version.\n\nUse this when updating the public website.",
+      tags: ["Release", "Website"],
+      difficulty: "Tiny",
+      mode: "sequence",
+      objectives: [
+        makeObjective({ id: "obj_web_test_dev", title: "Test locally", description: "Verify the browser dev version.\n\nCommand:\nnpm run dev\n\nCheck:\n- App loads\n- Main workflow still works\n- No obvious console errors" }),
+        makeObjective({ id: "obj_web_test_tauri", title: "Test desktop dev", description: "Verify the desktop dev version if the change affects Tauri, localStorage, layout, or file behavior.\n\nCommand:\nnpm run tauri dev" }),
+        makeObjective({ id: "obj_web_commit", title: "Commit changes", description: "Commit and push the source update.\n\nCommands:\ngit add .\ngit commit -m \"Describe update\"\ngit push origin main" }),
+        makeObjective({ id: "obj_web_build", title: "Build website", description: "Create the production website build.\n\nCommand:\nnpm run build\n\nIf this fails, fix the error before deploying." }),
+        makeObjective({ id: "obj_web_deploy", title: "Deploy GitHub Pages", description: "Publish the built website to GitHub Pages.\n\nCommand:\nnpm run deploy\n\nThis updates the gh-pages branch." }),
+        makeObjective({ id: "obj_web_verify", title: "Verify live page", description: "Verify the live website.\n\nCheck:\n- Page loads\n- App is not a white screen\n- Refresh keeps data\n- JSON export/import still works\n\nIf needed, hard refresh:\nCtrl + Shift + R" }),
+      ],
+    }),
+    makeQuest({
+      id: "quest_update_appimage",
+      title: "Update AppImage",
+      description: "Reference quest for rebuilding the Linux desktop AppImage after changing the app.\n\nUse this when you want a new desktop build.",
+      tags: ["Release", "Desktop"],
+      difficulty: "Tiny",
+      mode: "sequence",
+      objectives: [
+        makeObjective({ id: "obj_appimage_export_save", title: "Export save backup", description: "Back up your current planner data before a risky update.\n\nUse:\nSave/Load → Export JSON" }),
+        makeObjective({ id: "obj_appimage_test_dev", title: "Test Tauri dev", description: "Verify the desktop development version.\n\nCommand:\nnpm run tauri dev\n\nCheck that the native window opens and the app behaves normally." }),
+        makeObjective({ id: "obj_appimage_build", title: "Build AppImage", description: "Build the Linux desktop release.\n\nCommand:\nnpm run tauri build\n\nThis may take a while, especially while bundling." }),
+        makeObjective({ id: "obj_appimage_find", title: "Find output", description: "Find the AppImage output.\n\nLocation:\nsrc-tauri/target/release/bundle/appimage/\n\nThe file should end with:\n.AppImage" }),
+        makeObjective({ id: "obj_appimage_smoke_test", title: "Smoke test AppImage", description: "Smoke test the new AppImage.\n\nCheck:\n- App launches\n- Existing data loads\n- Create/edit works\n- Save/Load works\n- No white screen" }),
       ],
     }),
   ],
@@ -835,18 +866,18 @@ const seedData = {
     makeRoutine({
       id: "routine_simple_workout",
       title: "Simple Workout",
-      description: "A simple starter workout routine. Treat each exercise as a small checklist item, and use Count Target for sets or rounds.\n\nGeneral rules:\n- Warm up first\n- Move smoothly\n- Stop before sharp pain\n- Rest as needed\n- Leave a few reps in reserve",
+      description: "A simple starter workout routine.\n\nUse Count Target for sets or rounds.\n\nGeneral rules:\n- Warm up first\n- Move smoothly\n- Stop before sharp pain\n- Rest as needed\n- Leave a few reps in reserve",
       tags: ["Health", "Routine"],
       difficulty: "Medium",
       dayMask: EVERY_DAY_MASK,
       mode: "sequence",
       active: true,
       objectiveTemplate: [
-        makeObjective({ id: "routine_workout_warmup", title: "Warmup", description: "Do a few easy movements to feel warm: arm circles, hip circles, bodyweight squats, and easy marching in place." }),
-        makeObjective({ id: "routine_workout_pushups", title: "Pushups", description: "Do controlled pushups or incline pushups. Keep the body straight and stop before grinding reps.", countTarget: 3 }),
-        makeObjective({ id: "routine_workout_squats", title: "Squats", description: "Use bodyweight, a dumbbell, or a bag. Sit the hips down and back, then stand smoothly.", countTarget: 3 }),
-        makeObjective({ id: "routine_workout_rows", title: "Rows", description: "Use a dumbbell, band, or bag. Pull toward the ribs/hip and lower under control.", countTarget: 3 }),
-        makeObjective({ id: "routine_workout_carry", title: "Carry", description: "Carry a bag or weight for a short walk. Stand tall and breathe steadily.", countTarget: 2 }),
+        makeObjective({ id: "routine_workout_warmup", title: "Warmup", description: "Do a few easy movements to feel warm.\n\nExamples:\n- Arm circles\n- Hip circles\n- Bodyweight squats\n- Easy marching in place" }),
+        makeObjective({ id: "routine_workout_pushups", title: "Pushups", description: "Do controlled pushups or incline pushups.\n\nForm notes:\n- Keep the body straight\n- Lower under control\n- Stop before grinding reps", countTarget: 3 }),
+        makeObjective({ id: "routine_workout_squats", title: "Squats", description: "Use bodyweight, a dumbbell, or a bag.\n\nForm notes:\n- Sit the hips down and back\n- Keep knees controlled\n- Stand smoothly", countTarget: 3 }),
+        makeObjective({ id: "routine_workout_rows", title: "Rows", description: "Use a dumbbell, band, or bag.\n\nForm notes:\n- Pull toward the ribs or hip\n- Do not yank with momentum\n- Lower under control", countTarget: 3 }),
+        makeObjective({ id: "routine_workout_carry", title: "Carry", description: "Carry a bag or weight for a short walk.\n\nForm notes:\n- Stand tall\n- Keep breathing steady\n- Do not rush", countTarget: 2 }),
       ],
     }),
   ],
@@ -1438,6 +1469,25 @@ export default function App() {
     reader.readAsText(file);
   }
 
+  function resetToDefaults() {
+    const confirmed = window.confirm("Reset all quests and routines to the default state? This clears the saved app data in this browser.");
+    if (!confirmed) return;
+
+    const resetData = runDailyMaintenance(normalizeData(seedData));
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LAST_TICK_KEY);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(resetData));
+    localStorage.setItem(LAST_TICK_KEY, todayString());
+
+    setData(resetData);
+    setSelection({ type: "quest", id: resetData.activeQuestId || resetData.quests[0]?.id || null });
+    setHistory([{ type: "quest", id: resetData.activeQuestId || resetData.quests[0]?.id || null }]);
+    setHistoryIndex(0);
+    setExpanded({});
+    setTreeEditMode(false);
+    setExpandedKanbanCards({});
+  }
+
   function runMaintenanceNow() {
     setData((old) => runDailyMaintenance(old));
     localStorage.setItem(LAST_TICK_KEY, todayString());
@@ -1523,6 +1573,7 @@ export default function App() {
           createRoutine={createRoutine}
           exportJson={exportJson}
           importJsonFile={importJsonFile}
+          resetToDefaults={resetToDefaults}
           selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
           selectRoutine={(routine) => setSelection({ type: "routine", id: routine.id })}
         />
@@ -1629,6 +1680,7 @@ function LibraryPanel({
   createRoutine,
   exportJson,
   importJsonFile,
+  resetToDefaults,
   selectQuest,
   selectRoutine,
 }) {
@@ -1722,8 +1774,9 @@ function LibraryPanel({
                 }}
               />
             </label>
+            <button type="button" onClick={resetToDefaults} className="danger-button w-full justify-center">Reset to defaults</button>
             <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
-              Export creates a backup file of your quests and routines. Load replaces the current app state with the selected JSON file.
+              Export creates a backup file of your quests and routines. Load replaces the current app state with the selected JSON file. Reset clears saved data and restores the default quests/routines.
             </div>
           </div>
         )}
@@ -2362,9 +2415,9 @@ function getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveI
 
     const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchObjectiveId;
     return {
-      label: "Goto",
+      label: "Focus",
       disabled: alreadyAtQuestRoot,
-      title: alreadyAtQuestRoot ? "Already focused here" : "Set focus path to this quest",
+      title: alreadyAtQuestRoot ? "Already focused here" : "Focus this quest",
       actionType: "quest",
       questId: quest.id,
     };
@@ -2374,18 +2427,33 @@ function getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveI
     const quest = data.quests.find((item) => item.id === selection.questId);
     if (!quest) return null;
 
-    const found = findObjective(quest.objectives || [], selection.id);
-    const objective = found?.objective;
-    if (!objective || (objective.children || []).length === 0) return null;
+    const path = findObjectivePath(quest.objectives || [], selection.id) || [];
+    const selectedObjective = path[path.length - 1] || null;
+    if (!selectedObjective) return null;
 
-    const alreadyAtBranch = activeQuestId === quest.id && activeBranchObjectiveId === objective.id;
+    const branchTarget = [...path]
+      .reverse()
+      .find((objective) => (objective.children || []).length > 0);
+
+    if (branchTarget) {
+      const alreadyAtBranch = activeQuestId === quest.id && activeBranchObjectiveId === branchTarget.id;
+      return {
+        label: "Focus",
+        disabled: alreadyAtBranch,
+        title: alreadyAtBranch ? "Already focused here" : "Focus nearest branch",
+        actionType: "objective",
+        questId: quest.id,
+        objectiveId: branchTarget.id,
+      };
+    }
+
+    const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchObjectiveId;
     return {
-      label: "Goto",
-      disabled: alreadyAtBranch,
-      title: alreadyAtBranch ? "Already focused here" : "Set focus path to this branch",
-      actionType: "objective",
+      label: "Focus",
+      disabled: alreadyAtQuestRoot,
+      title: alreadyAtQuestRoot ? "Already focused here" : "Focus owner quest",
+      actionType: "quest",
       questId: quest.id,
-      objectiveId: objective.id,
     };
   }
 
@@ -2430,7 +2498,7 @@ function InspectorTitleBar({
           className="title-secondary-button"
           title={goto.title}
         >
-          Goto
+          Focus
         </button>
       )}
     </PanelTitleBar>
