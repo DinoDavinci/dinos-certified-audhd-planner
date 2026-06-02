@@ -50,7 +50,8 @@ import ExportPanel from "./components/ExportPanel";
 import FocusPanel from "./components/focus/FocusPanel";
 import TreePanel from "./components/tree/TreePanel";
 import InspectorPanel from "./components/inspector/InspectorPanel";
-import TabContainer from "./components/layout/TabContainer";
+import DockContainer from "./components/layout/DockContainer";
+import { DOCK_IDS, PANEL_IDS } from "./layout/panelLayout";
 
 export default function App() {
   const [data, setData] = useState(() => {
@@ -70,7 +71,7 @@ export default function App() {
     return maintained;
   });
 
-  const [libraryTab, setLibraryTab] = useState("quests");
+  const [libraryTab, setLibraryTab] = useState(PANEL_IDS.QUEST_BOARD);
   const [selection, setSelectionRaw] = useState({ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null });
   const [history, setHistory] = useState([{ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null }]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -892,7 +893,7 @@ function LibraryPanel({
 }) {
   const tabs = [
     {
-      id: "quests",
+      id: PANEL_IDS.QUEST_BOARD,
       title: "Quest Board",
       content: (
         <QuestBoardPanel
@@ -912,7 +913,7 @@ function LibraryPanel({
       ),
     },
     {
-      id: "routines",
+      id: PANEL_IDS.ROUTINE_PANEL,
       title: "Routines",
       content: (
         <RoutinePanel
@@ -928,7 +929,7 @@ function LibraryPanel({
       ),
     },
     {
-      id: "save",
+      id: PANEL_IDS.EXPORT_PANEL,
       title: "Save/Load",
       content: (
         <ExportPanel
@@ -947,9 +948,14 @@ function LibraryPanel({
   ];
 
   return (
-    <section className="panel panel-scroll library-col" style={{ flexBasis: `${panelWidth}px` }}>
-      <TabContainer tabs={tabs} activeTabId={tab} onActiveTabChange={setTab} />
-    </section>
+    <DockContainer
+      dockId={DOCK_IDS.TOP_LEFT}
+      tabs={tabs}
+      activePanelId={tab}
+      onActivePanelChange={setTab}
+      className="library-col"
+      style={{ flexBasis: `${panelWidth}px` }}
+    />
   );
 }
 
