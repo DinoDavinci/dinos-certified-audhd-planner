@@ -17,6 +17,8 @@ import {
   resetTaskSubtree,
   makeTask,
   makeRoutine,
+  makeRoutineQuestTemplate,
+  getRoutineTemplateTasks,
   cloneTasks,
   isTaskComplete,
   hasCountTarget,
@@ -88,6 +90,8 @@ export {
   resetTaskSubtree,
   makeTask,
   makeRoutine,
+  makeRoutineQuestTemplate,
+  getRoutineTemplateTasks,
   cloneTasks,
   isTaskComplete,
   hasCountTarget,
@@ -140,8 +144,8 @@ export {
   getChildBranches
 } from "./questModel";
 
-export const STORAGE_KEY = "quest_planner_v3";
-export const LAST_TICK_KEY = "quest_planner_last_tick_v3";
+export const STORAGE_KEY = "quest_planner_v4";
+export const LAST_TICK_KEY = "quest_planner_last_tick_v4";
 
 export const DEFAULT_TAGS = ["Life", "Game Dev", "Art", "Health", "Chores", "Animal Care", "Other"];
 export const DIFFICULTIES = ["Tiny", "Easy", "Medium", "Hard", "Deep Work"];
@@ -283,14 +287,30 @@ export function normalizeData(parsed) {
     : [];
 
   const routines = Array.isArray(parsed.routines)
-    ? parsed.routines.map((routine) =>
-        makeRoutine({
+    ? parsed.routines.map((routine) => {
+        const template = routine.questTemplate || {};
+        const templateRoot = template.rootTask || {};
+        const templateChildren = normalizeTasks(templateRoot.children || routine.taskTemplate || []);
+
+        return makeRoutine({
           ...routine,
-          mode: routine.mode || "sequence",
+          mode: templateRoot.mode || routine.mode || "sequence",
           dayMask: routine.dayMask ?? EVERY_DAY_MASK,
-          taskTemplate: normalizeTasks(routine.taskTemplate || []),
-        })
-      )
+          questTemplate: {
+            ...template,
+            title: template.title ?? routine.title ?? "",
+            description: template.description ?? routine.description ?? "",
+            tags: template.tags ?? routine.tags ?? ["Life"],
+            difficulty: template.difficulty ?? routine.difficulty ?? "Tiny",
+            rootTask: {
+              ...templateRoot,
+              mode: templateRoot.mode || routine.mode || "sequence",
+              completed: false,
+              children: templateChildren,
+            },
+          },
+        });
+      })
     : [];
 
   return {

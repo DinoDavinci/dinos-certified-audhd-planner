@@ -45,8 +45,45 @@ export function makeTask(overrides = {}) {
   };
 }
 
-export function makeRoutine(overrides = {}) {
+export function makeRoutineQuestTemplate(routine = {}) {
+  const existingTemplate = routine.questTemplate || {};
+  const existingRoot = existingTemplate.rootTask || {};
+  const children = existingRoot.children || routine.taskTemplate || [];
+
   return {
+    id: existingTemplate.id || newId("quest_template"),
+    title: existingTemplate.title ?? routine.title ?? "",
+    description: existingTemplate.description ?? routine.description ?? "",
+    tags: existingTemplate.tags ?? routine.tags ?? ["Life"],
+    difficulty: existingTemplate.difficulty ?? routine.difficulty ?? "Tiny",
+    deadline: existingTemplate.deadline || "",
+    sourceType: "routineTemplate",
+    locked: false,
+    rootTask: {
+      id: existingRoot.id || newId("root"),
+      title: "Complete Quest",
+      description: "Finalize and complete this quest.",
+      mode: existingRoot.mode || routine.mode || "sequence",
+      completed: false,
+      countTarget: 0,
+      countProgress: 0,
+      locked: true,
+      children,
+      ...(existingRoot || {}),
+      title: "Complete Quest",
+      description: "Finalize and complete this quest.",
+      locked: true,
+      completed: false,
+    },
+  };
+}
+
+export function getRoutineTemplateTasks(routine) {
+  return routine?.questTemplate?.rootTask?.children || routine?.taskTemplate || [];
+}
+
+export function makeRoutine(overrides = {}) {
+  const base = {
     id: newId("routine"),
     title: "",
     description: "",
@@ -55,9 +92,22 @@ export function makeRoutine(overrides = {}) {
     dayMask: EVERY_DAY_MASK,
     mode: "sequence",
     active: true,
-    taskTemplate: [],
     createdAt: new Date().toISOString(),
     ...overrides,
+  };
+
+  const questTemplate = makeRoutineQuestTemplate(base);
+
+  const { taskTemplate, ...routine } = base;
+
+  return {
+    ...routine,
+    title: questTemplate.title,
+    description: questTemplate.description,
+    tags: questTemplate.tags,
+    difficulty: questTemplate.difficulty,
+    mode: questTemplate.rootTask.mode || routine.mode || "sequence",
+    questTemplate,
   };
 }
 
@@ -416,7 +466,7 @@ export function getTaskAncestry(selection, data) {
     const routine = (data.routines || []).find((item) => item.id === selection.routineId);
     if (!routine) return [];
 
-    const path = findTaskPath(routine.taskTemplate || [], selection.id) || [];
+    const path = findTaskPath(getRoutineTemplateTasks(routine), selection.id) || [];
 
     return [
       { type: "routine", id: routine.id, title: routine.title },

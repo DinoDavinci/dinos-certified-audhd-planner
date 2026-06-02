@@ -262,7 +262,19 @@ function createQuestTask(questId, parentId = null) {
       let updatedRoutine = null;
       const routines = old.routines.map((routine) => {
         if (routine.id !== routineId) return routine;
-        updatedRoutine = { ...routine, taskTemplate: addTaskToTree(routine.taskTemplate, parentId, task) };
+        const questTemplate = routine.questTemplate || {};
+        const rootTask = questTemplate.rootTask || {};
+        updatedRoutine = {
+          ...routine,
+          questTemplate: {
+            ...questTemplate,
+            rootTask: {
+              ...rootTask,
+              completed: false,
+              children: addTaskToTree(rootTask.children || [], parentId, task),
+            },
+          },
+        };
         return updatedRoutine;
       });
 
@@ -331,7 +343,19 @@ function deleteQuestTask(questId, taskId) {
       let updatedRoutine = null;
       const routines = old.routines.map((routine) => {
         if (routine.id !== routineId) return routine;
-        updatedRoutine = { ...routine, taskTemplate: deleteTaskFromTree(routine.taskTemplate, taskId) };
+        const questTemplate = routine.questTemplate || {};
+        const rootTask = questTemplate.rootTask || {};
+        updatedRoutine = {
+          ...routine,
+          questTemplate: {
+            ...questTemplate,
+            rootTask: {
+              ...rootTask,
+              completed: false,
+              children: deleteTaskFromTree(rootTask.children || [], taskId),
+            },
+          },
+        };
         return updatedRoutine;
       });
 
@@ -370,7 +394,18 @@ function moveQuestTask(questId, taskId, direction) {
       let updatedRoutine = null;
       const routines = old.routines.map((routine) => {
         if (routine.id !== routineId) return routine;
-        updatedRoutine = { ...routine, taskTemplate: moveTaskInTree(routine.taskTemplate, taskId, direction) };
+        const questTemplate = routine.questTemplate || {};
+        const rootTask = questTemplate.rootTask || {};
+        updatedRoutine = {
+          ...routine,
+          questTemplate: {
+            ...questTemplate,
+            rootTask: {
+              ...rootTask,
+              children: moveTaskInTree(rootTask.children || [], taskId, direction),
+            },
+          },
+        };
         return updatedRoutine;
       });
 
@@ -1585,7 +1620,7 @@ function RightPanel(props) {
 
         {treeContext.type === "routine" && (
           <QuestTree
-            tasks={treeContext.routine.taskTemplate}
+            tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
             expanded={expanded}
             setExpanded={setExpanded}
             onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
@@ -1845,7 +1880,19 @@ function Inspector({
               let updatedRoutine = null;
               const routines = old.routines.map((routine) => {
                 if (routine.id !== selected.routine.id) return routine;
-                updatedRoutine = { ...routine, taskTemplate: updateQuestTree(routine.taskTemplate, selection.id, updater) };
+                const questTemplate = routine.questTemplate || {};
+                const rootTask = questTemplate.rootTask || {};
+                updatedRoutine = {
+                  ...routine,
+                  questTemplate: {
+                    ...questTemplate,
+                    rootTask: {
+                      ...rootTask,
+                      completed: false,
+                      children: updateQuestTree(rootTask.children || [], selection.id, updater),
+                    },
+                  },
+                };
                 return updatedRoutine;
               });
 
@@ -1891,7 +1938,7 @@ function resolveSelection(selection, data) {
 
   if (selection.type === "routineTask") {
     const routine = data.routines.find((item) => item.id === selection.routineId);
-    const found = routine ? findTask(routine.taskTemplate, selection.id) : null;
+    const found = routine ? findTask(routine.questTemplate?.rootTask?.children || [], selection.id) : null;
     return { routine, task: found?.task, parent: found?.parent };
   }
 
@@ -2026,9 +2073,41 @@ function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBr
 }
 
 function RoutineInspector({ routine, allTags, setData, deleteRoutine, runMaintenanceNow }) {
+  function applyRoutinePatch(currentRoutine, patch) {
+    const nextRoutine = { ...currentRoutine, ...patch };
+    const questTemplate = nextRoutine.questTemplate || {};
+    const rootTask = questTemplate.rootTask || {};
+
+    const nextQuestTemplate = {
+      ...questTemplate,
+      title: "title" in patch ? patch.title : questTemplate.title ?? nextRoutine.title,
+      description: "description" in patch ? patch.description : questTemplate.description ?? nextRoutine.description,
+      tags: "tags" in patch ? patch.tags : questTemplate.tags ?? nextRoutine.tags,
+      difficulty: "difficulty" in patch ? patch.difficulty : questTemplate.difficulty ?? nextRoutine.difficulty,
+      rootTask: {
+        ...rootTask,
+        mode: "mode" in patch ? patch.mode : rootTask.mode || nextRoutine.mode || "sequence",
+        title: "Complete Quest",
+        description: "Finalize and complete this quest.",
+        locked: true,
+        completed: false,
+      },
+    };
+
+    return {
+      ...nextRoutine,
+      title: nextQuestTemplate.title,
+      description: nextQuestTemplate.description,
+      tags: nextQuestTemplate.tags,
+      difficulty: nextQuestTemplate.difficulty,
+      mode: nextQuestTemplate.rootTask.mode,
+      questTemplate: nextQuestTemplate,
+    };
+  }
+
   function updateRoutine(patch) {
     setData((old) => {
-      const updatedRoutine = { ...routine, ...patch };
+      const updatedRoutine = applyRoutinePatch(routine, patch);
       return {
         ...old,
         routines: old.routines.map((item) => (item.id === routine.id ? updatedRoutine : item)),

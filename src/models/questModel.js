@@ -71,37 +71,63 @@ export function makeQuest(overrides = {}) {
 }
 
 
+export function getRoutineQuestTemplate(routine) {
+  const template = routine?.questTemplate || {};
+  const root = template.rootTask || {};
+
+  return {
+    title: template.title ?? routine?.title ?? "",
+    description: template.description ?? routine?.description ?? "",
+    tags: template.tags ?? routine?.tags ?? [],
+    difficulty: template.difficulty ?? routine?.difficulty ?? "Tiny",
+    rootTask: makeQuestRootTask({
+      ...root,
+      mode: root.mode || routine?.mode || "sequence",
+      children: root.children || routine?.taskTemplate || [],
+    }),
+  };
+}
+
 export function createQuestFromRoutine(routine, dueDate) {
+  const template = getRoutineQuestTemplate(routine);
+
   return makeQuest({
-    title: routine.title,
-    description: routine.description,
-    tags: routine.tags,
-    difficulty: routine.difficulty,
+    title: template.title,
+    description: template.description,
+    tags: template.tags,
+    difficulty: template.difficulty,
     deadline: dueDate,
     sourceType: "routine",
     routineId: routine.id,
     locked: true,
     rootTask: makeQuestRootTask({
-      mode: routine.mode,
-      children: cloneTasks(routine.taskTemplate || []),
+      ...template.rootTask,
+      id: newId("root"),
+      completed: false,
+      countProgress: 0,
+      children: cloneTasks(template.rootTask.children || []),
     }),
   });
 }
 
 
 export function syncGeneratedQuestWithRoutine(quest, routine) {
+  const template = getRoutineQuestTemplate(routine);
   const existingRoot = getQuestRootTask(quest);
+  const existingChildren = existingRoot.children || [];
+  const templateChildren = template.rootTask.children || [];
+
   return makeQuest({
     ...quest,
-    title: routine.title,
-    description: routine.description,
-    tags: routine.tags,
-    difficulty: routine.difficulty,
+    title: template.title,
+    description: template.description,
+    tags: template.tags,
+    difficulty: template.difficulty,
     locked: true,
     rootTask: makeQuestRootTask({
       ...existingRoot,
-      mode: routine.mode || existingRoot.mode || "sequence",
-      children: existingRoot.children || cloneTasks(routine.taskTemplate || []),
+      mode: template.rootTask.mode || existingRoot.mode || "sequence",
+      children: existingChildren.length > 0 ? existingChildren : cloneTasks(templateChildren),
     }),
   });
 }
@@ -149,6 +175,7 @@ export function getQuestRootTask(quest) {
 export function getQuestChildTasks(quest) {
   return getQuestRootTask(quest).children || [];
 }
+
 
 export function isQuestComplete(quest) {
   return quest?.status === "completed" || isTaskComplete(quest?.rootTask);
