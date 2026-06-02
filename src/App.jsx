@@ -50,6 +50,7 @@ import ExportPanel from "./components/ExportPanel";
 import FocusPanel from "./components/focus/FocusPanel";
 import TreePanel from "./components/tree/TreePanel";
 import InspectorPanel from "./components/inspector/InspectorPanel";
+import TabContainer from "./components/layout/TabContainer";
 
 export default function App() {
   const [data, setData] = useState(() => {
@@ -889,54 +890,65 @@ function LibraryPanel({
   selectQuest,
   selectRoutine,
 }) {
+  const tabs = [
+    {
+      id: "quests",
+      title: "Quest Board",
+      content: (
+        <QuestBoardPanel
+          search={search}
+          setSearch={setSearch}
+          tagFilter={tagFilter}
+          setTagFilter={setTagFilter}
+          allTags={allTags}
+          hideCompleted={hideCompleted}
+          setHideCompleted={setHideCompleted}
+          quests={quests}
+          activeQuestId={activeQuestId}
+          dueBadge={dueBadge}
+          createQuest={createQuest}
+          selectQuest={selectQuest}
+        />
+      ),
+    },
+    {
+      id: "routines",
+      title: "Routines",
+      content: (
+        <RoutinePanel
+          search={search}
+          setSearch={setSearch}
+          tagFilter={tagFilter}
+          setTagFilter={setTagFilter}
+          allTags={allTags}
+          routines={routines}
+          createRoutine={createRoutine}
+          selectRoutine={selectRoutine}
+        />
+      ),
+    },
+    {
+      id: "save",
+      title: "Save/Load",
+      content: (
+        <ExportPanel
+          exportJson={exportJson}
+          importJsonFile={importJsonFile}
+          exportQuestFile={exportQuestFile}
+          importQuestFile={importQuestFile}
+          hasActiveQuest={hasActiveQuest}
+          exportRoutineFile={exportRoutineFile}
+          importRoutineFile={importRoutineFile}
+          hasSelectedRoutine={hasSelectedRoutine}
+          resetToDefaults={resetToDefaults}
+        />
+      ),
+    },
+  ];
+
   return (
     <section className="panel panel-scroll library-col" style={{ flexBasis: `${panelWidth}px` }}>
-      <LibraryTabBar tab={tab} setTab={setTab} />
-      <div className="panel-content">
-        {tab === "quests" && (
-          <QuestBoardPanel
-            search={search}
-            setSearch={setSearch}
-            tagFilter={tagFilter}
-            setTagFilter={setTagFilter}
-            allTags={allTags}
-            hideCompleted={hideCompleted}
-            setHideCompleted={setHideCompleted}
-            quests={quests}
-            activeQuestId={activeQuestId}
-            dueBadge={dueBadge}
-            createQuest={createQuest}
-            selectQuest={selectQuest}
-          />
-        )}
-
-        {tab === "routines" && (
-          <RoutinePanel
-            search={search}
-            setSearch={setSearch}
-            tagFilter={tagFilter}
-            setTagFilter={setTagFilter}
-            allTags={allTags}
-            routines={routines}
-            createRoutine={createRoutine}
-            selectRoutine={selectRoutine}
-          />
-        )}
-
-        {tab === "save" && (
-          <ExportPanel
-            exportJson={exportJson}
-            importJsonFile={importJsonFile}
-            exportQuestFile={exportQuestFile}
-            importQuestFile={importQuestFile}
-            hasActiveQuest={hasActiveQuest}
-            exportRoutineFile={exportRoutineFile}
-            importRoutineFile={importRoutineFile}
-            hasSelectedRoutine={hasSelectedRoutine}
-            resetToDefaults={resetToDefaults}
-          />
-        )}
-      </div>
+      <TabContainer tabs={tabs} activeTabId={tab} onActiveTabChange={setTab} />
     </section>
   );
 }
@@ -1028,31 +1040,6 @@ function RightPanel(props) {
 }
 
 
-function LibraryTabBar({ tab, setTab }) {
-  return (
-    <div className="panel-title-bar library-tab-bar">
-      <button
-        onClick={() => setTab("quests")}
-        className={tab === "quests" ? "library-title-tab library-title-tab-active" : "library-title-tab"}
-      >
-        Quests
-      </button>
-      <button
-        onClick={() => setTab("routines")}
-        className={tab === "routines" ? "library-title-tab library-title-tab-active" : "library-title-tab"}
-      >
-        Routines
-      </button>
-      <button
-        onClick={() => setTab("save")}
-        className={tab === "save" ? "library-title-tab library-title-tab-active" : "library-title-tab"}
-      >
-        Save/Load
-      </button>
-    </div>
-  );
-}
-
 function PanelTitleBar({ title, children, className = "" }) {
   return (
     <div className={`panel-title-bar ${className}`}>
@@ -1124,6 +1111,44 @@ function DarkStyles() {
         font-size: 0.9rem;
         font-weight: 800;
         color: rgb(229 229 229);
+      }
+      .tab-container {
+        min-height: 0;
+      }
+      .tab-container-bar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 0.25rem;
+        min-height: 2.15rem;
+        border-bottom: 1px solid rgb(38 38 38);
+        border-radius: 0.35rem 0.35rem 0 0;
+        background: rgb(38 38 38);
+        padding: 0.25rem 0.35rem 0;
+      }
+      .tab-container-tab {
+        align-self: stretch;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 0.28rem 0.28rem 0 0;
+        padding: 0.25rem 0.8rem;
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: rgb(163 163 163);
+      }
+      .tab-container-tab:hover {
+        background: rgb(64 64 64);
+        color: rgb(229 229 229);
+      }
+      .tab-container-tab-active {
+        border-color: rgb(64 64 64);
+        background: rgb(23 23 23);
+        color: rgb(245 245 245);
       }
       .library-tab-bar {
         justify-content: flex-start;
