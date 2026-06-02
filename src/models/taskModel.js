@@ -251,6 +251,7 @@ export function countLeafProgress(task) {
   return { total, complete };
 }
 
+
 export function buildFocusBoardFromRoot(root) {
   if (!root) {
     return {
@@ -274,16 +275,25 @@ export function buildFocusBoardFromRoot(root) {
       isConfirmation: row.hasChildren,
     }));
 
-  if (root.selfTask && isTaskReadyToComplete(root.selfTask)) {
-    available.unshift({
+  const completed = rows.filter((row) => row.complete);
+
+  if (root.selfTask) {
+    const selfRow = {
+      kind: root.selfTask.isRootTask ? "rootTask" : "taskConfirmation",
       task: root.selfTask,
       path: root.selfPath || [root.selfTask],
       pathText: (root.selfPath || [root.selfTask]).map((item) => item.title || "Untitled").join(" › "),
       hasChildren: true,
-      complete: false,
+      complete: isTaskComplete(root.selfTask),
       displayTitle: root.selfTask.title || "Untitled",
       isConfirmation: true,
-    });
+    };
+
+    if (isTaskComplete(root.selfTask)) {
+      completed.unshift(selfRow);
+    } else if (isTaskReadyToComplete(root.selfTask)) {
+      available.unshift(selfRow);
+    }
   }
 
   const existingAvailableIds = new Set(available.map((row) => row.task.id));
@@ -293,6 +303,7 @@ export function buildFocusBoardFromRoot(root) {
       existingAvailableIds.add(readyRow.task.id);
     }
   }
+
   const inProgress = rows
     .filter((row) => {
       if (!row.hasChildren || row.complete || isTaskReadyToComplete(row.task)) return false;
@@ -301,21 +312,25 @@ export function buildFocusBoardFromRoot(root) {
     })
     .map((row) => ({ ...row, progress: countLeafProgress(row.task) }));
 
-  const completed = rows.filter((row) => row.complete);
-
   return {
     recommended: available[0] || null,
     available,
     inProgress,
     completed,
-    totalCount: rows.length,
+    totalCount: rows.length + (root.selfTask ? 1 : 0),
     completedCount: completed.length,
   };
 }
 
+
 export function buildFocusBoard(quest) {
   if (!quest) return buildFocusBoardFromRoot(null);
-  return buildFocusBoardFromRoot({ mode: quest.mode, tasks: quest.tasks || [] });
+  return buildFocusBoardFromRoot({
+    mode: quest.rootTask?.mode || "all",
+    tasks: quest.rootTask?.children || [],
+    selfTask: quest.rootTask,
+    selfPath: quest.rootTask ? [quest.rootTask] : [],
+  });
 }
 
 export const SAMPLE_TASK_DESCRIPTIONS = {
@@ -371,6 +386,7 @@ export function findTaskPath(tasks, id, path = []) {
   return null;
 }
 
+
 export function getTaskAncestry(selection, data) {
   if (!selection || !data) return [];
 
@@ -378,7 +394,7 @@ export function getTaskAncestry(selection, data) {
     const quest = (data.quests || []).find((item) => item.id === selection.questId);
     if (!quest) return [];
 
-    const path = findTaskPath(quest.tasks || [], selection.id) || [];
+    const path = findTaskPath(quest.rootTask ? [quest.rootTask] : [], selection.id) || [];
 
     return [
       { type: "quest", id: quest.id, title: quest.title },

@@ -2,7 +2,10 @@ import { newId, todayString, isRoutineActiveOnDate } from "../utils/dateUtils";
 
 import {
   cloneTasks,
+  makeTask,
   isTaskComplete,
+  areTaskChildrenComplete,
+  isTaskReadyToComplete,
   getTaskCounts,
   countLeafProgress,
   findTaskPath,
@@ -11,9 +14,41 @@ import {
 } from "./taskModel";
 
 // Quest model helpers.
-// This file still uses the old quest/task shape so this refactor stays mechanical.
+// Quest now owns a locked rootTask whose children contain the visible task tree.
+
+
+export function makeQuestRootTask(overrides = {}) {
+  return makeTask({
+    id: overrides.id || newId("root_task"),
+    title: "Complete Quest",
+    description: "Finalize and complete this quest.",
+    mode: overrides.mode || "all",
+    completed: !!overrides.completed,
+    countTarget: 0,
+    countProgress: 0,
+    locked: true,
+    isRootTask: true,
+    children: overrides.children || [],
+    ...overrides,
+    title: "Complete Quest",
+    description: "Finalize and complete this quest.",
+    locked: true,
+    isRootTask: true,
+  });
+}
 
 export function makeQuest(overrides = {}) {
+  const legacyTasks = Array.isArray(overrides.tasks) ? overrides.tasks : [];
+  const incomingRootTask = overrides.rootTask || null;
+  const rootTask = makeQuestRootTask({
+    ...(incomingRootTask || {}),
+    mode: incomingRootTask?.mode || overrides.mode || "all",
+    completed: incomingRootTask?.completed || overrides.status === "completed",
+    children: incomingRootTask?.children || legacyTasks,
+  });
+
+  const { tasks, rootTask: _ignoredRootTask, mode, ...rest } = overrides;
+
   return {
     id: newId("quest"),
     title: "",
@@ -21,7 +56,6 @@ export function makeQuest(overrides = {}) {
     tags: ["Game Dev"],
     difficulty: "Medium",
     deadline: "",
-    mode: "all",
     status: "active",
     completedAt: "",
     cooldownEnabled: false,
@@ -30,11 +64,12 @@ export function makeQuest(overrides = {}) {
     sourceType: "manual",
     routineId: null,
     locked: false,
-    tasks: [],
+    rootTask,
     createdAt: new Date().toISOString(),
-    ...overrides,
+    ...rest,
   };
 }
+
 
 export function createQuestFromRoutine(routine, dueDate) {
   return makeQuest({
@@ -43,24 +78,32 @@ export function createQuestFromRoutine(routine, dueDate) {
     tags: routine.tags,
     difficulty: routine.difficulty,
     deadline: dueDate,
-    mode: routine.mode,
     sourceType: "routine",
     routineId: routine.id,
     locked: true,
-    tasks: cloneTasks(routine.taskTemplate || []),
+    rootTask: makeQuestRootTask({
+      mode: routine.mode,
+      children: cloneTasks(routine.taskTemplate || []),
+    }),
   });
 }
 
+
 export function syncGeneratedQuestWithRoutine(quest, routine) {
-  return {
+  const existingRoot = getQuestRootTask(quest);
+  return makeQuest({
     ...quest,
     title: routine.title,
     description: routine.description,
     tags: routine.tags,
     difficulty: routine.difficulty,
-    mode: routine.mode,
-    tasks: cloneTasks(routine.taskTemplate || []),
-  };
+    locked: true,
+    rootTask: makeQuestRootTask({
+      ...existingRoot,
+      mode: routine.mode || existingRoot.mode || "sequence",
+      children: existingRoot.children || cloneTasks(routine.taskTemplate || []),
+    }),
+  });
 }
 
 export function reconcileTodayQuestForRoutine(quests, routine) {
@@ -94,87 +137,76 @@ export function reconcileTodayQuestForRoutine(quests, routine) {
   });
 }
 
-export function isQuestComplete(quest) {
-  return quest?.status === "completed";
+
+export function getQuestRootTask(quest) {
+  return quest?.rootTask || makeQuestRootTask({
+    mode: quest?.mode || "all",
+    completed: quest?.status === "completed",
+    children: quest?.tasks || [],
+  });
 }
+
+export function getQuestChildTasks(quest) {
+  return getQuestRootTask(quest).children || [];
+}
+
+export function isQuestComplete(quest) {
+  return quest?.status === "completed" || isTaskComplete(quest?.rootTask);
+}
+
 
 export function isQuestReadyToComplete(quest) {
   if (!quest || isQuestComplete(quest)) return false;
-  const tasks = quest.tasks || [];
+  const rootTask = getQuestRootTask(quest);
+  const tasks = rootTask.children || [];
   if (tasks.length === 0) return true;
-  return tasks.every(isTaskComplete);
+  return areTaskChildrenComplete(rootTask);
 }
+
 
 export function getQuestProgress(quest) {
-  let total = 0;
-  let complete = 0;
-
-  function walk(list) {
-    for (const obj of list || []) {
-      total += 1;
-      if (isTaskComplete(obj)) complete += 1;
-      walk(obj.children || []);
-    }
-  }
-
-  walk(quest?.tasks || []);
-  if (total === 0) return isQuestComplete(quest) ? 100 : 0;
-  return Math.round((complete / total) * 100);
+  const rootTask = getQuestRootTask(quest);
+  const counts = getTaskCounts([rootTask]);
+  if (counts.total === 0) return isQuestComplete(quest) ? 100 : 0;
+  return Math.round((counts.completed / counts.total) * 100);
 }
+
 
 export function nextTasksForQuest(quest) {
   if (!quest) return [];
-  return nextTasksInList(quest.tasks || [], quest.mode);
+  const rootTask = getQuestRootTask(quest);
+  if (isTaskReadyToComplete(rootTask)) return [rootTask];
+  return nextTasksInList(rootTask.children || [], rootTask.mode || "all");
 }
+
 
 export function makeQuestCompletionCard(quest, complete = false) {
+  const rootTask = getQuestRootTask(quest);
   return {
-    kind: "questCompletion",
-    id: `quest-completion-${quest.id}`,
+    kind: "rootTask",
+    id: rootTask.id,
     quest,
-    task: {
-      id: `quest-completion-${quest.id}`,
-      title: "Complete quest",
-      description: "Finalize and complete this quest.",
-      completed: complete,
-      children: [],
-    },
-    path: [{ id: quest.id, title: "Complete quest", type: "questCompletion" }],
-    pathText: "Complete quest",
-    hasChildren: false,
-    complete,
-    displayTitle: "Complete quest",
+    task: { ...rootTask, completed: complete || rootTask.completed },
+    path: [rootTask],
+    pathText: rootTask.title || "Complete Quest",
+    hasChildren: true,
+    complete: complete || rootTask.completed,
+    displayTitle: rootTask.title || "Complete Quest",
+    isConfirmation: true,
   };
 }
+
 
 export function addQuestCompletionCard(board, quest) {
-  if (!quest || !board) return board;
-
-  const next = {
-    ...board,
-    available: [...(board.available || [])],
-    completed: [...(board.completed || [])],
-  };
-
-  if (isQuestComplete(quest)) {
-    next.completed.push(makeQuestCompletionCard(quest, true));
-    next.completedCount += 1;
-    next.totalCount += 1;
-    return next;
-  }
-
-  if (isQuestReadyToComplete(quest)) {
-    next.available.push(makeQuestCompletionCard(quest, false));
-    next.totalCount += 1;
-  }
-
-  return next;
+  // Deprecated: the quest's real rootTask now appears in the focus board.
+  return board;
 }
+
 
 export function getBranchFocusInfo(quest, branchTaskId) {
   if (!quest || !branchTaskId) return null;
 
-  const path = findTaskPath(quest.tasks || [], branchTaskId) || [];
+  const path = findTaskPath(getQuestChildTasks(quest), branchTaskId) || [];
   const task = path[path.length - 1];
 
   if (!task || (task.children || []).length === 0) return null;
@@ -190,6 +222,7 @@ export function getBranchFocusInfo(quest, branchTaskId) {
   };
 }
 
+
 export function getFocusPathInfo(quest, branchTaskId) {
   if (!quest) {
     return {
@@ -203,6 +236,7 @@ export function getFocusPathInfo(quest, branchTaskId) {
     };
   }
 
+  const rootTask = getQuestRootTask(quest);
   const branchInfo = getBranchFocusInfo(quest, branchTaskId);
   const branchTask = branchInfo?.task || null;
   const path = branchInfo?.path || [];
@@ -214,14 +248,19 @@ export function getFocusPathInfo(quest, branchTaskId) {
         selfTask: branchTask,
         selfPath: path,
       }
-    : { mode: quest.mode, tasks: quest.tasks || [] };
+    : {
+        mode: rootTask.mode,
+        tasks: rootTask.children || [],
+        selfTask: rootTask,
+        selfPath: [rootTask],
+      };
 
   const parent = path.length > 1 ? path[path.length - 2] : null;
   const childBranches = getChildBranches(root.tasks || []);
 
   const rawCounts = branchTask
     ? countLeafProgress(branchTask)
-    : getTaskCounts(quest.tasks || []);
+    : getTaskCounts([rootTask]);
 
   const completedCount = Number(rawCounts.completed ?? rawCounts.complete ?? 0);
   const totalCount = Number(rawCounts.total ?? 0);

@@ -229,14 +229,24 @@ export default function App() {
     setSelection({ type: "routine", id: routine.id });
   }
 
-  function createQuestTask(questId, parentId = null) {
+  
+function createQuestTask(questId, parentId = null) {
     const task = makeTask({ title: "New Task" });
 
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
-          ? { ...quest, tasks: addTaskToTree(quest.tasks, parentId, task) }
+          ? {
+              ...quest,
+              status: "active",
+              completedAt: "",
+              rootTask: {
+                ...quest.rootTask,
+                completed: false,
+                children: addTaskToTree(quest.rootTask?.children || [], parentId, task),
+              },
+            }
           : quest
       ),
     }));
@@ -293,12 +303,22 @@ export default function App() {
     setSelection({ type: "none" });
   }
 
-  function deleteQuestTask(questId, taskId) {
+  
+function deleteQuestTask(questId, taskId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
-          ? { ...quest, tasks: deleteTaskFromTree(quest.tasks, taskId) }
+          ? {
+              ...quest,
+              status: "active",
+              completedAt: "",
+              rootTask: {
+                ...quest.rootTask,
+                completed: false,
+                children: deleteTaskFromTree(quest.rootTask?.children || [], taskId),
+              },
+            }
           : quest
       ),
     }));
@@ -327,12 +347,19 @@ export default function App() {
     setSelection({ type: "routine", id: routineId });
   }
 
-  function moveQuestTask(questId, taskId, direction) {
+  
+function moveQuestTask(questId, taskId, direction) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
-          ? { ...quest, tasks: moveTaskInTree(quest.tasks, taskId, direction) }
+          ? {
+              ...quest,
+              rootTask: {
+                ...quest.rootTask,
+                children: moveTaskInTree(quest.rootTask?.children || [], taskId, direction),
+              },
+            }
           : quest
       ),
     }));
@@ -357,16 +384,36 @@ export default function App() {
     });
   }
 
-  function toggleTask(questId, taskId) {
+  
+function toggleTask(questId, taskId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
 
+        const rootTask = quest.rootTask;
+        if (!rootTask) return quest;
+
+        if (rootTask.id === taskId) {
+          if (!isTaskComplete(rootTask) && !isTaskReadyToComplete(rootTask)) return quest;
+
+          const completed = !isTaskComplete(rootTask);
+          return {
+            ...quest,
+            status: completed ? "completed" : "active",
+            completedAt: completed ? todayString() : "",
+            rootTask: {
+              ...rootTask,
+              completed,
+              countProgress: 0,
+            },
+          };
+        }
+
         let nextCompleted = null;
-        let tasks = updateQuestTree(quest.tasks, taskId, (task) => {
-          const children = task.children || [];
-          if (children.length > 0 && !areTaskChildrenComplete(task)) return task;
+        let children = updateQuestTree(rootTask.children || [], taskId, (task) => {
+          const taskChildren = task.children || [];
+          if (taskChildren.length > 0 && !areTaskChildrenComplete(task)) return task;
 
           if (hasCountTarget(task) && !task.completed) {
             const { target, progress } = getCountProgress(task);
@@ -397,33 +444,54 @@ export default function App() {
         });
 
         if (nextCompleted === false) {
-          tasks = clearAncestorCompletionById(tasks, taskId);
+          children = clearAncestorCompletionById(children, taskId);
         }
 
         return {
           ...quest,
           status: "active",
           completedAt: "",
-          tasks,
+          rootTask: {
+            ...rootTask,
+            completed: false,
+            children,
+          },
         };
       }),
     }));
   }
 
-  function uncompleteTask(questId, taskId) {
+  
+function uncompleteTask(questId, taskId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
 
-        const resetTasksForTarget = updateQuestTree(quest.tasks, taskId, (task) => resetTaskSubtree(task));
-        const tasks = clearAncestorCompletionById(resetTasksForTarget, taskId);
+        const rootTask = quest.rootTask;
+        if (!rootTask) return quest;
+
+        if (rootTask.id === taskId) {
+          return {
+            ...quest,
+            status: "active",
+            completedAt: "",
+            rootTask: resetTaskSubtree(rootTask),
+          };
+        }
+
+        const resetTasksForTarget = updateQuestTree(rootTask.children || [], taskId, (task) => resetTaskSubtree(task));
+        const children = clearAncestorCompletionById(resetTasksForTarget, taskId);
 
         return {
           ...quest,
           status: "active",
           completedAt: "",
-          tasks,
+          rootTask: {
+            ...rootTask,
+            completed: false,
+            children,
+          },
         };
       }),
     }));
@@ -441,7 +509,8 @@ export default function App() {
     setData((old) => ({ ...old, activeBranchTaskId: null }));
   }
 
-  function completeQuest(questId) {
+  
+function completeQuest(questId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
@@ -452,12 +521,17 @@ export default function App() {
           ...quest,
           status: "completed",
           completedAt: todayString(),
+          rootTask: {
+            ...quest.rootTask,
+            completed: true,
+          },
         };
       }),
     }));
   }
 
-  function restoreQuest(questId) {
+  
+function restoreQuest(questId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
@@ -466,7 +540,7 @@ export default function App() {
               ...quest,
               status: "active",
               completedAt: "",
-              tasks: resetTasks(quest.tasks || []),
+              rootTask: resetTaskSubtree(quest.rootTask),
             }
           : quest
       ),
@@ -649,13 +723,13 @@ export default function App() {
           selectTask={(task) => setSelection({ type: "task", questId: activeQuest.id, id: task.id })}
           toggleTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
-            return rowOrTask.kind === "questCompletion"
+            return ((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
               ? completeQuest(activeQuest.id)
               : toggleTask(activeQuest.id, task.id);
           }}
           uncompleteTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
-            return rowOrTask.kind === "questCompletion"
+            return ((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
               ? restoreQuest(activeQuest.id)
               : uncompleteTask(activeQuest.id, task.id);
           }}
@@ -860,11 +934,11 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
         clearBranchFocus={clearBranchFocus}
       />
 
-      {focusBoard.available.some((row) => row.kind === "questCompletion") || isQuestComplete(quest) ? (
+      {focusBoard.available.some((row) => (row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask") || isQuestComplete(quest) ? (
         <div className="complete-quest-celebration">
           <button
             onClick={() => {
-              const completionRow = focusBoard.available.find((row) => row.kind === "questCompletion");
+              const completionRow = focusBoard.available.find((row) => (row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask");
               if (completionRow) toggleTask(completionRow);
             }}
             className={isQuestComplete(quest) ? "recommended-complete-quest-button recommended-complete-quest-button-done" : "recommended-complete-quest-button"}
@@ -1149,7 +1223,7 @@ function FocusPathLinks({ row, selectTask }) {
             className="focus-path-link"
             onClick={(event) => {
               event.stopPropagation();
-              if (row.kind !== "questCompletion") selectTask(task);
+              if ((row.kind !== "questCompletion" && row.kind !== "rootTask")) selectTask(task);
             }}
             title="Select in inspector"
           >
@@ -1197,13 +1271,13 @@ function FocusColumn({
             >
               <div
                 className="focus-card-bar"
-                onClick={() => row.kind !== "questCompletion" && selectTask(row.task)}
+                onClick={() => (row.kind !== "questCompletion" && row.kind !== "rootTask") && selectTask(row.task)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    if (row.kind !== "questCompletion") selectTask(row.task);
+                    if ((row.kind !== "questCompletion" && row.kind !== "rootTask")) selectTask(row.task);
                   }
                 }}
               >
@@ -1416,7 +1490,7 @@ function RightPanel(props) {
 
         {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
           <QuestTree
-            tasks={treeContext.quest.tasks}
+            tasks={treeContext.quest.rootTask?.children || []}
             expanded={expanded}
             setExpanded={setExpanded}
             onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
@@ -1458,6 +1532,7 @@ function getInspectorBarClass(selection) {
   return "";
 }
 
+
 function getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId) {
   if (!selection || !data) return null;
 
@@ -1479,7 +1554,7 @@ function getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId) {
     const quest = data.quests.find((item) => item.id === selection.questId);
     if (!quest) return null;
 
-    const path = findTaskPath(quest.tasks || [], selection.id) || [];
+    const path = findTaskPath(quest.rootTask?.children || [], selection.id) || [];
     const selectedTask = path[path.length - 1] || null;
     if (!selectedTask) return null;
 
@@ -1624,7 +1699,7 @@ function Inspector({
           ownerTitle={selected.quest.title}
           ancestry={getTaskAncestry(selection, data)}
           setSelection={setSelection}
-          locked={selected.quest.locked}
+          locked={selected.quest.locked || selected.task.locked}
           canFocusBranch={selected.quest.id === activeQuestId && (selected.task.children || []).length > 0}
           isBranchFocused={activeBranchTaskId === selected.task.id}
           setBranchFocus={() => setBranchFocus(selected.task.id)}
@@ -1634,7 +1709,7 @@ function Inspector({
               ...old,
               quests: old.quests.map((quest) =>
                 quest.id === selected.quest.id
-                  ? { ...quest, tasks: updateQuestTree(quest.tasks, selection.id, updater) }
+                  ? { ...quest, rootTask: { ...quest.rootTask, children: updateQuestTree(quest.rootTask?.children || [], selection.id, updater) } }
                   : quest
               ),
             }));
@@ -1683,6 +1758,7 @@ function Inspector({
   );
 }
 
+
 function resolveSelection(selection, data) {
   if (!selection || selection.type === "none") return null;
 
@@ -1696,7 +1772,7 @@ function resolveSelection(selection, data) {
 
   if (selection.type === "task") {
     const quest = data.quests.find((item) => item.id === selection.questId);
-    const found = quest ? findTask(quest.tasks, selection.id) : null;
+    const found = quest ? findTask(quest.rootTask ? [quest.rootTask] : [], selection.id) : null;
     return { quest, task: found?.task, parent: found?.parent };
   }
 
@@ -1770,7 +1846,7 @@ function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBr
 
       <div className="grid grid-cols-2 gap-3">
         <SelectField label="Difficulty" value={quest.difficulty} options={DIFFICULTIES} onChange={(value) => updateQuest({ difficulty: value })} disabled={quest.locked} />
-        <SelectField label="Rule" value={quest.mode} options={MODES} onChange={(value) => updateQuest({ mode: value })} disabled={quest.locked} />
+        <SelectField label="Rule" value={quest.rootTask?.mode || "all"} options={MODES} onChange={(value) => updateQuest({ rootTask: { ...quest.rootTask, mode: value } })} disabled={quest.locked} />
       </div>
 
       <FormDate label="Deadline" value={quest.deadline} onChange={(value) => updateQuest({ deadline: value })} disabled={quest.locked} />
@@ -2073,7 +2149,7 @@ function TaskInspector({ task, parent, ownerTitle, ancestry, setSelection, locke
 }
 
 function QuestChildrenSummary({ quest, setSelection }) {
-  const children = quest?.tasks || [];
+  const children = quest?.rootTask?.children || [];
   if (children.length === 0) {
     return (
       <div className="wiki-meta-line">

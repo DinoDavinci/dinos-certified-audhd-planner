@@ -52,6 +52,9 @@ import {
 
 import {
   makeQuest,
+  makeQuestRootTask,
+  getQuestRootTask,
+  getQuestChildTasks,
   createQuestFromRoutine,
   syncGeneratedQuestWithRoutine,
   reconcileTodayQuestForRoutine,
@@ -120,6 +123,9 @@ export {
 
 export {
   makeQuest,
+  makeQuestRootTask,
+  getQuestRootTask,
+  getQuestChildTasks,
   createQuestFromRoutine,
   syncGeneratedQuestWithRoutine,
   reconcileTodayQuestForRoutine,
@@ -134,8 +140,8 @@ export {
   getChildBranches
 } from "./questModel";
 
-export const STORAGE_KEY = "quest_planner_v2";
-export const LAST_TICK_KEY = "quest_planner_last_tick_v2";
+export const STORAGE_KEY = "quest_planner_v3";
+export const LAST_TICK_KEY = "quest_planner_last_tick_v3";
 
 export const DEFAULT_TAGS = ["Life", "Game Dev", "Art", "Health", "Chores", "Animal Care", "Other"];
 export const DIFFICULTIES = ["Tiny", "Easy", "Medium", "Hard", "Deep Work"];
@@ -252,22 +258,28 @@ export const seedData = {
     }),
   ],
 };
+
 export function normalizeData(parsed) {
   if (!parsed || typeof parsed !== "object") return seedData;
 
   const quests = Array.isArray(parsed.quests)
-    ? parsed.quests.map((quest) =>
-        makeQuest({
+    ? parsed.quests.map((quest) => {
+        const normalizedChildren = normalizeTasks(quest.rootTask?.children || quest.tasks || []);
+        return makeQuest({
           ...quest,
-          mode: quest.mode || "all",
           locked: quest.locked ?? quest.sourceType === "routine",
           completedAt: quest.completedAt || "",
           cooldownEnabled: quest.cooldownEnabled || false,
           cooldownAmount: quest.cooldownAmount || 6,
           cooldownUnit: quest.cooldownUnit || "months",
-          tasks: normalizeTasks(quest.tasks || []),
-        })
-      )
+          rootTask: {
+            ...(quest.rootTask || {}),
+            mode: quest.rootTask?.mode || quest.mode || "all",
+            completed: !!(quest.rootTask?.completed || quest.status === "completed"),
+            children: normalizedChildren,
+          },
+        });
+      })
     : [];
 
   const routines = Array.isArray(parsed.routines)
@@ -289,6 +301,7 @@ export function normalizeData(parsed) {
   };
 }
 
+
 export function runDailyMaintenance(data) {
   const today = todayString();
 
@@ -305,7 +318,7 @@ export function runDailyMaintenance(data) {
           ...quest,
           status: "active",
           completedAt: "",
-          tasks: resetTasks(quest.tasks || []),
+          rootTask: resetTaskSubtree(quest.rootTask),
         };
       }
     }
@@ -317,7 +330,6 @@ export function runDailyMaintenance(data) {
   });
 
   const routines = data.routines || [];
-  const generated = [];
 
   for (const routine of routines) {
     quests = reconcileTodayQuestForRoutine(quests, routine);
