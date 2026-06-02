@@ -289,9 +289,14 @@ export function buildFocusBoardFromRoot(root) {
       isConfirmation: true,
     };
 
+    const rootTaskReadyWithoutChildren =
+      root.selfTask.isRootTask &&
+      !isTaskComplete(root.selfTask) &&
+      (root.selfTask.children || []).length === 0;
+
     if (isTaskComplete(root.selfTask)) {
       completed.unshift(selfRow);
-    } else if (isTaskReadyToComplete(root.selfTask)) {
+    } else if (isTaskReadyToComplete(root.selfTask) || rootTaskReadyWithoutChildren) {
       available.unshift(selfRow);
     }
   }

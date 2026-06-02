@@ -567,6 +567,86 @@ function restoreQuest(questId) {
     URL.revokeObjectURL(url);
   }
 
+
+  function slugifyFilename(value, fallback = "quest") {
+    const slug = String(value || fallback)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    return slug || fallback;
+  }
+
+  function exportQuestFile(quest = activeQuest) {
+    if (!quest) return;
+
+    const payload = {
+      app: "quest-planner",
+      type: "quest-scene",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      quest,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const date = todayString();
+    anchor.href = url;
+    anchor.download = `${slugifyFilename(quest.title)}-${date}.quest.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importQuestFile(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || "{}"));
+        const rawQuest = parsed?.quest && typeof parsed.quest === "object" ? parsed.quest : parsed;
+        const normalized = normalizeData({ quests: [rawQuest], routines: [] });
+        const importedQuest = normalized.quests[0];
+
+        if (!importedQuest) throw new Error("No quest found in file.");
+
+        setData((old) => {
+          const existing = (old.quests || []).some((quest) => quest.id === importedQuest.id);
+          const quests = existing
+            ? old.quests.map((quest) => (quest.id === importedQuest.id ? importedQuest : quest))
+            : [importedQuest, ...(old.quests || [])];
+
+          const nextData = {
+            ...old,
+            quests,
+            activeQuestId: importedQuest.id,
+            activeBranchTaskId: null,
+          };
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+          localStorage.setItem(LAST_TICK_KEY, todayString());
+          return nextData;
+        });
+
+        setSelection({ type: "quest", id: importedQuest.id });
+        setHistory([{ type: "quest", id: importedQuest.id }]);
+        setHistoryIndex(0);
+        setExpanded({});
+        setTreeEditMode(false);
+        setExpandedKanbanCards({});
+      } catch (error) {
+        window.alert("Could not load that quest file. It may not be a valid quest scene export.");
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
   function importJsonFile(file) {
     if (!file) return;
 
@@ -699,6 +779,9 @@ function restoreQuest(questId) {
           createRoutine={createRoutine}
           exportJson={exportJson}
           importJsonFile={importJsonFile}
+          exportQuestFile={exportQuestFile}
+          importQuestFile={importQuestFile}
+          hasActiveQuest={Boolean(activeQuest)}
           resetToDefaults={resetToDefaults}
           selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
           selectRoutine={(routine) => setSelection({ type: "routine", id: routine.id })}
@@ -723,13 +806,13 @@ function restoreQuest(questId) {
           selectTask={(task) => setSelection({ type: "task", questId: activeQuest.id, id: task.id })}
           toggleTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
-            return ((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
+            return (((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
               ? completeQuest(activeQuest.id)
               : toggleTask(activeQuest.id, task.id);
           }}
           uncompleteTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
-            return ((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
+            return (((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
               ? restoreQuest(activeQuest.id)
               : uncompleteTask(activeQuest.id, task.id);
           }}
@@ -806,6 +889,9 @@ function LibraryPanel({
   createRoutine,
   exportJson,
   importJsonFile,
+  exportQuestFile,
+  importQuestFile,
+  hasActiveQuest,
   resetToDefaults,
   selectQuest,
   selectRoutine,
@@ -887,9 +973,9 @@ function LibraryPanel({
 
         {tab === "save" && (
           <div className="mt-4 space-y-3">
-            <button type="button" onClick={exportJson} className="primary-button w-full justify-center">Export JSON</button>
+            <button type="button" onClick={exportJson} className="primary-button w-full justify-center">Export all data</button>
             <label className="primary-button w-full cursor-pointer justify-center">
-              Load JSON
+              Load all data
               <input
                 type="file"
                 accept="application/json,.json"
@@ -900,9 +986,36 @@ function LibraryPanel({
                 }}
               />
             </label>
+
+            <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+              <div className="mb-2 text-sm font-semibold text-neutral-200">Quest files</div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => exportQuestFile()}
+                  disabled={!hasActiveQuest}
+                  className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Export active quest
+                </button>
+                <label className="primary-button w-full cursor-pointer justify-center">
+                  Load quest file
+                  <input
+                    type="file"
+                    accept="application/json,.json,.quest.json"
+                    className="hidden"
+                    onChange={(event) => {
+                      importQuestFile(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
             <button type="button" onClick={resetToDefaults} className="danger-button w-full justify-center">Reset to defaults</button>
             <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
-              Export creates a backup file of your quests and routines. Load replaces the current app state with the selected JSON file. Reset clears saved data and restores the default quests/routines.
+              Export all data creates a backup of quests and routines. Quest files export/import one quest scene at a time. Load all data replaces the current app state with the selected JSON file.
             </div>
           </div>
         )}
@@ -934,11 +1047,11 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
         clearBranchFocus={clearBranchFocus}
       />
 
-      {focusBoard.available.some((row) => (row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask") || isQuestComplete(quest) ? (
+      {focusBoard.available.some((row) => ((row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask") || row.kind === "rootTask") || isQuestComplete(quest) ? (
         <div className="complete-quest-celebration">
           <button
             onClick={() => {
-              const completionRow = focusBoard.available.find((row) => (row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask");
+              const completionRow = focusBoard.available.find((row) => ((row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask") || row.kind === "rootTask");
               if (completionRow) toggleTask(completionRow);
             }}
             className={isQuestComplete(quest) ? "recommended-complete-quest-button recommended-complete-quest-button-done" : "recommended-complete-quest-button"}
