@@ -107,6 +107,8 @@ import {
   slugifyFilename,
 } from "./utils/fileIO";
 
+import QuestBoardPanel from "./components/QuestBoardPanel";
+
 export default function App() {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -949,7 +951,24 @@ function LibraryPanel({
     <section className="panel panel-scroll library-col" style={{ flexBasis: `${panelWidth}px` }}>
       <LibraryTabBar tab={tab} setTab={setTab} />
       <div className="panel-content">
-        {tab !== "save" && (
+        {tab === "quests" && (
+          <QuestBoardPanel
+            search={search}
+            setSearch={setSearch}
+            tagFilter={tagFilter}
+            setTagFilter={setTagFilter}
+            allTags={allTags}
+            hideCompleted={hideCompleted}
+            setHideCompleted={setHideCompleted}
+            quests={quests}
+            activeQuestId={activeQuestId}
+            dueBadge={dueBadge}
+            createQuest={createQuest}
+            selectQuest={selectQuest}
+          />
+        )}
+
+        {tab === "routines" && (
           <>
             <div className="mt-4 space-y-2">
               <div className="relative">
@@ -961,48 +980,14 @@ function LibraryPanel({
                 <option>All</option>
                 {allTags.map((tag) => <option key={tag}>{tag}</option>)}
               </select>
-
-              {tab === "quests" && (
-                <label className="flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
-                  <input type="checkbox" checked={hideCompleted} onChange={(e) => setHideCompleted(e.target.checked)} />
-                  Hide complete
-                </label>
-              )}
             </div>
 
             <div className="mt-4">
-              {tab === "quests" ? (
-                <button onClick={createQuest} className="primary-button w-full"><Plus size={18} /> New quest</button>
-              ) : (
-                <button onClick={createRoutine} className="primary-button w-full"><Plus size={18} /> New routine</button>
-              )}
+              <button onClick={createRoutine} className="primary-button w-full"><Plus size={18} /> New routine</button>
             </div>
 
             <div className="mt-4 space-y-3">
-              {tab === "quests" && quests.map((quest) => (
-                <button
-                  key={quest.id}
-                  onClick={() => selectQuest(quest)}
-                  className={`library-card text-left ${questTypeClass(quest)} ${isQuestComplete(quest) ? "library-card-complete" : ""} ${quest.id === activeQuestId ? "border-neutral-300 bg-neutral-800" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="font-semibold">{quest.title}</div>
-                    {dueBadge(quest)}
-                  </div>
-
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-800">
-                    <div className="h-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {isQuestComplete(quest) && <span className="pill-complete">Completed</span>}
-                    {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
-                    {quest.sourceType === "routine" && <span className="pill-blue">Routine</span>}
-                  </div>
-                </button>
-              ))}
-
-              {tab === "routines" && routines.map((routine) => (
+              {routines.map((routine) => (
                 <button key={routine.id} onClick={() => selectRoutine(routine)} className="library-card text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div className="font-semibold">{routine.title}</div>
