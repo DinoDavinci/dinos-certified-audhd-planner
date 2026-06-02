@@ -111,6 +111,7 @@ import QuestBoardPanel from "./components/QuestBoardPanel";
 import RoutinePanel from "./components/RoutinePanel";
 import ExportPanel from "./components/ExportPanel";
 import FocusPanel from "./components/focus/FocusPanel";
+import TreePanel from "./components/tree/TreePanel";
 
 export default function App() {
   const [data, setData] = useState(() => {
@@ -1074,86 +1075,24 @@ function RightPanel(props) {
         title="Drag to resize Inspector / Tree View"
       />
 
-      <section
-        className={`panel panel-scroll ${treeModeClass(treeContext)}`}
-        style={{ flexBasis: `${100 - rightSplit}%` }}
-      >
-        <PanelTitleBar title="Tree View">
-          {effectiveTreeEditMode && treeContext.type === "routine" && (
-            <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
-          )}
-          {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
-            <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
-          )}
-          <button
-            onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
-            disabled={Boolean(treeContext.quest?.locked)}
-            className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
-            title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
-          >
-            {effectiveTreeEditMode ? "Done" : "Edit"}
-          </button>
-        </PanelTitleBar>
-        <div className="panel-content">
-
-        {treeContext.type === "routine" && (
-          <TreeRootRow
-            title={treeContext.routine.title}
-            kind="routine"
-            selected={selection.type === "routine" && selection.id === treeContext.routine.id}
-            onSelect={() => !treeEditMode && setSelection({ type: "routine", id: treeContext.routine.id })}
-          />
-        )}
-
-        {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
-          <TreeRootRow
-            title={treeContext.quest.title}
-            kind={`root-${treeContext.type === "focus" ? questTypeClass(treeContext.quest) : questTypeClass(treeContext.quest)}`}
-            selected={selection.type === "quest" && selection.id === treeContext.quest.id}
-            onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
-          />
-        )}
-
-        {treeContext.type === "routine" && (
-          <QuestTree
-            tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
-            expanded={expanded}
-            setExpanded={setExpanded}
-            onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
-            onAddChild={(task) => createRoutineTask(treeContext.routine.id, task.id)}
-            onDelete={(task) => deleteRoutineTask(treeContext.routine.id, task.id)}
-            onMoveUp={(task) => moveRoutineTask(treeContext.routine.id, task.id, -1)}
-            onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
-            onToggleComplete={() => {}}
-            treeEditMode={effectiveTreeEditMode}
-            selection={selection}
-            treeContext={treeContext}
-            template
-          />
-        )}
-
-        {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
-          <QuestTree
-            tasks={treeContext.quest.rootTask?.children || []}
-            expanded={expanded}
-            setExpanded={setExpanded}
-            onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
-            onAddChild={(task) => createQuestTask(treeContext.quest.id, task.id)}
-            onDelete={(task) => deleteQuestTask(treeContext.quest.id, task.id)}
-            onMoveUp={(task) => moveQuestTask(treeContext.quest.id, task.id, -1)}
-            onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
-            onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
-            treeEditMode={effectiveTreeEditMode}
-            selection={selection}
-            treeContext={treeContext}
-          />
-        )}
-
-        {treeContext.type === "empty" && (
-          <div className="text-sm text-neutral-500">No quest or routine selected.</div>
-        )}
-        </div>
-      </section>
+      <TreePanel
+        treeContext={treeContext}
+        effectiveTreeEditMode={effectiveTreeEditMode}
+        treeEditMode={treeEditMode}
+        setTreeEditMode={setTreeEditMode}
+        rightSplit={rightSplit}
+        selection={selection}
+        expanded={expanded}
+        setExpanded={setExpanded}
+        setSelection={setSelection}
+        createQuestTask={createQuestTask}
+        createRoutineTask={createRoutineTask}
+        deleteQuestTask={deleteQuestTask}
+        deleteRoutineTask={deleteRoutineTask}
+        moveQuestTask={moveQuestTask}
+        moveRoutineTask={moveRoutineTask}
+        toggleTask={toggleTask}
+      />
     </aside>
   );
 }
@@ -1917,122 +1856,6 @@ function AncestryPath({ ancestry, setSelection }) {
           </button>
         </React.Fragment>
       ))}
-    </div>
-  );
-}
-
-function TreeRootRow({ title, kind, selected, onSelect }) {
-  const className = ["tree-row", "tree-root-row", selected ? "tree-row-selected" : "", `tree-root-${kind}`].join(" ");
-
-  return (
-    <div className={className} onClick={onSelect}>
-      <div className="tree-root-content">
-        <div className="tree-root-icon">◆</div>
-        <div className="tree-root-title">{title || "Untitled"}</div>
-        <div className="tree-root-icon">◆</div>
-      </div>
-    </div>
-  );
-}
-
-function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null }) {
-  if (!tasks || tasks.length === 0) return <div className="text-sm text-neutral-500">No tasks yet.</div>;
-
-  return (
-    <div className="tree-node-list">
-      {tasks.map((task) => {
-        const children = task.children || [];
-        const hasChildren = children.length > 0;
-        const open = expanded[task.id] ?? true;
-        const complete = isTaskComplete(task);
-
-        const selected = isTreeTaskSelected(selection, treeContext, task);
-        const rowClass = [
-          "tree-row",
-          complete ? "tree-row-complete" : "",
-          selected ? "tree-row-selected" : "",
-          treeEditMode ? "tree-row-edit" : "",
-        ].join(" ");
-
-        return (
-          <div key={task.id} className="tree-node-wrap">
-            <div className={[depth > 0 ? "tree-row-wrap tree-node-child" : "tree-row-wrap tree-node-root", hasChildren ? "tree-row-branch" : "tree-row-leaf"].join(" ")}>
-              <div className="tree-disclosure-gutter">
-                {hasChildren ? (
-                  <button
-                    className="tree-disclosure"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setExpanded({ ...expanded, [task.id]: !open });
-                    }}
-                  >
-                    {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  </button>
-                ) : (
-                  <div className="tree-disclosure-spacer" />
-                )}
-              </div>
-
-              <div
-                className={rowClass}
-                onClick={() => !treeEditMode && onSelect(task)}
-              >
-                <div className="tree-row-main">
-                  <div className="tree-row-title">
-                    {task.title || "Untitled task"}
-                    {hasCountTarget(task) && (
-                      <span className="tree-count-suffix"> ({getCountProgress(task).progress}/{getCountProgress(task).target})</span>
-                    )}
-                  </div>
-                  {hasChildren && <div className="tree-row-mode">{task.mode === "sequence" ? "seq" : "all"}</div>}
-                </div>
-
-                <div className="tree-row-buttons" onClick={(event) => event.stopPropagation()}>
-                  {treeEditMode ? (
-                    <>
-                      <button onClick={() => onMoveUp?.(task)} className="tree-icon-button" title="Move up"><ArrowUp size={14} /></button>
-                      <button onClick={() => onMoveDown?.(task)} className="tree-icon-button" title="Move down"><ArrowDown size={14} /></button>
-                      <button onClick={() => onAddChild(task)} className="tree-icon-button" title="Add child"><Plus size={14} /></button>
-                      <button onClick={() => onDelete?.(task)} className="tree-icon-button danger-tree-button" title="Delete"><Trash2 size={14} /></button>
-                    </>
-                  ) : (
-                    !template && (!hasChildren || complete || isTaskReadyToComplete(task)) && (
-                      <button
-                        onClick={() => onToggleComplete(task)}
-                        className="tree-icon-button"
-                        title={complete ? "Mark incomplete" : hasChildren ? "Confirm complete" : "Complete"}
-                      >
-                        {complete ? <X size={14} /> : hasCountTarget(task) && !isCountReady(task) ? <Play size={14} /> : <CheckCircle2 size={14} />}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {hasChildren && open && (
-              <div className="tree-children-group">
-                <QuestTree
-                  tasks={children}
-                  expanded={expanded}
-                  setExpanded={setExpanded}
-                  onSelect={onSelect}
-                  onAddChild={onAddChild}
-                  onDelete={onDelete}
-                  onMoveUp={onMoveUp}
-                  onMoveDown={onMoveDown}
-                  onToggleComplete={onToggleComplete}
-                  depth={depth + 1}
-                  template={template}
-                  treeEditMode={treeEditMode}
-                  selection={selection}
-                  treeContext={treeContext}
-                />
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
