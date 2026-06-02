@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -178,8 +178,6 @@ function Inspector({
   runMaintenanceNow,
 }) {
   const selected = resolveSelection(selection, data);
-  const title = inspectorTitle(selection, selected);
-
   return (
     <div>
 
