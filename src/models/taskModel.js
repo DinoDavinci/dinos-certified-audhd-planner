@@ -1,46 +1,9 @@
+import { newId, EVERY_DAY_MASK, todayString, isRoutineActiveOnDate } from "../utils/dateUtils";
+
 // Task/objective tree model helpers.
 //
 // This file still uses the old "Objective" names so this refactor stays mechanical.
 // A later pass can rename Objective -> Task once the module split is stable.
-
-function newId(prefix) {
-  return `${prefix}_${crypto.randomUUID()}`;
-}
-
-// Local date/schedule helpers used by temporarily extracted routine helpers.
-// These are duplicated for now to keep this mechanical split working.
-// Later we should move date helpers to a dedicated date model/utility module.
-const TASK_MODEL_WEEKDAYS = [
-  { key: "sun", label: "Sun", bit: 1 << 0 },
-  { key: "mon", label: "Mon", bit: 1 << 1 },
-  { key: "tue", label: "Tue", bit: 1 << 2 },
-  { key: "wed", label: "Wed", bit: 1 << 3 },
-  { key: "thu", label: "Thu", bit: 1 << 4 },
-  { key: "fri", label: "Fri", bit: 1 << 5 },
-  { key: "sat", label: "Sat", bit: 1 << 6 },
-];
-
-const EVERY_DAY_MASK = TASK_MODEL_WEEKDAYS.reduce((mask, day) => mask | day.bit, 0);
-
-function todayString() {
-  const now = new Date();
-
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-function weekdayBit(dateString = todayString()) {
-  const date = new Date(dateString + "T00:00:00");
-  return 1 << date.getDay();
-}
-
-function isRoutineActiveOnDate(routine, dateString = todayString()) {
-  const mask = routine.dayMask ?? EVERY_DAY_MASK;
-  return (mask & weekdayBit(dateString)) !== 0;
-}
 
 export function resetObjectives(objectives) {
   return (objectives || []).map((objective) => ({
