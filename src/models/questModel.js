@@ -1,17 +1,17 @@
 import { newId, todayString, isRoutineActiveOnDate } from "../utils/dateUtils";
 
 import {
-  cloneObjectives,
-  isObjectiveComplete,
-  getObjectiveCounts,
+  cloneTasks,
+  isTaskComplete,
+  getTaskCounts,
   countLeafProgress,
-  findObjectivePath,
-  nextObjectivesInList,
-  resetObjectives,
+  findTaskPath,
+  nextTasksInList,
+  resetTasks,
 } from "./taskModel";
 
 // Quest model helpers.
-// This file still uses the old quest/objective shape so this refactor stays mechanical.
+// This file still uses the old quest/task shape so this refactor stays mechanical.
 
 export function makeQuest(overrides = {}) {
   return {
@@ -30,7 +30,7 @@ export function makeQuest(overrides = {}) {
     sourceType: "manual",
     routineId: null,
     locked: false,
-    objectives: [],
+    tasks: [],
     createdAt: new Date().toISOString(),
     ...overrides,
   };
@@ -47,7 +47,7 @@ export function createQuestFromRoutine(routine, dueDate) {
     sourceType: "routine",
     routineId: routine.id,
     locked: true,
-    objectives: cloneObjectives(routine.objectiveTemplate || []),
+    tasks: cloneTasks(routine.taskTemplate || []),
   });
 }
 
@@ -59,7 +59,7 @@ export function syncGeneratedQuestWithRoutine(quest, routine) {
     tags: routine.tags,
     difficulty: routine.difficulty,
     mode: routine.mode,
-    objectives: cloneObjectives(routine.objectiveTemplate || []),
+    tasks: cloneTasks(routine.taskTemplate || []),
   };
 }
 
@@ -100,9 +100,9 @@ export function isQuestComplete(quest) {
 
 export function isQuestReadyToComplete(quest) {
   if (!quest || isQuestComplete(quest)) return false;
-  const objectives = quest.objectives || [];
-  if (objectives.length === 0) return true;
-  return objectives.every(isObjectiveComplete);
+  const tasks = quest.tasks || [];
+  if (tasks.length === 0) return true;
+  return tasks.every(isTaskComplete);
 }
 
 export function getQuestProgress(quest) {
@@ -112,19 +112,19 @@ export function getQuestProgress(quest) {
   function walk(list) {
     for (const obj of list || []) {
       total += 1;
-      if (isObjectiveComplete(obj)) complete += 1;
+      if (isTaskComplete(obj)) complete += 1;
       walk(obj.children || []);
     }
   }
 
-  walk(quest?.objectives || []);
+  walk(quest?.tasks || []);
   if (total === 0) return isQuestComplete(quest) ? 100 : 0;
   return Math.round((complete / total) * 100);
 }
 
-export function nextObjectivesForQuest(quest) {
+export function nextTasksForQuest(quest) {
   if (!quest) return [];
-  return nextObjectivesInList(quest.objectives || [], quest.mode);
+  return nextTasksInList(quest.tasks || [], quest.mode);
 }
 
 export function makeQuestCompletionCard(quest, complete = false) {
@@ -132,7 +132,7 @@ export function makeQuestCompletionCard(quest, complete = false) {
     kind: "questCompletion",
     id: `quest-completion-${quest.id}`,
     quest,
-    objective: {
+    task: {
       id: `quest-completion-${quest.id}`,
       title: "Complete quest",
       description: "Finalize and complete this quest.",
@@ -171,30 +171,30 @@ export function addQuestCompletionCard(board, quest) {
   return next;
 }
 
-export function getBranchFocusInfo(quest, branchObjectiveId) {
-  if (!quest || !branchObjectiveId) return null;
+export function getBranchFocusInfo(quest, branchTaskId) {
+  if (!quest || !branchTaskId) return null;
 
-  const path = findObjectivePath(quest.objectives || [], branchObjectiveId) || [];
-  const objective = path[path.length - 1];
+  const path = findTaskPath(quest.tasks || [], branchTaskId) || [];
+  const task = path[path.length - 1];
 
-  if (!objective || (objective.children || []).length === 0) return null;
+  if (!task || (task.children || []).length === 0) return null;
 
   return {
-    objective,
+    task,
     path,
     pathText: [quest.title || "Untitled quest", ...path.map((item) => item.title || "Untitled")].join(" › "),
     root: {
-      mode: objective.mode,
-      objectives: objective.children || [],
+      mode: task.mode,
+      tasks: task.children || [],
     },
   };
 }
 
-export function getFocusPathInfo(quest, branchObjectiveId) {
+export function getFocusPathInfo(quest, branchTaskId) {
   if (!quest) {
     return {
       quest: null,
-      branchObjective: null,
+      branchTask: null,
       path: [],
       root: null,
       parent: null,
@@ -203,25 +203,25 @@ export function getFocusPathInfo(quest, branchObjectiveId) {
     };
   }
 
-  const branchInfo = getBranchFocusInfo(quest, branchObjectiveId);
-  const branchObjective = branchInfo?.objective || null;
+  const branchInfo = getBranchFocusInfo(quest, branchTaskId);
+  const branchTask = branchInfo?.task || null;
   const path = branchInfo?.path || [];
 
-  const root = branchObjective
+  const root = branchTask
     ? {
-        mode: branchObjective.mode,
-        objectives: branchObjective.children || [],
-        selfObjective: branchObjective,
+        mode: branchTask.mode,
+        tasks: branchTask.children || [],
+        selfTask: branchTask,
         selfPath: path,
       }
-    : { mode: quest.mode, objectives: quest.objectives || [] };
+    : { mode: quest.mode, tasks: quest.tasks || [] };
 
   const parent = path.length > 1 ? path[path.length - 2] : null;
-  const childBranches = getChildBranches(root.objectives || []);
+  const childBranches = getChildBranches(root.tasks || []);
 
-  const rawCounts = branchObjective
-    ? countLeafProgress(branchObjective)
-    : getObjectiveCounts(quest.objectives || []);
+  const rawCounts = branchTask
+    ? countLeafProgress(branchTask)
+    : getTaskCounts(quest.tasks || []);
 
   const completedCount = Number(rawCounts.completed ?? rawCounts.complete ?? 0);
   const totalCount = Number(rawCounts.total ?? 0);
@@ -229,7 +229,7 @@ export function getFocusPathInfo(quest, branchObjectiveId) {
 
   return {
     quest,
-    branchObjective,
+    branchTask,
     path,
     root,
     parent,
@@ -244,6 +244,6 @@ export function getFocusPathInfo(quest, branchObjectiveId) {
   };
 }
 
-export function getChildBranches(rootObjectives) {
-  return (rootObjectives || []).filter((objective) => (objective.children || []).length > 0);
+export function getChildBranches(rootTasks) {
+  return (rootTasks || []).filter((task) => (task.children || []).length > 0);
 }

@@ -12,42 +12,42 @@ import {
 } from "../utils/dateUtils";
 
 import {
-  resetObjectives,
-  completeObjectives,
-  resetObjectiveSubtree,
-  makeObjective,
+  resetTasks,
+  completeTasks,
+  resetTaskSubtree,
+  makeTask,
   makeRoutine,
-  cloneObjectives,
-  isObjectiveComplete,
+  cloneTasks,
+  isTaskComplete,
   hasCountTarget,
   getCountTarget,
   isCountReady,
   getCountProgress,
   getLeafProgressPercent,
-  getKanbanObjectiveTitle,
+  getKanbanTaskTitle,
   getKanbanActionState,
   getKanbanActionTitle,
-  areObjectiveChildrenComplete,
-  isObjectiveReadyToComplete,
+  areTaskChildrenComplete,
+  isTaskReadyToComplete,
   clearAncestorCompletionById,
-  getObjectiveCounts,
-  getObjectiveProgress,
-  nextObjectivesInList,
-  nextObjectivesFromObjective,
-  flattenObjectiveTree,
+  getTaskCounts,
+  getTaskProgress,
+  nextTasksInList,
+  nextTasksFromTask,
+  flattenQuestTree,
   readyBranchRows,
   countLeafProgress,
   buildFocusBoardFromRoot,
   buildFocusBoard,
-  normalizeObjectives,
-  findObjective,
-  findObjectivePath,
-  getObjectiveAncestry,
-  updateObjectiveTree,
-  addObjectiveToTree,
-  deleteObjectiveFromTree,
-  moveObjectiveInTree,
-  SAMPLE_OBJECTIVE_DESCRIPTIONS,
+  normalizeTasks,
+  findTask,
+  findTaskPath,
+  getTaskAncestry,
+  updateQuestTree,
+  addTaskToTree,
+  deleteTaskFromTree,
+  moveTaskInTree,
+  SAMPLE_TASK_DESCRIPTIONS,
 } from "./taskModel";
 
 import {
@@ -58,7 +58,7 @@ import {
   isQuestComplete,
   isQuestReadyToComplete,
   getQuestProgress,
-  nextObjectivesForQuest,
+  nextTasksForQuest,
   makeQuestCompletionCard,
   addQuestCompletionCard,
   getBranchFocusInfo,
@@ -80,42 +80,42 @@ export {
 };
 
 export {
-  resetObjectives,
-  completeObjectives,
-  resetObjectiveSubtree,
-  makeObjective,
+  resetTasks,
+  completeTasks,
+  resetTaskSubtree,
+  makeTask,
   makeRoutine,
-  cloneObjectives,
-  isObjectiveComplete,
+  cloneTasks,
+  isTaskComplete,
   hasCountTarget,
   getCountTarget,
   isCountReady,
   getCountProgress,
   getLeafProgressPercent,
-  getKanbanObjectiveTitle,
+  getKanbanTaskTitle,
   getKanbanActionState,
   getKanbanActionTitle,
-  areObjectiveChildrenComplete,
-  isObjectiveReadyToComplete,
+  areTaskChildrenComplete,
+  isTaskReadyToComplete,
   clearAncestorCompletionById,
-  getObjectiveCounts,
-  getObjectiveProgress,
-  nextObjectivesInList,
-  nextObjectivesFromObjective,
-  flattenObjectiveTree,
+  getTaskCounts,
+  getTaskProgress,
+  nextTasksInList,
+  nextTasksFromTask,
+  flattenQuestTree,
   readyBranchRows,
   countLeafProgress,
   buildFocusBoardFromRoot,
   buildFocusBoard,
-  normalizeObjectives,
-  findObjective,
-  findObjectivePath,
-  getObjectiveAncestry,
-  updateObjectiveTree,
-  addObjectiveToTree,
-  deleteObjectiveFromTree,
-  moveObjectiveInTree,
-  SAMPLE_OBJECTIVE_DESCRIPTIONS
+  normalizeTasks,
+  findTask,
+  findTaskPath,
+  getTaskAncestry,
+  updateQuestTree,
+  addTaskToTree,
+  deleteTaskFromTree,
+  moveTaskInTree,
+  SAMPLE_TASK_DESCRIPTIONS
 } from "./taskModel";
 
 export {
@@ -126,7 +126,7 @@ export {
   isQuestComplete,
   isQuestReadyToComplete,
   getQuestProgress,
-  nextObjectivesForQuest,
+  nextTasksForQuest,
   makeQuestCompletionCard,
   addQuestCompletionCard,
   getBranchFocusInfo,
@@ -134,8 +134,8 @@ export {
   getChildBranches
 } from "./questModel";
 
-export const STORAGE_KEY = "quest_planner_v1";
-export const LAST_TICK_KEY = "quest_planner_last_tick_v1";
+export const STORAGE_KEY = "quest_planner_v2";
+export const LAST_TICK_KEY = "quest_planner_last_tick_v2";
 
 export const DEFAULT_TAGS = ["Life", "Game Dev", "Art", "Health", "Chores", "Animal Care", "Other"];
 export const DIFFICULTIES = ["Tiny", "Easy", "Medium", "Hard", "Deep Work"];
@@ -144,7 +144,7 @@ export const COOLDOWN_UNITS = ["days", "weeks", "months", "years"];
 
 export const seedData = {
   activeQuestId: "quest_programming_sample",
-  activeBranchObjectiveId: null,
+  activeBranchTaskId: null,
   quests: [
     makeQuest({
       id: "quest_programming_sample",
@@ -153,15 +153,15 @@ export const seedData = {
       tags: ["Programming"],
       difficulty: "Medium",
       mode: "sequence",
-      objectives: [
-        makeObjective({ id: "obj_programming_plan", title: "Plan", description: "Figure out what you are trying to do before opening too many files.\n\nOutput:\nA short written goal and a small step list.", mode: "sequence", children: [
-            makeObjective({ id: "obj_programming_define", title: "Define the goal", description: "Write one or two sentences describing the intended outcome.\n\nUseful questions:\n- What should change?\n- What should stay the same?\n- How will I know it worked?" }),
-            makeObjective({ id: "obj_programming_breakdown", title: "Break into steps", description: "Split the work into small steps.\n\nAim for steps that can be tested independently.\n\nAvoid:\nA giant all-in-one refactor unless the task truly requires it." })
+      tasks: [
+        makeTask({ id: "obj_programming_plan", title: "Plan", description: "Figure out what you are trying to do before opening too many files.\n\nOutput:\nA short written goal and a small step list.", mode: "sequence", children: [
+            makeTask({ id: "obj_programming_define", title: "Define the goal", description: "Write one or two sentences describing the intended outcome.\n\nUseful questions:\n- What should change?\n- What should stay the same?\n- How will I know it worked?" }),
+            makeTask({ id: "obj_programming_breakdown", title: "Break into steps", description: "Split the work into small steps.\n\nAim for steps that can be tested independently.\n\nAvoid:\nA giant all-in-one refactor unless the task truly requires it." })
           ] }),
-        makeObjective({ id: "obj_programming_build", title: "Build and verify", description: "Make the planned change, then verify it.\n\nKeep the first pass simple. Polish after the behavior works.", mode: "sequence", children: [
-            makeObjective({ id: "obj_programming_implement", title: "Implement first pass", description: "Build the simplest version that proves the idea works.\n\nDo not polish too early.\n\nGood first-pass goal:\nWorking, understandable, and easy to revise." }),
-            makeObjective({ id: "obj_programming_test", title: "Test behavior", description: "Check that the task actually works.\n\nTest:\n- The normal expected case\n- At least one edge case\n- Anything that previously broke" }),
-            makeObjective({ id: "obj_programming_cleanup", title: "Clean up notes", description: "Clean up after the task.\n\nChecklist:\n- Remove temporary logs or scratch code\n- Rename unclear variables if needed\n- Write down any follow-up task\n- Commit if the change is good" })
+        makeTask({ id: "obj_programming_build", title: "Build and verify", description: "Make the planned change, then verify it.\n\nKeep the first pass simple. Polish after the behavior works.", mode: "sequence", children: [
+            makeTask({ id: "obj_programming_implement", title: "Implement first pass", description: "Build the simplest version that proves the idea works.\n\nDo not polish too early.\n\nGood first-pass goal:\nWorking, understandable, and easy to revise." }),
+            makeTask({ id: "obj_programming_test", title: "Test behavior", description: "Check that the task actually works.\n\nTest:\n- The normal expected case\n- At least one edge case\n- Anything that previously broke" }),
+            makeTask({ id: "obj_programming_cleanup", title: "Clean up notes", description: "Clean up after the task.\n\nChecklist:\n- Remove temporary logs or scratch code\n- Rename unclear variables if needed\n- Write down any follow-up task\n- Commit if the change is good" })
           ] }),
       ],
     }),
@@ -175,12 +175,12 @@ export const seedData = {
       cooldownEnabled: true,
       cooldownAmount: 6,
       cooldownUnit: "months",
-      objectives: [
-        makeObjective({ id: "obj_oil_supplies", title: "Gather supplies", description: "Gather everything before starting.\n\nChecklist:\n- Oil\n- Oil filter\n- Drain pan\n- Funnel\n- Gloves\n- Rags\n- Correct tools" }),
-        makeObjective({ id: "obj_oil_drain", title: "Drain old oil", description: "Drain the old oil safely.\n\nRemember:\n- Let the oil drain fully\n- Keep track of the drain plug\n- Avoid spills where possible" }),
-        makeObjective({ id: "obj_oil_filter", title: "Replace filter", description: "Replace the oil filter.\n\nBasic reminder:\n- Remove old filter\n- Check that the old gasket came off\n- Install the new filter correctly" }),
-        makeObjective({ id: "obj_oil_refill", title: "Refill oil", description: "Refill with the correct oil.\n\nCheck:\n- Correct oil type\n- Correct amount\n- Oil cap replaced afterward" }),
-        makeObjective({ id: "obj_oil_check", title: "Check level and leaks", description: "Verify the oil change.\n\nChecklist:\n- Run briefly\n- Check for leaks\n- Turn off and wait briefly\n- Check dipstick level\n- Top off if needed" }),
+      tasks: [
+        makeTask({ id: "obj_oil_supplies", title: "Gather supplies", description: "Gather everything before starting.\n\nChecklist:\n- Oil\n- Oil filter\n- Drain pan\n- Funnel\n- Gloves\n- Rags\n- Correct tools" }),
+        makeTask({ id: "obj_oil_drain", title: "Drain old oil", description: "Drain the old oil safely.\n\nRemember:\n- Let the oil drain fully\n- Keep track of the drain plug\n- Avoid spills where possible" }),
+        makeTask({ id: "obj_oil_filter", title: "Replace filter", description: "Replace the oil filter.\n\nBasic reminder:\n- Remove old filter\n- Check that the old gasket came off\n- Install the new filter correctly" }),
+        makeTask({ id: "obj_oil_refill", title: "Refill oil", description: "Refill with the correct oil.\n\nCheck:\n- Correct oil type\n- Correct amount\n- Oil cap replaced afterward" }),
+        makeTask({ id: "obj_oil_check", title: "Check level and leaks", description: "Verify the oil change.\n\nChecklist:\n- Run briefly\n- Check for leaks\n- Turn off and wait briefly\n- Check dipstick level\n- Top off if needed" }),
       ],
     }),
     makeQuest({
@@ -193,11 +193,11 @@ export const seedData = {
       cooldownEnabled: true,
       cooldownAmount: 1,
       cooldownUnit: "weeks",
-      objectives: [
-        makeObjective({ id: "obj_laundry_sort", title: "Gather laundry", description: "Collect laundry from the usual places.\n\nInclude:\n- Clothes\n- Towels\n- Washable cloth items\n- Anything that needs special handling" }),
-        makeObjective({ id: "obj_laundry_wash", title: "Wash", description: "Start the wash.\n\nCheck:\n- Load size\n- Detergent\n- Water temperature\n- Any special settings" }),
-        makeObjective({ id: "obj_laundry_dry", title: "Dry", description: "Move laundry out of the washer.\n\nUse dryer or hang dry as needed.\n\nDo not leave wet laundry sitting too long." }),
-        makeObjective({ id: "obj_laundry_put_away", title: "Put away", description: "Finish the laundry loop.\n\nChecklist:\n- Fold or hang\n- Pair socks if needed\n- Put everything away" }),
+      tasks: [
+        makeTask({ id: "obj_laundry_sort", title: "Gather laundry", description: "Collect laundry from the usual places.\n\nInclude:\n- Clothes\n- Towels\n- Washable cloth items\n- Anything that needs special handling" }),
+        makeTask({ id: "obj_laundry_wash", title: "Wash", description: "Start the wash.\n\nCheck:\n- Load size\n- Detergent\n- Water temperature\n- Any special settings" }),
+        makeTask({ id: "obj_laundry_dry", title: "Dry", description: "Move laundry out of the washer.\n\nUse dryer or hang dry as needed.\n\nDo not leave wet laundry sitting too long." }),
+        makeTask({ id: "obj_laundry_put_away", title: "Put away", description: "Finish the laundry loop.\n\nChecklist:\n- Fold or hang\n- Pair socks if needed\n- Put everything away" }),
       ],
     }),
     makeQuest({
@@ -207,13 +207,13 @@ export const seedData = {
       tags: ["Release", "Website"],
       difficulty: "Tiny",
       mode: "sequence",
-      objectives: [
-        makeObjective({ id: "obj_web_test_dev", title: "Test locally", description: "Verify the browser dev version.\n\nCommand:\nnpm run dev\n\nCheck:\n- App loads\n- Main workflow still works\n- No obvious console errors" }),
-        makeObjective({ id: "obj_web_test_tauri", title: "Test desktop dev", description: "Verify the desktop dev version if the change affects Tauri, localStorage, layout, or file behavior.\n\nCommand:\nnpm run tauri dev" }),
-        makeObjective({ id: "obj_web_commit", title: "Commit changes", description: "Commit and push the source update.\n\nCommands:\ngit add .\ngit commit -m \"Describe update\"\ngit push origin main" }),
-        makeObjective({ id: "obj_web_build", title: "Build website", description: "Create the production website build.\n\nCommand:\nnpm run build\n\nIf this fails, fix the error before deploying." }),
-        makeObjective({ id: "obj_web_deploy", title: "Deploy GitHub Pages", description: "Publish the built website to GitHub Pages.\n\nCommand:\nnpm run deploy\n\nThis updates the gh-pages branch." }),
-        makeObjective({ id: "obj_web_verify", title: "Verify live page", description: "Verify the live website.\n\nCheck:\n- Page loads\n- App is not a white screen\n- Refresh keeps data\n- JSON export/import still works\n\nIf needed, hard refresh:\nCtrl + Shift + R" }),
+      tasks: [
+        makeTask({ id: "obj_web_test_dev", title: "Test locally", description: "Verify the browser dev version.\n\nCommand:\nnpm run dev\n\nCheck:\n- App loads\n- Main workflow still works\n- No obvious console errors" }),
+        makeTask({ id: "obj_web_test_tauri", title: "Test desktop dev", description: "Verify the desktop dev version if the change affects Tauri, localStorage, layout, or file behavior.\n\nCommand:\nnpm run tauri dev" }),
+        makeTask({ id: "obj_web_commit", title: "Commit changes", description: "Commit and push the source update.\n\nCommands:\ngit add .\ngit commit -m \"Describe update\"\ngit push origin main" }),
+        makeTask({ id: "obj_web_build", title: "Build website", description: "Create the production website build.\n\nCommand:\nnpm run build\n\nIf this fails, fix the error before deploying." }),
+        makeTask({ id: "obj_web_deploy", title: "Deploy GitHub Pages", description: "Publish the built website to GitHub Pages.\n\nCommand:\nnpm run deploy\n\nThis updates the gh-pages branch." }),
+        makeTask({ id: "obj_web_verify", title: "Verify live page", description: "Verify the live website.\n\nCheck:\n- Page loads\n- App is not a white screen\n- Refresh keeps data\n- JSON export/import still works\n\nIf needed, hard refresh:\nCtrl + Shift + R" }),
       ],
     }),
     makeQuest({
@@ -223,12 +223,12 @@ export const seedData = {
       tags: ["Release", "Desktop"],
       difficulty: "Tiny",
       mode: "sequence",
-      objectives: [
-        makeObjective({ id: "obj_appimage_export_save", title: "Export save backup", description: "Back up your current planner data before a risky update.\n\nUse:\nSave/Load → Export JSON" }),
-        makeObjective({ id: "obj_appimage_test_dev", title: "Test Tauri dev", description: "Verify the desktop development version.\n\nCommand:\nnpm run tauri dev\n\nCheck that the native window opens and the app behaves normally." }),
-        makeObjective({ id: "obj_appimage_build", title: "Build AppImage", description: "Build the Linux desktop release.\n\nCommand:\nnpm run tauri build\n\nThis may take a while, especially while bundling." }),
-        makeObjective({ id: "obj_appimage_find", title: "Find output", description: "Find the AppImage output.\n\nLocation:\nsrc-tauri/target/release/bundle/appimage/\n\nThe file should end with:\n.AppImage" }),
-        makeObjective({ id: "obj_appimage_smoke_test", title: "Smoke test AppImage", description: "Smoke test the new AppImage.\n\nCheck:\n- App launches\n- Existing data loads\n- Create/edit works\n- Save/Load works\n- No white screen" }),
+      tasks: [
+        makeTask({ id: "obj_appimage_export_save", title: "Export save backup", description: "Back up your current planner data before a risky update.\n\nUse:\nSave/Load → Export JSON" }),
+        makeTask({ id: "obj_appimage_test_dev", title: "Test Tauri dev", description: "Verify the desktop development version.\n\nCommand:\nnpm run tauri dev\n\nCheck that the native window opens and the app behaves normally." }),
+        makeTask({ id: "obj_appimage_build", title: "Build AppImage", description: "Build the Linux desktop release.\n\nCommand:\nnpm run tauri build\n\nThis may take a while, especially while bundling." }),
+        makeTask({ id: "obj_appimage_find", title: "Find output", description: "Find the AppImage output.\n\nLocation:\nsrc-tauri/target/release/bundle/appimage/\n\nThe file should end with:\n.AppImage" }),
+        makeTask({ id: "obj_appimage_smoke_test", title: "Smoke test AppImage", description: "Smoke test the new AppImage.\n\nCheck:\n- App launches\n- Existing data loads\n- Create/edit works\n- Save/Load works\n- No white screen" }),
       ],
     }),
   ],
@@ -242,12 +242,12 @@ export const seedData = {
       dayMask: EVERY_DAY_MASK,
       mode: "sequence",
       active: true,
-      objectiveTemplate: [
-        makeObjective({ id: "routine_workout_warmup", title: "Warmup", description: "Do a few easy movements to feel warm.\n\nExamples:\n- Arm circles\n- Hip circles\n- Bodyweight squats\n- Easy marching in place" }),
-        makeObjective({ id: "routine_workout_pushups", title: "Pushups", description: "Do controlled pushups or incline pushups.\n\nForm notes:\n- Keep the body straight\n- Lower under control\n- Stop before grinding reps", countTarget: 3 }),
-        makeObjective({ id: "routine_workout_squats", title: "Squats", description: "Use bodyweight, a dumbbell, or a bag.\n\nForm notes:\n- Sit the hips down and back\n- Keep knees controlled\n- Stand smoothly", countTarget: 3 }),
-        makeObjective({ id: "routine_workout_rows", title: "Rows", description: "Use a dumbbell, band, or bag.\n\nForm notes:\n- Pull toward the ribs or hip\n- Do not yank with momentum\n- Lower under control", countTarget: 3 }),
-        makeObjective({ id: "routine_workout_carry", title: "Carry", description: "Carry a bag or weight for a short walk.\n\nForm notes:\n- Stand tall\n- Keep breathing steady\n- Do not rush", countTarget: 2 }),
+      taskTemplate: [
+        makeTask({ id: "routine_workout_warmup", title: "Warmup", description: "Do a few easy movements to feel warm.\n\nExamples:\n- Arm circles\n- Hip circles\n- Bodyweight squats\n- Easy marching in place" }),
+        makeTask({ id: "routine_workout_pushups", title: "Pushups", description: "Do controlled pushups or incline pushups.\n\nForm notes:\n- Keep the body straight\n- Lower under control\n- Stop before grinding reps", countTarget: 3 }),
+        makeTask({ id: "routine_workout_squats", title: "Squats", description: "Use bodyweight, a dumbbell, or a bag.\n\nForm notes:\n- Sit the hips down and back\n- Keep knees controlled\n- Stand smoothly", countTarget: 3 }),
+        makeTask({ id: "routine_workout_rows", title: "Rows", description: "Use a dumbbell, band, or bag.\n\nForm notes:\n- Pull toward the ribs or hip\n- Do not yank with momentum\n- Lower under control", countTarget: 3 }),
+        makeTask({ id: "routine_workout_carry", title: "Carry", description: "Carry a bag or weight for a short walk.\n\nForm notes:\n- Stand tall\n- Keep breathing steady\n- Do not rush", countTarget: 2 }),
       ],
     }),
   ],
@@ -265,7 +265,7 @@ export function normalizeData(parsed) {
           cooldownEnabled: quest.cooldownEnabled || false,
           cooldownAmount: quest.cooldownAmount || 6,
           cooldownUnit: quest.cooldownUnit || "months",
-          objectives: normalizeObjectives(quest.objectives || []),
+          tasks: normalizeTasks(quest.tasks || []),
         })
       )
     : [];
@@ -276,14 +276,14 @@ export function normalizeData(parsed) {
           ...routine,
           mode: routine.mode || "sequence",
           dayMask: routine.dayMask ?? EVERY_DAY_MASK,
-          objectiveTemplate: normalizeObjectives(routine.objectiveTemplate || []),
+          taskTemplate: normalizeTasks(routine.taskTemplate || []),
         })
       )
     : [];
 
   return {
     activeQuestId: parsed.activeQuestId || quests[0]?.id || null,
-    activeBranchObjectiveId: parsed.activeBranchObjectiveId || null,
+    activeBranchTaskId: parsed.activeBranchTaskId || null,
     quests,
     routines,
   };
@@ -305,7 +305,7 @@ export function runDailyMaintenance(data) {
           ...quest,
           status: "active",
           completedAt: "",
-          objectives: resetObjectives(quest.objectives || []),
+          tasks: resetTasks(quest.tasks || []),
         };
       }
     }
@@ -331,20 +331,20 @@ export function selectionKey(selection) {
   if (!selection) return "none";
   if (selection.type === "quest") return `quest:${selection.id}`;
   if (selection.type === "routine") return `routine:${selection.id}`;
-  if (selection.type === "objective") return `objective:${selection.questId}:${selection.id}`;
-  if (selection.type === "routineObjective") return `routineObjective:${selection.routineId}:${selection.id}`;
+  if (selection.type === "task") return `task:${selection.questId}:${selection.id}`;
+  if (selection.type === "routineTask") return `routineTask:${selection.routineId}:${selection.id}`;
   return "none";
 }
 
-export function isTreeObjectiveSelected(selection, treeContext, objective) {
-  if (!selection || !objective || !treeContext) return false;
+export function isTreeTaskSelected(selection, treeContext, task) {
+  if (!selection || !task || !treeContext) return false;
 
-  if ((treeContext.type === "quest" || treeContext.type === "focus") && selection.type === "objective") {
-    return selection.questId === treeContext.quest?.id && selection.id === objective.id;
+  if ((treeContext.type === "quest" || treeContext.type === "focus") && selection.type === "task") {
+    return selection.questId === treeContext.quest?.id && selection.id === task.id;
   }
 
-  if (treeContext.type === "routine" && selection.type === "routineObjective") {
-    return selection.routineId === treeContext.routine?.id && selection.id === objective.id;
+  if (treeContext.type === "routine" && selection.type === "routineTask") {
+    return selection.routineId === treeContext.routine?.id && selection.id === task.id;
   }
 
   return false;
@@ -358,7 +358,7 @@ export function getTreeContext(selection, data, activeQuest) {
     }
   }
 
-  if (selection?.type === "routineObjective") {
+  if (selection?.type === "routineTask") {
     const routine = data.routines.find((item) => item.id === selection.routineId);
     if (routine) {
       return { type: "routine", routine, title: `Routine Template: ${routine.title}` };
@@ -372,7 +372,7 @@ export function getTreeContext(selection, data, activeQuest) {
     }
   }
 
-  if (selection?.type === "objective") {
+  if (selection?.type === "task") {
     const quest = data.quests.find((item) => item.id === selection.questId);
     if (quest) {
       return { type: "quest", quest, title: `Quest Tree: ${quest.title}` };

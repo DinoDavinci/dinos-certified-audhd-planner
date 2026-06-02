@@ -34,37 +34,37 @@ import {
   addDays,
   addMonths,
   addCooldown,
-  resetObjectives,
-  completeObjectives,
-  resetObjectiveSubtree,
-  makeObjective,
+  resetTasks,
+  completeTasks,
+  resetTaskSubtree,
+  makeTask,
   makeQuest,
   makeRoutine,
-  cloneObjectives,
+  cloneTasks,
   createQuestFromRoutine,
   syncGeneratedQuestWithRoutine,
   reconcileTodayQuestForRoutine,
-  isObjectiveComplete,
+  isTaskComplete,
   hasCountTarget,
   getCountTarget,
   isCountReady,
   getCountProgress,
   getLeafProgressPercent,
-  getKanbanObjectiveTitle,
+  getKanbanTaskTitle,
   getKanbanActionState,
   getKanbanActionTitle,
-  areObjectiveChildrenComplete,
-  isObjectiveReadyToComplete,
+  areTaskChildrenComplete,
+  isTaskReadyToComplete,
   clearAncestorCompletionById,
   isQuestComplete,
   isQuestReadyToComplete,
-  getObjectiveCounts,
-  getObjectiveProgress,
+  getTaskCounts,
+  getTaskProgress,
   getQuestProgress,
-  nextObjectivesInList,
-  nextObjectivesFromObjective,
-  nextObjectivesForQuest,
-  flattenObjectiveTree,
+  nextTasksInList,
+  nextTasksFromTask,
+  nextTasksForQuest,
+  flattenQuestTree,
   readyBranchRows,
   countLeafProgress,
   buildFocusBoardFromRoot,
@@ -74,20 +74,20 @@ import {
   getBranchFocusInfo,
   getFocusPathInfo,
   getChildBranches,
-  SAMPLE_OBJECTIVE_DESCRIPTIONS,
-  normalizeObjectives,
-  findObjective,
-  findObjectivePath,
-  getObjectiveAncestry,
-  updateObjectiveTree,
-  addObjectiveToTree,
-  deleteObjectiveFromTree,
-  moveObjectiveInTree,
+  SAMPLE_TASK_DESCRIPTIONS,
+  normalizeTasks,
+  findTask,
+  findTaskPath,
+  getTaskAncestry,
+  updateQuestTree,
+  addTaskToTree,
+  deleteTaskFromTree,
+  moveTaskInTree,
   seedData,
   normalizeData,
   runDailyMaintenance,
   selectionKey,
-  isTreeObjectiveSelected,
+  isTreeTaskSelected,
   getTreeContext,
   treeModeClass,
   treeModeLabel,
@@ -130,8 +130,8 @@ export default function App() {
   const quests = data.quests || [];
   const routines = data.routines || [];
   const activeQuest = quests.find((quest) => quest.id === data.activeQuestId) || quests[0] || null;
-  const focusPathInfo = getFocusPathInfo(activeQuest, data.activeBranchObjectiveId);
-  const actionable = nextObjectivesInList(focusPathInfo.root?.objectives || [], focusPathInfo.root?.mode || "all");
+  const focusPathInfo = getFocusPathInfo(activeQuest, data.activeBranchTaskId);
+  const actionable = nextTasksInList(focusPathInfo.root?.tasks || [], focusPathInfo.root?.mode || "all");
   const focusBoard = addQuestCompletionCard(
     buildFocusBoardFromRoot(focusPathInfo.root),
     activeQuest
@@ -229,30 +229,30 @@ export default function App() {
     setSelection({ type: "routine", id: routine.id });
   }
 
-  function createQuestObjective(questId, parentId = null) {
-    const objective = makeObjective({ title: "New Objective" });
+  function createQuestTask(questId, parentId = null) {
+    const task = makeTask({ title: "New Task" });
 
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
-          ? { ...quest, objectives: addObjectiveToTree(quest.objectives, parentId, objective) }
+          ? { ...quest, tasks: addTaskToTree(quest.tasks, parentId, task) }
           : quest
       ),
     }));
 
     if (parentId) setExpanded((old) => ({ ...old, [parentId]: true }));
-    setSelection({ type: "objective", questId, id: objective.id });
+    setSelection({ type: "task", questId, id: task.id });
   }
 
-  function createRoutineObjective(routineId, parentId = null) {
-    const objective = makeObjective({ title: "New Objective" });
+  function createRoutineTask(routineId, parentId = null) {
+    const task = makeTask({ title: "New Task" });
 
     setData((old) => {
       let updatedRoutine = null;
       const routines = old.routines.map((routine) => {
         if (routine.id !== routineId) return routine;
-        updatedRoutine = { ...routine, objectiveTemplate: addObjectiveToTree(routine.objectiveTemplate, parentId, objective) };
+        updatedRoutine = { ...routine, taskTemplate: addTaskToTree(routine.taskTemplate, parentId, task) };
         return updatedRoutine;
       });
 
@@ -266,7 +266,7 @@ export default function App() {
     });
 
     if (parentId) setExpanded((old) => ({ ...old, [parentId]: true }));
-    setSelection({ type: "routineObjective", routineId, id: objective.id });
+    setSelection({ type: "routineTask", routineId, id: task.id });
   }
 
   function deleteQuest(questId) {
@@ -276,7 +276,7 @@ export default function App() {
         ...old,
         quests,
         activeQuestId: old.activeQuestId === questId ? quests[0]?.id || null : old.activeQuestId,
-        activeBranchObjectiveId: old.activeQuestId === questId ? null : old.activeBranchObjectiveId,
+        activeBranchTaskId: old.activeQuestId === questId ? null : old.activeBranchTaskId,
       };
     });
 
@@ -293,12 +293,12 @@ export default function App() {
     setSelection({ type: "none" });
   }
 
-  function deleteQuestObjective(questId, objectiveId) {
+  function deleteQuestTask(questId, taskId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
-          ? { ...quest, objectives: deleteObjectiveFromTree(quest.objectives, objectiveId) }
+          ? { ...quest, tasks: deleteTaskFromTree(quest.tasks, taskId) }
           : quest
       ),
     }));
@@ -306,12 +306,12 @@ export default function App() {
     setSelection({ type: "quest", id: questId });
   }
 
-  function deleteRoutineObjective(routineId, objectiveId) {
+  function deleteRoutineTask(routineId, taskId) {
     setData((old) => {
       let updatedRoutine = null;
       const routines = old.routines.map((routine) => {
         if (routine.id !== routineId) return routine;
-        updatedRoutine = { ...routine, objectiveTemplate: deleteObjectiveFromTree(routine.objectiveTemplate, objectiveId) };
+        updatedRoutine = { ...routine, taskTemplate: deleteTaskFromTree(routine.taskTemplate, taskId) };
         return updatedRoutine;
       });
 
@@ -327,23 +327,23 @@ export default function App() {
     setSelection({ type: "routine", id: routineId });
   }
 
-  function moveQuestObjective(questId, objectiveId, direction) {
+  function moveQuestTask(questId, taskId, direction) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
-          ? { ...quest, objectives: moveObjectiveInTree(quest.objectives, objectiveId, direction) }
+          ? { ...quest, tasks: moveTaskInTree(quest.tasks, taskId, direction) }
           : quest
       ),
     }));
   }
 
-  function moveRoutineObjective(routineId, objectiveId, direction) {
+  function moveRoutineTask(routineId, taskId, direction) {
     setData((old) => {
       let updatedRoutine = null;
       const routines = old.routines.map((routine) => {
         if (routine.id !== routineId) return routine;
-        updatedRoutine = { ...routine, objectiveTemplate: moveObjectiveInTree(routine.objectiveTemplate, objectiveId, direction) };
+        updatedRoutine = { ...routine, taskTemplate: moveTaskInTree(routine.taskTemplate, taskId, direction) };
         return updatedRoutine;
       });
 
@@ -357,24 +357,24 @@ export default function App() {
     });
   }
 
-  function toggleObjective(questId, objectiveId) {
+  function toggleTask(questId, taskId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
 
         let nextCompleted = null;
-        let objectives = updateObjectiveTree(quest.objectives, objectiveId, (objective) => {
-          const children = objective.children || [];
-          if (children.length > 0 && !areObjectiveChildrenComplete(objective)) return objective;
+        let tasks = updateQuestTree(quest.tasks, taskId, (task) => {
+          const children = task.children || [];
+          if (children.length > 0 && !areTaskChildrenComplete(task)) return task;
 
-          if (hasCountTarget(objective) && !objective.completed) {
-            const { target, progress } = getCountProgress(objective);
+          if (hasCountTarget(task) && !task.completed) {
+            const { target, progress } = getCountProgress(task);
 
             if (progress < target) {
               nextCompleted = null;
               return {
-                ...objective,
+                ...task,
                 countProgress: Math.min(target, progress + 1),
                 completed: false,
               };
@@ -382,63 +382,63 @@ export default function App() {
 
             nextCompleted = true;
             return {
-              ...objective,
+              ...task,
               completed: true,
               countProgress: target,
             };
           }
 
-          nextCompleted = !objective.completed;
+          nextCompleted = !task.completed;
           return {
-            ...objective,
+            ...task,
             completed: nextCompleted,
-            countProgress: nextCompleted ? getCountProgress(objective).progress : 0,
+            countProgress: nextCompleted ? getCountProgress(task).progress : 0,
           };
         });
 
         if (nextCompleted === false) {
-          objectives = clearAncestorCompletionById(objectives, objectiveId);
+          tasks = clearAncestorCompletionById(tasks, taskId);
         }
 
         return {
           ...quest,
           status: "active",
           completedAt: "",
-          objectives,
+          tasks,
         };
       }),
     }));
   }
 
-  function uncompleteObjective(questId, objectiveId) {
+  function uncompleteTask(questId, taskId) {
     setData((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
 
-        const resetObjectivesForTarget = updateObjectiveTree(quest.objectives, objectiveId, (objective) => resetObjectiveSubtree(objective));
-        const objectives = clearAncestorCompletionById(resetObjectivesForTarget, objectiveId);
+        const resetTasksForTarget = updateQuestTree(quest.tasks, taskId, (task) => resetTaskSubtree(task));
+        const tasks = clearAncestorCompletionById(resetTasksForTarget, taskId);
 
         return {
           ...quest,
           status: "active",
           completedAt: "",
-          objectives,
+          tasks,
         };
       }),
     }));
   }
 
   function makeFocus(questId) {
-    setData((old) => ({ ...old, activeQuestId: questId, activeBranchObjectiveId: null }));
+    setData((old) => ({ ...old, activeQuestId: questId, activeBranchTaskId: null }));
   }
 
-  function setBranchFocus(objectiveId) {
-    setData((old) => ({ ...old, activeBranchObjectiveId: objectiveId }));
+  function setBranchFocus(taskId) {
+    setData((old) => ({ ...old, activeBranchTaskId: taskId }));
   }
 
   function clearBranchFocus() {
-    setData((old) => ({ ...old, activeBranchObjectiveId: null }));
+    setData((old) => ({ ...old, activeBranchTaskId: null }));
   }
 
   function completeQuest(questId) {
@@ -466,7 +466,7 @@ export default function App() {
               ...quest,
               status: "active",
               completedAt: "",
-              objectives: resetObjectives(quest.objectives || []),
+              tasks: resetTasks(quest.tasks || []),
             }
           : quest
       ),
@@ -641,23 +641,23 @@ export default function App() {
           actionable={actionable}
           focusBoard={focusBoard}
           focusPathInfo={focusPathInfo}
-          branchFocusId={data.activeBranchObjectiveId}
+          branchFocusId={data.activeBranchTaskId}
           setBranchFocus={setBranchFocus}
           clearBranchFocus={clearBranchFocus}
           dueBadge={dueBadge}
           selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
-          selectObjective={(objective) => setSelection({ type: "objective", questId: activeQuest.id, id: objective.id })}
-          toggleObjective={(rowOrObjective) => {
-            const objective = rowOrObjective.objective || rowOrObjective;
-            return rowOrObjective.kind === "questCompletion"
+          selectTask={(task) => setSelection({ type: "task", questId: activeQuest.id, id: task.id })}
+          toggleTask={(rowOrTask) => {
+            const task = rowOrTask.task || rowOrTask;
+            return rowOrTask.kind === "questCompletion"
               ? completeQuest(activeQuest.id)
-              : toggleObjective(activeQuest.id, objective.id);
+              : toggleTask(activeQuest.id, task.id);
           }}
-          uncompleteObjective={(rowOrObjective) => {
-            const objective = rowOrObjective.objective || rowOrObjective;
-            return rowOrObjective.kind === "questCompletion"
+          uncompleteTask={(rowOrTask) => {
+            const task = rowOrTask.task || rowOrTask;
+            return rowOrTask.kind === "questCompletion"
               ? restoreQuest(activeQuest.id)
-              : uncompleteObjective(activeQuest.id, objective.id);
+              : uncompleteTask(activeQuest.id, task.id);
           }}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
@@ -690,20 +690,20 @@ export default function App() {
           canGoForward={historyIndex < history.length - 1}
           makeFocus={makeFocus}
           activeQuestId={data.activeQuestId}
-          activeBranchObjectiveId={data.activeBranchObjectiveId}
+          activeBranchTaskId={data.activeBranchTaskId}
           setBranchFocus={setBranchFocus}
           clearBranchFocus={clearBranchFocus}
           completeQuest={completeQuest}
           restoreQuest={restoreQuest}
-          createQuestObjective={createQuestObjective}
-          createRoutineObjective={createRoutineObjective}
+          createQuestTask={createQuestTask}
+          createRoutineTask={createRoutineTask}
           deleteQuest={deleteQuest}
           deleteRoutine={deleteRoutine}
-          deleteQuestObjective={deleteQuestObjective}
-          deleteRoutineObjective={deleteRoutineObjective}
-          moveQuestObjective={moveQuestObjective}
-          moveRoutineObjective={moveRoutineObjective}
-          toggleObjective={toggleObjective}
+          deleteQuestTask={deleteQuestTask}
+          deleteRoutineTask={deleteRoutineTask}
+          moveQuestTask={moveQuestTask}
+          moveRoutineTask={moveRoutineTask}
+          toggleTask={toggleTask}
           runMaintenanceNow={runMaintenanceNow}
         />
       </div>
@@ -837,7 +837,7 @@ function LibraryPanel({
   );
 }
 
-function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectObjective, toggleObjective, uncompleteObjective, expandedKanbanCards, setExpandedKanbanCards }) {
+function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
   if (!quest) {
     return (
       <main className="panel panel-scroll focus-col">
@@ -855,7 +855,7 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
         quest={quest}
         focusPathInfo={focusPathInfo}
         selectQuest={selectQuest}
-        selectObjective={selectObjective}
+        selectTask={selectTask}
         setBranchFocus={setBranchFocus}
         clearBranchFocus={clearBranchFocus}
       />
@@ -865,7 +865,7 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
           <button
             onClick={() => {
               const completionRow = focusBoard.available.find((row) => row.kind === "questCompletion");
-              if (completionRow) toggleObjective(completionRow);
+              if (completionRow) toggleTask(completionRow);
             }}
             className={isQuestComplete(quest) ? "recommended-complete-quest-button recommended-complete-quest-button-done" : "recommended-complete-quest-button"}
             disabled={isQuestComplete(quest)}
@@ -881,18 +881,18 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
           {focusBoard.recommended ? (
             <div className="recommended-task-row">
               <div className="recommended-task-text">
-                <FocusPathLinks row={focusBoard.recommended} selectObjective={selectObjective} />
-                {focusBoard.recommended.objective.description && (
-                  <div className="mt-1 text-sm text-neutral-400">{focusBoard.recommended.objective.description}</div>
+                <FocusPathLinks row={focusBoard.recommended} selectTask={selectTask} />
+                {focusBoard.recommended.task.description && (
+                  <div className="mt-1 text-sm text-neutral-400">{focusBoard.recommended.task.description}</div>
                 )}
               </div>
-              <button onClick={() => toggleObjective(focusBoard.recommended)} className="primary-button recommended-action-button">
-                {getKanbanActionState(focusBoard.recommended.objective) === "progress" ? <Play size={16} /> : <CheckCircle2 size={16} />}
-                {getKanbanActionState(focusBoard.recommended.objective) === "progress" ? "Progress" : "Complete"}
+              <button onClick={() => toggleTask(focusBoard.recommended)} className="primary-button recommended-action-button">
+                {getKanbanActionState(focusBoard.recommended.task) === "progress" ? <Play size={16} /> : <CheckCircle2 size={16} />}
+                {getKanbanActionState(focusBoard.recommended.task) === "progress" ? "Progress" : "Complete"}
               </button>
             </div>
           ) : (
-            <div className="mt-2 text-sm text-neutral-500">No available objective. This quest may be complete.</div>
+            <div className="mt-2 text-sm text-neutral-500">No available task. This quest may be complete.</div>
           )}
         </section>
       )}
@@ -911,9 +911,9 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
         <FocusColumn
           title="Available"
           rows={focusBoard.available}
-          emptyText="No available objectives."
-          selectObjective={selectObjective}
-          toggleObjective={toggleObjective}
+          emptyText="No available tasks."
+          selectTask={selectTask}
+          toggleTask={toggleTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
           showCompleteButton
@@ -921,8 +921,8 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
         <FocusColumn
           title="In Progress"
           rows={focusBoard.inProgress}
-          emptyText="No parent objectives in progress."
-          selectObjective={selectObjective}
+          emptyText="No parent tasks in progress."
+          selectTask={selectTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
           showProgress
@@ -931,8 +931,8 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
           title="Completed"
           rows={focusBoard.completed}
           emptyText="Nothing completed yet."
-          selectObjective={selectObjective}
-          uncompleteObjective={uncompleteObjective}
+          selectTask={selectTask}
+          uncompleteTask={uncompleteTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
           completed
@@ -947,7 +947,7 @@ function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusI
 
 function getFocusDisplayNode(quest, focusPathInfo) {
   if (!quest) return null;
-  return focusPathInfo?.branchObjective || quest;
+  return focusPathInfo?.branchTask || quest;
 }
 
 function getFocusDisplayPath(quest, focusPathInfo) {
@@ -955,10 +955,10 @@ function getFocusDisplayPath(quest, focusPathInfo) {
 
   return [
     { id: quest.id, title: quest.title || "Untitled quest", type: "quest" },
-    ...(focusPathInfo?.path || []).map((objective) => ({
-      id: objective.id,
-      title: objective.title || "Untitled",
-      type: "objective",
+    ...(focusPathInfo?.path || []).map((task) => ({
+      id: task.id,
+      title: task.title || "Untitled",
+      type: "task",
     })),
   ];
 }
@@ -998,9 +998,9 @@ function FocusRelations({ quest, focusPathInfo, setBranchFocus, clearBranchFocus
       <div className="focus-relation-line">
         <span className="focus-relation-label">Subquests:</span>
         {childBranches.length === 0 && <span className="focus-relation-muted">No subquests</span>}
-        {childBranches.map((objective) => (
-          <button type="button" key={objective.id} className="focus-relation-chip" onClick={() => setBranchFocus(objective.id)}>
-            {objective.title || "Untitled"}
+        {childBranches.map((task) => (
+          <button type="button" key={task.id} className="focus-relation-chip" onClick={() => setBranchFocus(task.id)}>
+            {task.title || "Untitled"}
           </button>
         ))}
       </div>
@@ -1008,7 +1008,7 @@ function FocusRelations({ quest, focusPathInfo, setBranchFocus, clearBranchFocus
   );
 }
 
-function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectObjective, setBranchFocus, clearBranchFocus }) {
+function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectTask, setBranchFocus, clearBranchFocus }) {
   const displayNode = getFocusDisplayNode(quest, focusPathInfo);
   const description = displayNode?.description || "";
 
@@ -1017,8 +1017,8 @@ function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectObjectiv
       <button
         className="focus-document-title focus-document-title-button"
         onClick={() => {
-          if (focusPathInfo?.branchObjective) {
-            selectObjective(focusPathInfo.branchObjective);
+          if (focusPathInfo?.branchTask) {
+            selectTask(focusPathInfo.branchTask);
           } else {
             selectQuest(quest);
           }
@@ -1064,11 +1064,11 @@ function FocusPathTitle({ quest, focusPathInfo, selectQuest, setBranchFocus, cle
       <button onClick={() => { clearBranchFocus(); selectQuest(quest); }} className="focus-path-title-link">
         {quest.title || "Untitled quest"}
       </button>
-      {pathItems.map((objective) => (
-        <React.Fragment key={objective.id}>
+      {pathItems.map((task) => (
+        <React.Fragment key={task.id}>
           <span className="focus-path-title-separator">›</span>
-          <button onClick={() => setBranchFocus(objective.id)} className="focus-path-title-link">
-            {objective.title || "Untitled"}
+          <button onClick={() => setBranchFocus(task.id)} className="focus-path-title-link">
+            {task.title || "Untitled"}
           </button>
         </React.Fragment>
       ))}
@@ -1083,9 +1083,9 @@ function FocusBranchNav({ focusPathInfo, setBranchFocus }) {
     <div className="focus-branch-nav">
       <span className="focus-branch-label">Child branches:</span>
       {childBranches.length === 0 && <span className="focus-nav-muted">None</span>}
-      {childBranches.map((objective) => (
-        <button key={objective.id} className="focus-nav-chip" onClick={() => setBranchFocus(objective.id)}>
-          {objective.title || "Untitled"}
+      {childBranches.map((task) => (
+        <button key={task.id} className="focus-nav-chip" onClick={() => setBranchFocus(task.id)}>
+          {task.title || "Untitled"}
         </button>
       ))}
     </div>
@@ -1103,17 +1103,17 @@ function FocusNavigation({ quest, focusPathInfo, setBranchFocus, clearBranchFocu
       <div className="focus-nav-line">
         <span className="focus-nav-label">Focus Root:</span>
         <button className="focus-nav-link" onClick={clearBranchFocus}>{quest.title || "Untitled quest"}</button>
-        {pathItems.map((objective) => (
-          <React.Fragment key={objective.id}>
+        {pathItems.map((task) => (
+          <React.Fragment key={task.id}>
             <span className="focus-nav-separator">›</span>
-            <button className="focus-nav-link" onClick={() => setBranchFocus(objective.id)}>
-              {objective.title || "Untitled"}
+            <button className="focus-nav-link" onClick={() => setBranchFocus(task.id)}>
+              {task.title || "Untitled"}
             </button>
           </React.Fragment>
         ))}
       </div>
 
-      {focusPathInfo?.branchObjective && (
+      {focusPathInfo?.branchTask && (
         <div className="focus-nav-line">
           <span className="focus-nav-label">Up:</span>
           {focusPathInfo.parent ? (
@@ -1129,9 +1129,9 @@ function FocusNavigation({ quest, focusPathInfo, setBranchFocus, clearBranchFocu
       <div className="focus-nav-line">
         <span className="focus-nav-label">Child Branches:</span>
         {childBranches.length === 0 && <span className="focus-nav-muted">None</span>}
-        {childBranches.map((objective) => (
-          <button key={objective.id} className="focus-nav-chip" onClick={() => setBranchFocus(objective.id)}>
-            {objective.title || "Untitled"}
+        {childBranches.map((task) => (
+          <button key={task.id} className="focus-nav-chip" onClick={() => setBranchFocus(task.id)}>
+            {task.title || "Untitled"}
           </button>
         ))}
       </div>
@@ -1139,21 +1139,21 @@ function FocusNavigation({ quest, focusPathInfo, setBranchFocus, clearBranchFocu
   );
 }
 
-function FocusPathLinks({ row, selectObjective }) {
+function FocusPathLinks({ row, selectTask }) {
   return (
     <div className="focus-path-links">
-      {row.path.map((objective, index) => (
-        <React.Fragment key={objective.id}>
+      {row.path.map((task, index) => (
+        <React.Fragment key={task.id}>
           {index > 0 && <span className="focus-path-separator">›</span>}
           <button
             className="focus-path-link"
             onClick={(event) => {
               event.stopPropagation();
-              if (row.kind !== "questCompletion") selectObjective(objective);
+              if (row.kind !== "questCompletion") selectTask(task);
             }}
             title="Select in inspector"
           >
-            {index === row.path.length - 1 && row.displayTitle ? row.displayTitle : objective.title || "Untitled"}
+            {index === row.path.length - 1 && row.displayTitle ? row.displayTitle : task.title || "Untitled"}
           </button>
         </React.Fragment>
       ))}
@@ -1165,9 +1165,9 @@ function FocusColumn({
   title,
   rows,
   emptyText,
-  selectObjective,
-  toggleObjective,
-  uncompleteObjective,
+  selectTask,
+  toggleTask,
+  uncompleteTask,
   expandedKanbanCards = {},
   setExpandedKanbanCards,
   showCompleteButton = false,
@@ -1187,23 +1187,23 @@ function FocusColumn({
         {rows.length === 0 && <div className="focus-empty">{emptyText}</div>}
 
         {rows.map((row) => {
-          const hasDescription = Boolean((row.objective.description || "").trim());
-          const expanded = Boolean(expandedKanbanCards[row.objective.id]);
+          const hasDescription = Boolean((row.task.description || "").trim());
+          const expanded = Boolean(expandedKanbanCards[row.task.id]);
 
           return (
             <div
-              key={row.objective.id}
+              key={row.task.id}
               className={completed ? "focus-card focus-card-complete" : "focus-card"}
             >
               <div
                 className="focus-card-bar"
-                onClick={() => row.kind !== "questCompletion" && selectObjective(row.objective)}
+                onClick={() => row.kind !== "questCompletion" && selectTask(row.task)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    if (row.kind !== "questCompletion") selectObjective(row.objective);
+                    if (row.kind !== "questCompletion") selectTask(row.task);
                   }
                 }}
               >
@@ -1213,7 +1213,7 @@ function FocusColumn({
                       <button
                         onClick={(event) => {
                           event.stopPropagation();
-                          setExpandedKanbanCards?.((old) => ({ ...old, [row.objective.id]: !old[row.objective.id] }));
+                          setExpandedKanbanCards?.((old) => ({ ...old, [row.task.id]: !old[row.task.id] }));
                         }}
                         className="focus-card-done focus-card-dropdown"
                         title={expanded ? "Hide description" : "Show description"}
@@ -1221,7 +1221,7 @@ function FocusColumn({
                         {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       </button>
                     )}
-                    <FocusPathLinks row={row} selectObjective={selectObjective} />
+                    <FocusPathLinks row={row} selectTask={selectTask} />
                   </div>
                   {showProgress && row.progress && (
                     <div className="focus-card-progress-bar" title={`${row.progress.complete} / ${row.progress.total}`}>
@@ -1238,12 +1238,12 @@ function FocusColumn({
                     <button
                       onClick={(event) => {
                         event.stopPropagation();
-                        toggleObjective(row);
+                        toggleTask(row);
                       }}
-                      className={`focus-card-done ${getKanbanActionState(row.objective) === "progress" ? "focus-card-action-progress" : "focus-card-action-complete"}`}
-                      title={getKanbanActionTitle(row.objective)}
+                      className={`focus-card-done ${getKanbanActionState(row.task) === "progress" ? "focus-card-action-progress" : "focus-card-action-complete"}`}
+                      title={getKanbanActionTitle(row.task)}
                     >
-                      {getKanbanActionState(row.objective) === "progress" ? <Play size={14} /> : <CheckCircle2 size={14} />}
+                      {getKanbanActionState(row.task) === "progress" ? <Play size={14} /> : <CheckCircle2 size={14} />}
                     </button>
                   )}
 
@@ -1251,7 +1251,7 @@ function FocusColumn({
                     <button
                       onClick={(event) => {
                         event.stopPropagation();
-                        uncompleteObjective(row);
+                        uncompleteTask(row);
                       }}
                       className="focus-card-done focus-card-action-uncomplete"
                       title="Mark incomplete"
@@ -1262,18 +1262,18 @@ function FocusColumn({
                 </div>
               </div>
 
-              {hasCountTarget(row.objective) && !row.objective.completed && (
-                <div className="focus-card-progress-bar focus-card-progress-full" title={`${getCountProgress(row.objective).progress} / ${getCountProgress(row.objective).target}`}>
+              {hasCountTarget(row.task) && !row.task.completed && (
+                <div className="focus-card-progress-bar focus-card-progress-full" title={`${getCountProgress(row.task).progress} / ${getCountProgress(row.task).target}`}>
                   <div
                     className="focus-card-progress-fill"
-                    style={{ width: `${getLeafProgressPercent(row.objective)}%` }}
+                    style={{ width: `${getLeafProgressPercent(row.task)}%` }}
                   />
                 </div>
               )}
 
               {hasDescription && expanded && (
                 <div className="focus-card-body">
-                  {row.objective.description}
+                  {row.task.description}
                 </div>
               )}
             </div>
@@ -1297,13 +1297,13 @@ function RightPanel(props) {
     rightSplit,
     setRightSplit,
     setSelection,
-    createQuestObjective,
-    createRoutineObjective,
-    deleteQuestObjective,
-    deleteRoutineObjective,
-    moveQuestObjective,
-    moveRoutineObjective,
-    toggleObjective,
+    createQuestTask,
+    createRoutineTask,
+    deleteQuestTask,
+    deleteRoutineTask,
+    moveQuestTask,
+    moveRoutineTask,
+    toggleTask,
   } = props;
 
   const treeContext = getTreeContext(selection, data, activeQuest);
@@ -1362,10 +1362,10 @@ function RightPanel(props) {
       >
         <PanelTitleBar title="Tree View">
           {effectiveTreeEditMode && treeContext.type === "routine" && (
-            <button onClick={() => createRoutineObjective(treeContext.routine.id, null)} className="title-secondary-button">+ Objective</button>
+            <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
           )}
           {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
-            <button onClick={() => createQuestObjective(treeContext.quest.id, null)} className="title-secondary-button">+ Objective</button>
+            <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
           )}
           <button
             onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
@@ -1397,15 +1397,15 @@ function RightPanel(props) {
         )}
 
         {treeContext.type === "routine" && (
-          <ObjectiveTree
-            objectives={treeContext.routine.objectiveTemplate}
+          <QuestTree
+            tasks={treeContext.routine.taskTemplate}
             expanded={expanded}
             setExpanded={setExpanded}
-            onSelect={(objective) => setSelection({ type: "routineObjective", routineId: treeContext.routine.id, id: objective.id })}
-            onAddChild={(objective) => createRoutineObjective(treeContext.routine.id, objective.id)}
-            onDelete={(objective) => deleteRoutineObjective(treeContext.routine.id, objective.id)}
-            onMoveUp={(objective) => moveRoutineObjective(treeContext.routine.id, objective.id, -1)}
-            onMoveDown={(objective) => moveRoutineObjective(treeContext.routine.id, objective.id, 1)}
+            onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
+            onAddChild={(task) => createRoutineTask(treeContext.routine.id, task.id)}
+            onDelete={(task) => deleteRoutineTask(treeContext.routine.id, task.id)}
+            onMoveUp={(task) => moveRoutineTask(treeContext.routine.id, task.id, -1)}
+            onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
             onToggleComplete={() => {}}
             treeEditMode={effectiveTreeEditMode}
             selection={selection}
@@ -1415,16 +1415,16 @@ function RightPanel(props) {
         )}
 
         {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
-          <ObjectiveTree
-            objectives={treeContext.quest.objectives}
+          <QuestTree
+            tasks={treeContext.quest.tasks}
             expanded={expanded}
             setExpanded={setExpanded}
-            onSelect={(objective) => setSelection({ type: "objective", questId: treeContext.quest.id, id: objective.id })}
-            onAddChild={(objective) => createQuestObjective(treeContext.quest.id, objective.id)}
-            onDelete={(objective) => deleteQuestObjective(treeContext.quest.id, objective.id)}
-            onMoveUp={(objective) => moveQuestObjective(treeContext.quest.id, objective.id, -1)}
-            onMoveDown={(objective) => moveQuestObjective(treeContext.quest.id, objective.id, 1)}
-            onToggleComplete={(objective) => toggleObjective(treeContext.quest.id, objective.id)}
+            onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
+            onAddChild={(task) => createQuestTask(treeContext.quest.id, task.id)}
+            onDelete={(task) => deleteQuestTask(treeContext.quest.id, task.id)}
+            onMoveUp={(task) => moveQuestTask(treeContext.quest.id, task.id, -1)}
+            onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
+            onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
             treeEditMode={effectiveTreeEditMode}
             selection={selection}
             treeContext={treeContext}
@@ -1444,8 +1444,8 @@ function getSelectionType(selection) {
   const type = selection?.type || "none";
   if (type === "quest") return "Quest";
   if (type === "routine") return "Routine";
-  if (type === "objective") return "Objective";
-  if (type === "routineObjective") return "Template Objective";
+  if (type === "task") return "Task";
+  if (type === "routineTask") return "Template Task";
   return "Nothing";
 }
 
@@ -1453,19 +1453,19 @@ function getInspectorBarClass(selection) {
   const type = selection?.type || "none";
   if (type === "quest") return "inspector-title-quest";
   if (type === "routine") return "inspector-title-routine";
-  if (type === "objective") return "inspector-title-objective";
-  if (type === "routineObjective") return "inspector-title-routineObjective";
+  if (type === "task") return "inspector-title-task";
+  if (type === "routineTask") return "inspector-title-routineTask";
   return "";
 }
 
-function getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveId) {
+function getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId) {
   if (!selection || !data) return null;
 
   if (selection.type === "quest") {
     const quest = data.quests.find((item) => item.id === selection.id);
     if (!quest) return null;
 
-    const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchObjectiveId;
+    const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchTaskId;
     return {
       label: "Focus",
       disabled: alreadyAtQuestRoot,
@@ -1475,31 +1475,31 @@ function getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveI
     };
   }
 
-  if (selection.type === "objective") {
+  if (selection.type === "task") {
     const quest = data.quests.find((item) => item.id === selection.questId);
     if (!quest) return null;
 
-    const path = findObjectivePath(quest.objectives || [], selection.id) || [];
-    const selectedObjective = path[path.length - 1] || null;
-    if (!selectedObjective) return null;
+    const path = findTaskPath(quest.tasks || [], selection.id) || [];
+    const selectedTask = path[path.length - 1] || null;
+    if (!selectedTask) return null;
 
     const branchTarget = [...path]
       .reverse()
-      .find((objective) => (objective.children || []).length > 0);
+      .find((task) => (task.children || []).length > 0);
 
     if (branchTarget) {
-      const alreadyAtBranch = activeQuestId === quest.id && activeBranchObjectiveId === branchTarget.id;
+      const alreadyAtBranch = activeQuestId === quest.id && activeBranchTaskId === branchTarget.id;
       return {
         label: "Focus",
         disabled: alreadyAtBranch,
         title: alreadyAtBranch ? "Already focused here" : "Focus nearest branch",
-        actionType: "objective",
+        actionType: "task",
         questId: quest.id,
-        objectiveId: branchTarget.id,
+        taskId: branchTarget.id,
       };
     }
 
-    const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchObjectiveId;
+    const alreadyAtQuestRoot = activeQuestId === quest.id && !activeBranchTaskId;
     return {
       label: "Focus",
       disabled: alreadyAtQuestRoot,
@@ -1516,7 +1516,7 @@ function InspectorTitleBar({
   selection,
   data,
   activeQuestId,
-  activeBranchObjectiveId,
+  activeBranchTaskId,
   makeFocus,
   setBranchFocus,
   goBack,
@@ -1524,7 +1524,7 @@ function InspectorTitleBar({
   canGoBack,
   canGoForward,
 }) {
-  const goto = getInspectorGoto(selection, data, activeQuestId, activeBranchObjectiveId);
+  const goto = getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId);
 
   function runGoto() {
     if (!goto || goto.disabled) return;
@@ -1533,9 +1533,9 @@ function InspectorTitleBar({
       makeFocus(goto.questId);
     }
 
-    if (goto.actionType === "objective") {
+    if (goto.actionType === "task") {
       makeFocus(goto.questId);
-      setBranchFocus(goto.objectiveId);
+      setBranchFocus(goto.taskId);
     }
   }
 
@@ -1569,18 +1569,18 @@ function Inspector({
   canGoBack,
   canGoForward,
   makeFocus,
-  activeBranchObjectiveId,
+  activeBranchTaskId,
   setBranchFocus,
   clearBranchFocus,
   completeQuest,
   restoreQuest,
-  createQuestObjective,
-  createRoutineObjective,
+  createQuestTask,
+  createRoutineTask,
   deleteQuest,
   deleteRoutine,
-  deleteQuestObjective,
-  deleteRoutineObjective,
-  toggleObjective,
+  deleteQuestTask,
+  deleteRoutineTask,
+  toggleTask,
   runMaintenanceNow,
 }) {
   const selected = resolveSelection(selection, data);
@@ -1594,9 +1594,9 @@ function Inspector({
         <QuestInspector
           quest={selected.quest}
           allTags={allTags}
-          isFocus={selected.quest.id === activeQuestId && !activeBranchObjectiveId}
+          isFocus={selected.quest.id === activeQuestId && !activeBranchTaskId}
           isQuestRoot={selected.quest.id === activeQuestId}
-          activeBranchObjectiveId={activeBranchObjectiveId}
+          activeBranchTaskId={activeBranchTaskId}
           setData={setData}
           routines={data.routines || []}
           setSelection={setSelection}
@@ -1617,47 +1617,47 @@ function Inspector({
         />
       )}
 
-      {selection.type === "objective" && selected?.quest && selected?.objective && (
-        <ObjectiveInspector
-          objective={selected.objective}
+      {selection.type === "task" && selected?.quest && selected?.task && (
+        <TaskInspector
+          task={selected.task}
           parent={selected.parent}
           ownerTitle={selected.quest.title}
-          ancestry={getObjectiveAncestry(selection, data)}
+          ancestry={getTaskAncestry(selection, data)}
           setSelection={setSelection}
           locked={selected.quest.locked}
-          canFocusBranch={selected.quest.id === activeQuestId && (selected.objective.children || []).length > 0}
-          isBranchFocused={activeBranchObjectiveId === selected.objective.id}
-          setBranchFocus={() => setBranchFocus(selected.objective.id)}
+          canFocusBranch={selected.quest.id === activeQuestId && (selected.task.children || []).length > 0}
+          isBranchFocused={activeBranchTaskId === selected.task.id}
+          setBranchFocus={() => setBranchFocus(selected.task.id)}
           clearBranchFocus={clearBranchFocus}
-          updateObjective={(updater) => {
+          updateTask={(updater) => {
             setData((old) => ({
               ...old,
               quests: old.quests.map((quest) =>
                 quest.id === selected.quest.id
-                  ? { ...quest, objectives: updateObjectiveTree(quest.objectives, selection.id, updater) }
+                  ? { ...quest, tasks: updateQuestTree(quest.tasks, selection.id, updater) }
                   : quest
               ),
             }));
           }}
-          toggleComplete={() => toggleObjective(selected.quest.id, selected.objective.id)}
+          toggleComplete={() => toggleTask(selected.quest.id, selected.task.id)}
           template={false}
         />
       )}
 
-      {selection.type === "routineObjective" && selected?.routine && selected?.objective && (
-        <ObjectiveInspector
-          objective={selected.objective}
+      {selection.type === "routineTask" && selected?.routine && selected?.task && (
+        <TaskInspector
+          task={selected.task}
           parent={selected.parent}
           ownerTitle={selected.routine.title}
-          ancestry={getObjectiveAncestry(selection, data)}
+          ancestry={getTaskAncestry(selection, data)}
           setSelection={setSelection}
           locked={false}
-          updateObjective={(updater) => {
+          updateTask={(updater) => {
             setData((old) => {
               let updatedRoutine = null;
               const routines = old.routines.map((routine) => {
                 if (routine.id !== selected.routine.id) return routine;
-                updatedRoutine = { ...routine, objectiveTemplate: updateObjectiveTree(routine.objectiveTemplate, selection.id, updater) };
+                updatedRoutine = { ...routine, taskTemplate: updateQuestTree(routine.taskTemplate, selection.id, updater) };
                 return updatedRoutine;
               });
 
@@ -1694,16 +1694,16 @@ function resolveSelection(selection, data) {
     return { routine: data.routines.find((routine) => routine.id === selection.id) };
   }
 
-  if (selection.type === "objective") {
+  if (selection.type === "task") {
     const quest = data.quests.find((item) => item.id === selection.questId);
-    const found = quest ? findObjective(quest.objectives, selection.id) : null;
-    return { quest, objective: found?.objective, parent: found?.parent };
+    const found = quest ? findTask(quest.tasks, selection.id) : null;
+    return { quest, task: found?.task, parent: found?.parent };
   }
 
-  if (selection.type === "routineObjective") {
+  if (selection.type === "routineTask") {
     const routine = data.routines.find((item) => item.id === selection.routineId);
-    const found = routine ? findObjective(routine.objectiveTemplate, selection.id) : null;
-    return { routine, objective: found?.objective, parent: found?.parent };
+    const found = routine ? findTask(routine.taskTemplate, selection.id) : null;
+    return { routine, task: found?.task, parent: found?.parent };
   }
 
   return null;
@@ -1712,12 +1712,12 @@ function resolveSelection(selection, data) {
 function inspectorTitle(selection, selected) {
   if (selection.type === "quest" && selected?.quest) return `Quest: ${selected.quest.title || "Untitled"}`;
   if (selection.type === "routine" && selected?.routine) return `Routine: ${selected.routine.title || "Untitled"}`;
-  if (selection.type === "objective" && selected?.objective) return `Objective: ${selected.objective.title || "Untitled"}`;
-  if (selection.type === "routineObjective" && selected?.objective) return `Template Objective: ${selected.objective.title || "Untitled"}`;
+  if (selection.type === "task" && selected?.task) return `Task: ${selected.task.title || "Untitled"}`;
+  if (selection.type === "routineTask" && selected?.task) return `Template Task: ${selected.task.title || "Untitled"}`;
   return "Nothing selected";
 }
 
-function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBranchObjectiveId = null, setData, routines, setSelection, makeFocus, completeQuest, restoreQuest, deleteQuest }) {
+function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBranchTaskId = null, setData, routines, setSelection, makeFocus, completeQuest, restoreQuest, deleteQuest }) {
   function updateQuest(patch) {
     if (quest.locked) return;
 
@@ -1747,7 +1747,7 @@ function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBr
           onComplete={completeQuest}
           onReopen={restoreQuest}
           disabled={!isQuestReadyToComplete(quest)}
-          disabledTitle="Complete all root objectives first."
+          disabledTitle="Complete all root tasks first."
         />
       </div>
 
@@ -1934,9 +1934,9 @@ function ProgressActionButton({
   );
 }
 
-function ObjectiveProgressBar({ objective }) {
-  const progress = getObjectiveProgress(objective);
-  const counts = countLeafProgress(objective);
+function TaskProgressBar({ task }) {
+  const progress = getTaskProgress(task);
+  const counts = countLeafProgress(task);
 
   return (
     <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
@@ -1975,63 +1975,63 @@ function CounterField({ label, value, onChange, disabled = false, min = 0 }) {
   );
 }
 
-function ObjectiveInspector({ objective, parent, ownerTitle, ancestry, setSelection, locked = false, canFocusBranch = false, isBranchFocused = false, setBranchFocus, clearBranchFocus, updateObjective, toggleComplete, template }) {
-  const hasChildren = (objective.children || []).length > 0;
-  const complete = isObjectiveComplete(objective);
+function TaskInspector({ task, parent, ownerTitle, ancestry, setSelection, locked = false, canFocusBranch = false, isBranchFocused = false, setBranchFocus, clearBranchFocus, updateTask, toggleComplete, template }) {
+  const hasChildren = (task.children || []).length > 0;
+  const complete = isTaskComplete(task);
 
   return (
     <div className="space-y-4">
       <div className="wiki-meta-block">
         <AncestryPath ancestry={ancestry || []} setSelection={setSelection} />
-        <ChildrenSummary objective={objective} ancestry={ancestry || []} setSelection={setSelection} />
+        <ChildrenSummary task={task} ancestry={ancestry || []} setSelection={setSelection} />
       </div>
 
       {!template && (
         <div className="main-action-row">
           {hasChildren ? (
             <ProgressActionButton
-              progress={getObjectiveProgress(objective)}
-              label="Complete objective"
-              readyLabel="Complete objective"
+              progress={getTaskProgress(task)}
+              label="Complete task"
+              readyLabel="Complete task"
               complete={complete}
               completeLabel="Mark incomplete"
               onComplete={toggleComplete}
               onReopen={toggleComplete}
-              disabled={!areObjectiveChildrenComplete(objective)}
-              disabledTitle="Complete all child objectives first."
+              disabled={!areTaskChildrenComplete(task)}
+              disabledTitle="Complete all child tasks first."
             />
           ) : (
             <button onClick={toggleComplete} className="main-action-button">
-              {complete ? <RotateCcw size={18} /> : hasCountTarget(objective) && !isCountReady(objective) ? <Play size={18} /> : <CheckCircle2 size={18} />}
-              {complete ? "Mark incomplete" : hasCountTarget(objective) && !isCountReady(objective) ? "Progress objective" : "Complete objective"}
+              {complete ? <RotateCcw size={18} /> : hasCountTarget(task) && !isCountReady(task) ? <Play size={18} /> : <CheckCircle2 size={18} />}
+              {complete ? "Mark incomplete" : hasCountTarget(task) && !isCountReady(task) ? "Progress task" : "Complete task"}
             </button>
           )}
         </div>
       )}
 
       {hasChildren && (
-        <InspectorProgressBar progress={getObjectiveProgress(objective)} label="Objective progress" />
+        <InspectorProgressBar progress={getTaskProgress(task)} label="Task progress" />
       )}
 
-      {!hasChildren && hasCountTarget(objective) && (
+      {!hasChildren && hasCountTarget(task) && (
         <InspectorProgressBar
-          progress={getLeafProgressPercent(objective)}
+          progress={getLeafProgressPercent(task)}
           label="Count progress"
-          detail={`${getCountProgress(objective).progress} / ${getCountProgress(objective).target}`}
+          detail={`${getCountProgress(task).progress} / ${getCountProgress(task).target}`}
         />
       )}
 
-      <FormText label="Title" value={objective.title} onChange={(value) => updateObjective((old) => ({ ...old, title: value }))} disabled={locked} />
-      <FormTextarea label="Description" value={objective.description} onChange={(value) => updateObjective((old) => ({ ...old, description: value }))} disabled={locked} />
-      <SelectField label="Child rule" value={objective.mode} options={MODES} onChange={(value) => updateObjective((old) => ({ ...old, mode: value }))} disabled={locked} />
+      <FormText label="Title" value={task.title} onChange={(value) => updateTask((old) => ({ ...old, title: value }))} disabled={locked} />
+      <FormTextarea label="Description" value={task.description} onChange={(value) => updateTask((old) => ({ ...old, description: value }))} disabled={locked} />
+      <SelectField label="Child rule" value={task.mode} options={MODES} onChange={(value) => updateTask((old) => ({ ...old, mode: value }))} disabled={locked} />
 
       <div className="grid grid-cols-2 gap-3">
         <CounterField
           label="Count target"
-          value={objective.countTarget || 0}
+          value={task.countTarget || 0}
           min={0}
           disabled={locked || hasChildren}
-          onChange={(value) => updateObjective((old) => {
+          onChange={(value) => updateTask((old) => {
             const nextTarget = Math.max(0, Number(value || 0));
             const nextProgress = Math.min(nextTarget, Math.max(0, Number(old.countProgress || 0)));
             return {
@@ -2044,9 +2044,9 @@ function ObjectiveInspector({ objective, parent, ownerTitle, ancestry, setSelect
         />
         <CounterField
           label="Count progress"
-          value={objective.countProgress || 0}
-          disabled={hasChildren || !(objective.countTarget > 0)}
-          onChange={(value) => updateObjective((old) => {
+          value={task.countProgress || 0}
+          disabled={hasChildren || !(task.countTarget > 0)}
+          onChange={(value) => updateTask((old) => {
             const target = Math.max(0, Number(old.countTarget || 0));
             const progress = Math.min(target, Math.max(0, Number(value || 0)));
             return {
@@ -2060,12 +2060,12 @@ function ObjectiveInspector({ objective, parent, ownerTitle, ancestry, setSelect
 
       <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
         {hasChildren
-          ? "Parent objective: can be completed after its children are complete."
-          : objective.countTarget > 0
-            ? "Counted leaf objective: progress clicks advance the counter until complete."
+          ? "Parent task: can be completed after its children are complete."
+          : task.countTarget > 0
+            ? "Counted leaf task: progress clicks advance the counter until complete."
             : template
               ? "Template leaf: generated copies can be completed later."
-              : "Leaf objective: can be completed directly."}
+              : "Leaf task: can be completed directly."}
       </div>
 
     </div>
@@ -2073,7 +2073,7 @@ function ObjectiveInspector({ objective, parent, ownerTitle, ancestry, setSelect
 }
 
 function QuestChildrenSummary({ quest, setSelection }) {
-  const children = quest?.objectives || [];
+  const children = quest?.tasks || [];
   if (children.length === 0) {
     return (
       <div className="wiki-meta-line">
@@ -2091,7 +2091,7 @@ function QuestChildrenSummary({ quest, setSelection }) {
           {index > 0 && <span>, </span>}
           <button
             className="wiki-link-button"
-            onClick={() => setSelection({ type: "objective", questId: quest.id, id: child.id })}
+            onClick={() => setSelection({ type: "task", questId: quest.id, id: child.id })}
           >
             {child.title || "Untitled"}
           </button>
@@ -2101,8 +2101,8 @@ function QuestChildrenSummary({ quest, setSelection }) {
   );
 }
 
-function ChildrenSummary({ objective, ancestry, setSelection }) {
-  const children = objective?.children || [];
+function ChildrenSummary({ task, ancestry, setSelection }) {
+  const children = task?.children || [];
   if (children.length === 0) return null;
 
   const owner = ancestry?.[0];
@@ -2117,10 +2117,10 @@ function ChildrenSummary({ objective, ancestry, setSelection }) {
             className="wiki-link-button"
             onClick={() => {
               if (owner?.type === "quest" && setSelection) {
-                setSelection({ type: "objective", questId: owner.id, id: child.id });
+                setSelection({ type: "task", questId: owner.id, id: child.id });
               }
               if (owner?.type === "routine" && setSelection) {
-                setSelection({ type: "routineObjective", routineId: owner.id, id: child.id });
+                setSelection({ type: "routineTask", routineId: owner.id, id: child.id });
               }
             }}
           >
@@ -2145,8 +2145,8 @@ function AncestryPath({ ancestry, setSelection }) {
             onClick={() => {
               if (item.type === "quest") setSelection({ type: "quest", id: item.id });
               if (item.type === "routine") setSelection({ type: "routine", id: item.id });
-              if (item.type === "objective") setSelection({ type: "objective", questId: item.questId, id: item.id });
-              if (item.type === "routineObjective") setSelection({ type: "routineObjective", routineId: item.routineId, id: item.id });
+              if (item.type === "task") setSelection({ type: "task", questId: item.questId, id: item.id });
+              if (item.type === "routineTask") setSelection({ type: "routineTask", routineId: item.routineId, id: item.id });
             }}
           >
             {item.title || "Untitled"}
@@ -2171,18 +2171,18 @@ function TreeRootRow({ title, kind, selected, onSelect }) {
   );
 }
 
-function ObjectiveTree({ objectives, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null }) {
-  if (!objectives || objectives.length === 0) return <div className="text-sm text-neutral-500">No objectives yet.</div>;
+function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null }) {
+  if (!tasks || tasks.length === 0) return <div className="text-sm text-neutral-500">No tasks yet.</div>;
 
   return (
     <div className="tree-node-list">
-      {objectives.map((objective) => {
-        const children = objective.children || [];
+      {tasks.map((task) => {
+        const children = task.children || [];
         const hasChildren = children.length > 0;
-        const open = expanded[objective.id] ?? true;
-        const complete = isObjectiveComplete(objective);
+        const open = expanded[task.id] ?? true;
+        const complete = isTaskComplete(task);
 
-        const selected = isTreeObjectiveSelected(selection, treeContext, objective);
+        const selected = isTreeTaskSelected(selection, treeContext, task);
         const rowClass = [
           "tree-row",
           complete ? "tree-row-complete" : "",
@@ -2191,7 +2191,7 @@ function ObjectiveTree({ objectives, expanded, setExpanded, onSelect, onAddChild
         ].join(" ");
 
         return (
-          <div key={objective.id} className="tree-node-wrap">
+          <div key={task.id} className="tree-node-wrap">
             <div className={[depth > 0 ? "tree-row-wrap tree-node-child" : "tree-row-wrap tree-node-root", hasChildren ? "tree-row-branch" : "tree-row-leaf"].join(" ")}>
               <div className="tree-disclosure-gutter">
                 {hasChildren ? (
@@ -2199,7 +2199,7 @@ function ObjectiveTree({ objectives, expanded, setExpanded, onSelect, onAddChild
                     className="tree-disclosure"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setExpanded({ ...expanded, [objective.id]: !open });
+                      setExpanded({ ...expanded, [task.id]: !open });
                     }}
                   >
                     {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -2211,34 +2211,34 @@ function ObjectiveTree({ objectives, expanded, setExpanded, onSelect, onAddChild
 
               <div
                 className={rowClass}
-                onClick={() => !treeEditMode && onSelect(objective)}
+                onClick={() => !treeEditMode && onSelect(task)}
               >
                 <div className="tree-row-main">
                   <div className="tree-row-title">
-                    {objective.title || "Untitled objective"}
-                    {hasCountTarget(objective) && (
-                      <span className="tree-count-suffix"> ({getCountProgress(objective).progress}/{getCountProgress(objective).target})</span>
+                    {task.title || "Untitled task"}
+                    {hasCountTarget(task) && (
+                      <span className="tree-count-suffix"> ({getCountProgress(task).progress}/{getCountProgress(task).target})</span>
                     )}
                   </div>
-                  {hasChildren && <div className="tree-row-mode">{objective.mode === "sequence" ? "seq" : "all"}</div>}
+                  {hasChildren && <div className="tree-row-mode">{task.mode === "sequence" ? "seq" : "all"}</div>}
                 </div>
 
                 <div className="tree-row-buttons" onClick={(event) => event.stopPropagation()}>
                   {treeEditMode ? (
                     <>
-                      <button onClick={() => onMoveUp?.(objective)} className="tree-icon-button" title="Move up"><ArrowUp size={14} /></button>
-                      <button onClick={() => onMoveDown?.(objective)} className="tree-icon-button" title="Move down"><ArrowDown size={14} /></button>
-                      <button onClick={() => onAddChild(objective)} className="tree-icon-button" title="Add child"><Plus size={14} /></button>
-                      <button onClick={() => onDelete?.(objective)} className="tree-icon-button danger-tree-button" title="Delete"><Trash2 size={14} /></button>
+                      <button onClick={() => onMoveUp?.(task)} className="tree-icon-button" title="Move up"><ArrowUp size={14} /></button>
+                      <button onClick={() => onMoveDown?.(task)} className="tree-icon-button" title="Move down"><ArrowDown size={14} /></button>
+                      <button onClick={() => onAddChild(task)} className="tree-icon-button" title="Add child"><Plus size={14} /></button>
+                      <button onClick={() => onDelete?.(task)} className="tree-icon-button danger-tree-button" title="Delete"><Trash2 size={14} /></button>
                     </>
                   ) : (
-                    !template && (!hasChildren || complete || isObjectiveReadyToComplete(objective)) && (
+                    !template && (!hasChildren || complete || isTaskReadyToComplete(task)) && (
                       <button
-                        onClick={() => onToggleComplete(objective)}
+                        onClick={() => onToggleComplete(task)}
                         className="tree-icon-button"
                         title={complete ? "Mark incomplete" : hasChildren ? "Confirm complete" : "Complete"}
                       >
-                        {complete ? <X size={14} /> : hasCountTarget(objective) && !isCountReady(objective) ? <Play size={14} /> : <CheckCircle2 size={14} />}
+                        {complete ? <X size={14} /> : hasCountTarget(task) && !isCountReady(task) ? <Play size={14} /> : <CheckCircle2 size={14} />}
                       </button>
                     )
                   )}
@@ -2248,8 +2248,8 @@ function ObjectiveTree({ objectives, expanded, setExpanded, onSelect, onAddChild
 
             {hasChildren && open && (
               <div className="tree-children-group">
-                <ObjectiveTree
-                  objectives={children}
+                <QuestTree
+                  tasks={children}
                   expanded={expanded}
                   setExpanded={setExpanded}
                   onSelect={onSelect}
@@ -2689,7 +2689,7 @@ function DarkStyles() {
         background: rgb(20 83 45);
         border-bottom-color: rgb(21 128 61);
       }
-      .inspector-title-objective {
+      .inspector-title-task {
         background: rgb(30 58 138);
         border-bottom-color: rgb(30 64 175);
       }
@@ -2697,7 +2697,7 @@ function DarkStyles() {
         background: rgb(120 53 15);
         border-bottom-color: rgb(217 119 6);
       }
-      .inspector-title-routineObjective {
+      .inspector-title-routineTask {
         background: rgb(120 53 15);
         border-bottom-color: rgb(217 119 6);
       }
@@ -3027,10 +3027,10 @@ function DarkStyles() {
         background: rgb(20 83 45);
         color: rgb(187 247 208);
       }
-      .selection-objective {
+      .selection-task {
         border-color: rgb(30 64 175);
       }
-      .selection-objective .selection-type-label {
+      .selection-task .selection-type-label {
         background: rgb(30 58 138);
         color: rgb(191 219 254);
       }
@@ -3041,10 +3041,10 @@ function DarkStyles() {
         background: rgb(88 28 135);
         color: rgb(233 213 255);
       }
-      .selection-routineObjective {
+      .selection-routineTask {
         border-color: rgb(147 51 234);
       }
-      .selection-routineObjective .selection-type-label {
+      .selection-routineTask .selection-type-label {
         background: rgb(107 33 168);
         color: rgb(243 232 255);
       }
@@ -3504,7 +3504,7 @@ function DarkStyles() {
         padding: 0.25rem;
       }
 
-      .objective-action-stack {
+      .task-action-stack {
         display: grid;
         flex: 1 1 auto;
         gap: 0.45rem;

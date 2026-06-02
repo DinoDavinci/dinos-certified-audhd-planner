@@ -1,37 +1,37 @@
 import { newId, EVERY_DAY_MASK, todayString, isRoutineActiveOnDate } from "../utils/dateUtils";
 
-// Task/objective tree model helpers.
+// Task/quest tree model helpers.
 //
-// This file still uses the old "Objective" names so this refactor stays mechanical.
-// A later pass can rename Objective -> Task once the module split is stable.
+// This file still uses the old "Task" names so this refactor stays mechanical.
+// A later pass can rename Task -> Task once the module split is stable.
 
-export function resetObjectives(objectives) {
-  return (objectives || []).map((objective) => ({
-    ...objective,
+export function resetTasks(tasks) {
+  return (tasks || []).map((task) => ({
+    ...task,
     completed: false,
     countProgress: 0,
-    children: resetObjectives(objective.children || []),
+    children: resetTasks(task.children || []),
   }));
 }
 
-export function completeObjectives(objectives) {
-  return (objectives || []).map((objective) => ({
-    ...objective,
+export function completeTasks(tasks) {
+  return (tasks || []).map((task) => ({
+    ...task,
     completed: true,
-    children: completeObjectives(objective.children || []),
+    children: completeTasks(task.children || []),
   }));
 }
 
-export function resetObjectiveSubtree(objective) {
+export function resetTaskSubtree(task) {
   return {
-    ...objective,
+    ...task,
     completed: false,
     countProgress: 0,
-    children: resetObjectives(objective.children || []),
+    children: resetTasks(task.children || []),
   };
 }
 
-export function makeObjective(overrides = {}) {
+export function makeTask(overrides = {}) {
   return {
     id: newId("obj"),
     title: "",
@@ -55,167 +55,167 @@ export function makeRoutine(overrides = {}) {
     dayMask: EVERY_DAY_MASK,
     mode: "sequence",
     active: true,
-    objectiveTemplate: [],
+    taskTemplate: [],
     createdAt: new Date().toISOString(),
     ...overrides,
   };
 }
 
-export function cloneObjectives(objectives) {
-  return (objectives || []).map((objective) => ({
-    ...objective,
+export function cloneTasks(tasks) {
+  return (tasks || []).map((task) => ({
+    ...task,
     id: newId("obj"),
     completed: false,
     countProgress: 0,
-    children: cloneObjectives(objective.children || []),
+    children: cloneTasks(task.children || []),
   }));
 }
 
-export function isObjectiveComplete(objective) {
-  return !!objective?.completed;
+export function isTaskComplete(task) {
+  return !!task?.completed;
 }
 
-export function hasCountTarget(objective) {
-  return (Number(objective?.countTarget || 0) || 0) > 0 && (objective?.children || []).length === 0;
+export function hasCountTarget(task) {
+  return (Number(task?.countTarget || 0) || 0) > 0 && (task?.children || []).length === 0;
 }
 
-export function getCountTarget(objective) {
-  return Math.max(0, Number(objective?.countTarget || 0));
+export function getCountTarget(task) {
+  return Math.max(0, Number(task?.countTarget || 0));
 }
 
-export function isCountReady(objective) {
-  if (!hasCountTarget(objective)) return true;
-  const { target, progress } = getCountProgress(objective);
+export function isCountReady(task) {
+  if (!hasCountTarget(task)) return true;
+  const { target, progress } = getCountProgress(task);
   return target > 0 && progress >= target;
 }
 
-export function getCountProgress(objective) {
-  const target = getCountTarget(objective);
-  const progress = Math.max(0, Number(objective?.countProgress || 0));
+export function getCountProgress(task) {
+  const target = getCountTarget(task);
+  const progress = Math.max(0, Number(task?.countProgress || 0));
   return {
     target,
     progress: target > 0 ? Math.min(progress, target) : 0,
   };
 }
 
-export function getLeafProgressPercent(objective) {
-  if (!hasCountTarget(objective)) return isObjectiveComplete(objective) ? 100 : 0;
-  const { target, progress } = getCountProgress(objective);
+export function getLeafProgressPercent(task) {
+  if (!hasCountTarget(task)) return isTaskComplete(task) ? 100 : 0;
+  const { target, progress } = getCountProgress(task);
   if (target <= 0) return 0;
   return Math.round((progress / target) * 100);
 }
 
-export function getKanbanObjectiveTitle(objective, fallbackTitle = "Untitled") {
-  const title = fallbackTitle || objective?.title || "Untitled";
+export function getKanbanTaskTitle(task, fallbackTitle = "Untitled") {
+  const title = fallbackTitle || task?.title || "Untitled";
 
-  if (hasCountTarget(objective) && !isObjectiveComplete(objective)) {
-    const { progress, target } = getCountProgress(objective);
+  if (hasCountTarget(task) && !isTaskComplete(task)) {
+    const { progress, target } = getCountProgress(task);
     if (progress < target) return `${title} (${progress}/${target})`;
   }
 
   return title;
 }
 
-export function getKanbanActionState(objective) {
-  if (hasCountTarget(objective) && !isObjectiveComplete(objective)) {
-    return isCountReady(objective) ? "complete" : "progress";
+export function getKanbanActionState(task) {
+  if (hasCountTarget(task) && !isTaskComplete(task)) {
+    return isCountReady(task) ? "complete" : "progress";
   }
 
   return "complete";
 }
 
-export function getKanbanActionTitle(objective) {
-  return getKanbanActionState(objective) === "progress" ? "Progress objective" : "Complete objective";
+export function getKanbanActionTitle(task) {
+  return getKanbanActionState(task) === "progress" ? "Progress task" : "Complete task";
 }
 
-export function areObjectiveChildrenComplete(objective) {
-  const children = objective?.children || [];
+export function areTaskChildrenComplete(task) {
+  const children = task?.children || [];
   if (children.length === 0) return true;
-  return children.every(isObjectiveComplete);
+  return children.every(isTaskComplete);
 }
 
-export function isObjectiveReadyToComplete(objective) {
-  const children = objective?.children || [];
-  return children.length > 0 && !isObjectiveComplete(objective) && children.every(isObjectiveComplete);
+export function isTaskReadyToComplete(task) {
+  const children = task?.children || [];
+  return children.length > 0 && !isTaskComplete(task) && children.every(isTaskComplete);
 }
 
-export function clearAncestorCompletionById(objectives, objectiveId) {
+export function clearAncestorCompletionById(tasks, taskId) {
   let changed = false;
 
-  const next = (objectives || []).map((objective) => {
-    const children = objective.children || [];
-    const hasDirectChild = children.some((child) => child.id === objectiveId);
-    const updatedChildren = clearAncestorCompletionById(children, objectiveId);
+  const next = (tasks || []).map((task) => {
+    const children = task.children || [];
+    const hasDirectChild = children.some((child) => child.id === taskId);
+    const updatedChildren = clearAncestorCompletionById(children, taskId);
     const childChanged = updatedChildren !== children;
 
     if (hasDirectChild || childChanged) {
       changed = true;
       return {
-        ...objective,
+        ...task,
         completed: false,
         children: updatedChildren,
       };
     }
 
-    return objective;
+    return task;
   });
 
-  return changed ? next : objectives;
+  return changed ? next : tasks;
 }
 
-export function getObjectiveCounts(objectives) {
+export function getTaskCounts(tasks) {
   let total = 0;
   let completed = 0;
 
   function walk(list) {
     for (const obj of list || []) {
       total += 1;
-      if (isObjectiveComplete(obj)) completed += 1;
+      if (isTaskComplete(obj)) completed += 1;
       walk(obj.children || []);
     }
   }
 
-  walk(objectives || []);
+  walk(tasks || []);
   return { total, completed };
 }
 
-export function getObjectiveProgress(objective) {
-  const counts = countLeafProgress(objective);
-  if (counts.total === 0) return isObjectiveComplete(objective) ? 100 : 0;
+export function getTaskProgress(task) {
+  const counts = countLeafProgress(task);
+  if (counts.total === 0) return isTaskComplete(task) ? 100 : 0;
   return Math.round((counts.complete / counts.total) * 100);
 }
 
-export function nextObjectivesInList(objectives, mode) {
-  const open = (objectives || []).filter((obj) => !isObjectiveComplete(obj));
+export function nextTasksInList(tasks, mode) {
+  const open = (tasks || []).filter((obj) => !isTaskComplete(obj));
   if (mode === "sequence") {
-    return open[0] ? nextObjectivesFromObjective(open[0]) : [];
+    return open[0] ? nextTasksFromTask(open[0]) : [];
   }
-  return open.flatMap(nextObjectivesFromObjective);
+  return open.flatMap(nextTasksFromTask);
 }
 
-export function nextObjectivesFromObjective(objective) {
-  if (!objective || isObjectiveComplete(objective)) return [];
-  const children = objective.children || [];
-  if (children.length === 0) return [objective];
-  return nextObjectivesInList(children, objective.mode);
+export function nextTasksFromTask(task) {
+  if (!task || isTaskComplete(task)) return [];
+  const children = task.children || [];
+  if (children.length === 0) return [task];
+  return nextTasksInList(children, task.mode);
 }
 
-export function flattenObjectiveTree(objectives, path = []) {
+export function flattenQuestTree(tasks, path = []) {
   const rows = [];
 
-  for (const objective of objectives || []) {
-    const nextPath = [...path, objective];
-    const children = objective.children || [];
+  for (const task of tasks || []) {
+    const nextPath = [...path, task];
+    const children = task.children || [];
 
     rows.push({
-      objective,
+      task,
       path: nextPath,
       pathText: nextPath.map((item) => item.title || "Untitled").join(" › "),
       hasChildren: children.length > 0,
-      complete: isObjectiveComplete(objective),
+      complete: isTaskComplete(task),
     });
 
-    rows.push(...flattenObjectiveTree(children, nextPath));
+    rows.push(...flattenQuestTree(children, nextPath));
   }
 
   return rows;
@@ -223,15 +223,15 @@ export function flattenObjectiveTree(objectives, path = []) {
 
 export function readyBranchRows(rows) {
   return (rows || [])
-    .filter((row) => row.hasChildren && isObjectiveReadyToComplete(row.objective))
+    .filter((row) => row.hasChildren && isTaskReadyToComplete(row.task))
     .map((row) => ({
       ...row,
-      displayTitle: row.objective.title || "Untitled",
+      displayTitle: row.task.title || "Untitled",
       isConfirmation: true,
     }));
 }
 
-export function countLeafProgress(objective) {
+export function countLeafProgress(task) {
   let total = 0;
   let complete = 0;
 
@@ -240,14 +240,14 @@ export function countLeafProgress(objective) {
 
     if (children.length === 0) {
       total += 1;
-      if (isObjectiveComplete(item)) complete += 1;
+      if (isTaskComplete(item)) complete += 1;
       return;
     }
 
     children.forEach(walk);
   }
 
-  walk(objective);
+  walk(task);
   return { total, complete };
 }
 
@@ -263,43 +263,43 @@ export function buildFocusBoardFromRoot(root) {
     };
   }
 
-  const rows = flattenObjectiveTree(root.objectives || []);
-  const availableIds = new Set(nextObjectivesInList(root.objectives || [], root.mode || "all").map((objective) => objective.id));
+  const rows = flattenQuestTree(root.tasks || []);
+  const availableIds = new Set(nextTasksInList(root.tasks || [], root.mode || "all").map((task) => task.id));
 
   const available = rows
-    .filter((row) => availableIds.has(row.objective.id))
+    .filter((row) => availableIds.has(row.task.id))
     .map((row) => ({
       ...row,
-      displayTitle: getKanbanObjectiveTitle(row.objective, row.objective.title || "Untitled"),
+      displayTitle: getKanbanTaskTitle(row.task, row.task.title || "Untitled"),
       isConfirmation: row.hasChildren,
     }));
 
-  if (root.selfObjective && isObjectiveReadyToComplete(root.selfObjective)) {
+  if (root.selfTask && isTaskReadyToComplete(root.selfTask)) {
     available.unshift({
-      objective: root.selfObjective,
-      path: root.selfPath || [root.selfObjective],
-      pathText: (root.selfPath || [root.selfObjective]).map((item) => item.title || "Untitled").join(" › "),
+      task: root.selfTask,
+      path: root.selfPath || [root.selfTask],
+      pathText: (root.selfPath || [root.selfTask]).map((item) => item.title || "Untitled").join(" › "),
       hasChildren: true,
       complete: false,
-      displayTitle: root.selfObjective.title || "Untitled",
+      displayTitle: root.selfTask.title || "Untitled",
       isConfirmation: true,
     });
   }
 
-  const existingAvailableIds = new Set(available.map((row) => row.objective.id));
+  const existingAvailableIds = new Set(available.map((row) => row.task.id));
   for (const readyRow of readyBranchRows(rows)) {
-    if (!existingAvailableIds.has(readyRow.objective.id)) {
+    if (!existingAvailableIds.has(readyRow.task.id)) {
       available.push(readyRow);
-      existingAvailableIds.add(readyRow.objective.id);
+      existingAvailableIds.add(readyRow.task.id);
     }
   }
   const inProgress = rows
     .filter((row) => {
-      if (!row.hasChildren || row.complete || isObjectiveReadyToComplete(row.objective)) return false;
-      const progress = countLeafProgress(row.objective);
+      if (!row.hasChildren || row.complete || isTaskReadyToComplete(row.task)) return false;
+      const progress = countLeafProgress(row.task);
       return progress.complete > 0 && progress.complete < progress.total;
     })
-    .map((row) => ({ ...row, progress: countLeafProgress(row.objective) }));
+    .map((row) => ({ ...row, progress: countLeafProgress(row.task) }));
 
   const completed = rows.filter((row) => row.complete);
 
@@ -315,10 +315,10 @@ export function buildFocusBoardFromRoot(root) {
 
 export function buildFocusBoard(quest) {
   if (!quest) return buildFocusBoardFromRoot(null);
-  return buildFocusBoardFromRoot({ mode: quest.mode, objectives: quest.objectives || [] });
+  return buildFocusBoardFromRoot({ mode: quest.mode, tasks: quest.tasks || [] });
 }
 
-export const SAMPLE_OBJECTIVE_DESCRIPTIONS = {
+export const SAMPLE_TASK_DESCRIPTIONS = {
   "Modeling": "Build and clean the main mesh before moving into UVs, textures, and rigging.",
   "Clean shoulder region": "Refine topology and silhouette around the scapula, chest, and front limb transition.",
   "Model foot": "Block out and refine the foot shape, including toe proportions and weight-bearing contact.",
@@ -333,77 +333,77 @@ export const SAMPLE_OBJECTIVE_DESCRIPTIONS = {
   "Walk": "Take a short walk to finish the routine and cool down.",
 };
 
-export function normalizeObjectives(objectives) {
-  return (objectives || []).map((objective) => {
-    const countTarget = Math.max(0, Number(objective.countTarget || 0));
-    const countProgress = Math.min(countTarget, Math.max(0, Number(objective.countProgress || 0)));
+export function normalizeTasks(tasks) {
+  return (tasks || []).map((task) => {
+    const countTarget = Math.max(0, Number(task.countTarget || 0));
+    const countProgress = Math.min(countTarget, Math.max(0, Number(task.countProgress || 0)));
 
-    return makeObjective({
-      ...objective,
-      description: objective.description || SAMPLE_OBJECTIVE_DESCRIPTIONS[objective.title] || "",
+    return makeTask({
+      ...task,
+      description: task.description || SAMPLE_TASK_DESCRIPTIONS[task.title] || "",
       countTarget,
       countProgress,
-      completed: !!objective.completed,
-      children: normalizeObjectives(objective.children || []),
+      completed: !!task.completed,
+      children: normalizeTasks(task.children || []),
     });
   });
 }
 
-export function findObjective(objectives, id, parent = null) {
-  for (const objective of objectives || []) {
-    if (objective.id === id) return { objective, parent };
-    const found = findObjective(objective.children || [], id, objective);
+export function findTask(tasks, id, parent = null) {
+  for (const task of tasks || []) {
+    if (task.id === id) return { task, parent };
+    const found = findTask(task.children || [], id, task);
     if (found) return found;
   }
   return null;
 }
 
-export function findObjectivePath(objectives, id, path = []) {
-  for (const objective of objectives || []) {
-    const nextPath = [...path, objective];
+export function findTaskPath(tasks, id, path = []) {
+  for (const task of tasks || []) {
+    const nextPath = [...path, task];
 
-    if (objective.id === id) return nextPath;
+    if (task.id === id) return nextPath;
 
-    const found = findObjectivePath(objective.children || [], id, nextPath);
+    const found = findTaskPath(task.children || [], id, nextPath);
     if (found) return found;
   }
 
   return null;
 }
 
-export function getObjectiveAncestry(selection, data) {
+export function getTaskAncestry(selection, data) {
   if (!selection || !data) return [];
 
-  if (selection.type === "objective") {
+  if (selection.type === "task") {
     const quest = (data.quests || []).find((item) => item.id === selection.questId);
     if (!quest) return [];
 
-    const path = findObjectivePath(quest.objectives || [], selection.id) || [];
+    const path = findTaskPath(quest.tasks || [], selection.id) || [];
 
     return [
       { type: "quest", id: quest.id, title: quest.title },
-      ...path.map((objective) => ({
-        type: "objective",
+      ...path.map((task) => ({
+        type: "task",
         questId: quest.id,
-        id: objective.id,
-        title: objective.title,
+        id: task.id,
+        title: task.title,
       })),
     ];
   }
 
-  if (selection.type === "routineObjective") {
+  if (selection.type === "routineTask") {
     const routine = (data.routines || []).find((item) => item.id === selection.routineId);
     if (!routine) return [];
 
-    const path = findObjectivePath(routine.objectiveTemplate || [], selection.id) || [];
+    const path = findTaskPath(routine.taskTemplate || [], selection.id) || [];
 
     return [
       { type: "routine", id: routine.id, title: routine.title },
-      ...path.map((objective) => ({
-        type: "routineObjective",
+      ...path.map((task) => ({
+        type: "routineTask",
         routineId: routine.id,
-        id: objective.id,
-        title: objective.title,
+        id: task.id,
+        title: task.title,
       })),
     ];
   }
@@ -411,30 +411,30 @@ export function getObjectiveAncestry(selection, data) {
   return [];
 }
 
-export function updateObjectiveTree(objectives, id, updater) {
-  return (objectives || []).map((objective) => {
-    if (objective.id === id) return updater(objective);
-    return { ...objective, children: updateObjectiveTree(objective.children || [], id, updater) };
+export function updateQuestTree(tasks, id, updater) {
+  return (tasks || []).map((task) => {
+    if (task.id === id) return updater(task);
+    return { ...task, children: updateQuestTree(task.children || [], id, updater) };
   });
 }
 
-export function addObjectiveToTree(objectives, parentId, child) {
-  if (!parentId) return [...(objectives || []), child];
-  return updateObjectiveTree(objectives, parentId, (objective) => ({
-    ...objective,
-    children: [...(objective.children || []), child],
+export function addTaskToTree(tasks, parentId, child) {
+  if (!parentId) return [...(tasks || []), child];
+  return updateQuestTree(tasks, parentId, (task) => ({
+    ...task,
+    children: [...(task.children || []), child],
   }));
 }
 
-export function deleteObjectiveFromTree(objectives, id) {
-  return (objectives || [])
-    .filter((objective) => objective.id !== id)
-    .map((objective) => ({ ...objective, children: deleteObjectiveFromTree(objective.children || [], id) }));
+export function deleteTaskFromTree(tasks, id) {
+  return (tasks || [])
+    .filter((task) => task.id !== id)
+    .map((task) => ({ ...task, children: deleteTaskFromTree(task.children || [], id) }));
 }
 
-export function moveObjectiveInTree(objectives, id, direction) {
-  const list = [...(objectives || [])];
-  const index = list.findIndex((objective) => objective.id === id);
+export function moveTaskInTree(tasks, id, direction) {
+  const list = [...(tasks || [])];
+  const index = list.findIndex((task) => task.id === id);
 
   if (index !== -1) {
     const newIndex = index + direction;
@@ -446,8 +446,8 @@ export function moveObjectiveInTree(objectives, id, direction) {
     return copy;
   }
 
-  return list.map((objective) => ({
-    ...objective,
-    children: moveObjectiveInTree(objective.children || [], id, direction),
+  return list.map((task) => ({
+    ...task,
+    children: moveTaskInTree(task.children || [], id, direction),
   }));
 }
