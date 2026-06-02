@@ -130,6 +130,9 @@ export default function App() {
   const quests = data.quests || [];
   const routines = data.routines || [];
   const activeQuest = quests.find((quest) => quest.id === data.activeQuestId) || quests[0] || null;
+  const selectedRoutineForExport = selection.type === "routine"
+    ? routines.find((routine) => routine.id === selection.id) || null
+    : null;
   const focusPathInfo = getFocusPathInfo(activeQuest, data.activeBranchTaskId);
   const actionable = nextTasksInList(focusPathInfo.root?.tasks || [], focusPathInfo.root?.mode || "all");
   const focusBoard = addQuestCompletionCard(
@@ -682,6 +685,73 @@ function restoreQuest(questId) {
     reader.readAsText(file);
   }
 
+  function exportRoutineFile(routine = selectedRoutineForExport) {
+    if (!routine) return;
+
+    const payload = {
+      app: "quest-planner",
+      type: "routine-template",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      routine,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const date = todayString();
+    anchor.href = url;
+    anchor.download = `${slugifyFilename(routine.title, "routine")}-${date}.routine.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importRoutineFile(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || "{}"));
+        const rawRoutine = parsed?.routine && typeof parsed.routine === "object" ? parsed.routine : parsed;
+        const normalized = normalizeData({ quests: [], routines: [rawRoutine] });
+        const importedRoutine = normalized.routines[0];
+
+        if (!importedRoutine) throw new Error("No routine found in file.");
+
+        setData((old) => {
+          const existing = (old.routines || []).some((routine) => routine.id === importedRoutine.id);
+          const routines = existing
+            ? old.routines.map((routine) => (routine.id === importedRoutine.id ? importedRoutine : routine))
+            : [importedRoutine, ...(old.routines || [])];
+
+          const nextData = runDailyMaintenance({
+            ...old,
+            routines,
+          });
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+          localStorage.setItem(LAST_TICK_KEY, todayString());
+          return nextData;
+        });
+
+        setSelection({ type: "routine", id: importedRoutine.id });
+        setHistory([{ type: "routine", id: importedRoutine.id }]);
+        setHistoryIndex(0);
+        setExpanded({});
+        setTreeEditMode(false);
+        setExpandedKanbanCards({});
+      } catch (error) {
+        window.alert("Could not load that routine file. It may not be a valid routine template export.");
+      }
+    };
+
+    reader.readAsText(file);
+  }
+
   function importJsonFile(file) {
     if (!file) return;
 
@@ -817,6 +887,9 @@ function restoreQuest(questId) {
           exportQuestFile={exportQuestFile}
           importQuestFile={importQuestFile}
           hasActiveQuest={Boolean(activeQuest)}
+          exportRoutineFile={exportRoutineFile}
+          importRoutineFile={importRoutineFile}
+          hasSelectedRoutine={Boolean(selectedRoutineForExport)}
           resetToDefaults={resetToDefaults}
           selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
           selectRoutine={(routine) => setSelection({ type: "routine", id: routine.id })}
@@ -927,6 +1000,9 @@ function LibraryPanel({
   exportQuestFile,
   importQuestFile,
   hasActiveQuest,
+  exportRoutineFile,
+  importRoutineFile,
+  hasSelectedRoutine,
   resetToDefaults,
   selectQuest,
   selectRoutine,
@@ -1048,9 +1124,36 @@ function LibraryPanel({
               </div>
             </div>
 
+            <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+              <div className="mb-2 text-sm font-semibold text-neutral-200">Routine files</div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => exportRoutineFile()}
+                  disabled={!hasSelectedRoutine}
+                  className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-40"
+                  title={hasSelectedRoutine ? "Export the selected routine" : "Select a routine first"}
+                >
+                  Export selected routine
+                </button>
+                <label className="primary-button w-full cursor-pointer justify-center">
+                  Load routine file
+                  <input
+                    type="file"
+                    accept="application/json,.json,.routine.json"
+                    className="hidden"
+                    onChange={(event) => {
+                      importRoutineFile(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
             <button type="button" onClick={resetToDefaults} className="danger-button w-full justify-center">Reset to defaults</button>
             <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
-              Export all data creates a backup of quests and routines. Quest files export/import one quest scene at a time. Load all data replaces the current app state with the selected JSON file.
+              Export all data creates a backup of quests and routines. Quest files export/import one quest scene at a time. Routine files export/import one routine template at a time. Load all data replaces the current app state with the selected JSON file.
             </div>
           </div>
         )}
