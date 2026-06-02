@@ -95,6 +95,18 @@ import {
   questTypeLabel,
 } from "./models/appModel";
 
+import {
+  downloadJsonFile,
+  makeAllDataExport,
+  makeQuestFileExport,
+  makeRoutineFileExport,
+  rawDataFromPlannerPayload,
+  rawQuestFromQuestPayload,
+  rawRoutineFromRoutinePayload,
+  readJsonFile,
+  slugifyFilename,
+} from "./utils/fileIO";
+
 export default function App() {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -586,198 +598,124 @@ function restoreQuest(questId) {
   }
 
   function exportJson() {
-    const payload = {
-      app: "quest-planner",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      data,
-    };
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
     const date = todayString();
-    anchor.href = url;
-    anchor.download = `quest-planner-${date}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }
-
-
-  function slugifyFilename(value, fallback = "quest") {
-    const slug = String(value || fallback)
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    return slug || fallback;
+    downloadJsonFile(makeAllDataExport(data), `quest-planner-${date}.json`);
   }
 
   function exportQuestFile(quest = activeQuest) {
     if (!quest) return;
 
-    const payload = {
-      app: "quest-planner",
-      type: "quest-scene",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      quest,
-    };
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
     const date = todayString();
-    anchor.href = url;
-    anchor.download = `${slugifyFilename(quest.title)}-${date}.quest.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    const filename = `${slugifyFilename(quest.title)}-${date}.quest.json`;
+    downloadJsonFile(makeQuestFileExport(quest), filename);
   }
 
-  function importQuestFile(file) {
+  async function importQuestFile(file) {
     if (!file) return;
 
-    const reader = new FileReader();
+    try {
+      const parsed = await readJsonFile(file);
+      const rawQuest = rawQuestFromQuestPayload(parsed);
+      const normalized = normalizeData({ quests: [rawQuest], routines: [] });
+      const importedQuest = normalized.quests[0];
 
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result || "{}"));
-        const rawQuest = parsed?.quest && typeof parsed.quest === "object" ? parsed.quest : parsed;
-        const normalized = normalizeData({ quests: [rawQuest], routines: [] });
-        const importedQuest = normalized.quests[0];
+      if (!importedQuest) throw new Error("No quest found in file.");
 
-        if (!importedQuest) throw new Error("No quest found in file.");
+      setData((old) => {
+        const existing = (old.quests || []).some((quest) => quest.id === importedQuest.id);
+        const quests = existing
+          ? old.quests.map((quest) => (quest.id === importedQuest.id ? importedQuest : quest))
+          : [importedQuest, ...(old.quests || [])];
 
-        setData((old) => {
-          const existing = (old.quests || []).some((quest) => quest.id === importedQuest.id);
-          const quests = existing
-            ? old.quests.map((quest) => (quest.id === importedQuest.id ? importedQuest : quest))
-            : [importedQuest, ...(old.quests || [])];
+        const nextData = {
+          ...old,
+          quests,
+          activeQuestId: importedQuest.id,
+          activeBranchTaskId: null,
+        };
 
-          const nextData = {
-            ...old,
-            quests,
-            activeQuestId: importedQuest.id,
-            activeBranchTaskId: null,
-          };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+        localStorage.setItem(LAST_TICK_KEY, todayString());
+        return nextData;
+      });
 
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-          localStorage.setItem(LAST_TICK_KEY, todayString());
-          return nextData;
-        });
-
-        setSelection({ type: "quest", id: importedQuest.id });
-        setHistory([{ type: "quest", id: importedQuest.id }]);
-        setHistoryIndex(0);
-        setExpanded({});
-        setTreeEditMode(false);
-        setExpandedKanbanCards({});
-      } catch (error) {
-        window.alert("Could not load that quest file. It may not be a valid quest scene export.");
-      }
-    };
-
-    reader.readAsText(file);
+      setSelection({ type: "quest", id: importedQuest.id });
+      setHistory([{ type: "quest", id: importedQuest.id }]);
+      setHistoryIndex(0);
+      setExpanded({});
+      setTreeEditMode(false);
+      setExpandedKanbanCards({});
+    } catch (error) {
+      window.alert("Could not load that quest file. It may not be a valid quest scene export.");
+    }
   }
 
   function exportRoutineFile(routine = selectedRoutineForExport) {
     if (!routine) return;
 
-    const payload = {
-      app: "quest-planner",
-      type: "routine-template",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      routine,
-    };
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
     const date = todayString();
-    anchor.href = url;
-    anchor.download = `${slugifyFilename(routine.title, "routine")}-${date}.routine.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    const filename = `${slugifyFilename(routine.title, "routine")}-${date}.routine.json`;
+    downloadJsonFile(makeRoutineFileExport(routine), filename);
   }
 
-  function importRoutineFile(file) {
+  async function importRoutineFile(file) {
     if (!file) return;
 
-    const reader = new FileReader();
+    try {
+      const parsed = await readJsonFile(file);
+      const rawRoutine = rawRoutineFromRoutinePayload(parsed);
+      const normalized = normalizeData({ quests: [], routines: [rawRoutine] });
+      const importedRoutine = normalized.routines[0];
 
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result || "{}"));
-        const rawRoutine = parsed?.routine && typeof parsed.routine === "object" ? parsed.routine : parsed;
-        const normalized = normalizeData({ quests: [], routines: [rawRoutine] });
-        const importedRoutine = normalized.routines[0];
+      if (!importedRoutine) throw new Error("No routine found in file.");
 
-        if (!importedRoutine) throw new Error("No routine found in file.");
+      setData((old) => {
+        const existing = (old.routines || []).some((routine) => routine.id === importedRoutine.id);
+        const routines = existing
+          ? old.routines.map((routine) => (routine.id === importedRoutine.id ? importedRoutine : routine))
+          : [importedRoutine, ...(old.routines || [])];
 
-        setData((old) => {
-          const existing = (old.routines || []).some((routine) => routine.id === importedRoutine.id);
-          const routines = existing
-            ? old.routines.map((routine) => (routine.id === importedRoutine.id ? importedRoutine : routine))
-            : [importedRoutine, ...(old.routines || [])];
-
-          const nextData = runDailyMaintenance({
-            ...old,
-            routines,
-          });
-
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-          localStorage.setItem(LAST_TICK_KEY, todayString());
-          return nextData;
+        const nextData = runDailyMaintenance({
+          ...old,
+          routines,
         });
 
-        setSelection({ type: "routine", id: importedRoutine.id });
-        setHistory([{ type: "routine", id: importedRoutine.id }]);
-        setHistoryIndex(0);
-        setExpanded({});
-        setTreeEditMode(false);
-        setExpandedKanbanCards({});
-      } catch (error) {
-        window.alert("Could not load that routine file. It may not be a valid routine template export.");
-      }
-    };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
+        localStorage.setItem(LAST_TICK_KEY, todayString());
+        return nextData;
+      });
 
-    reader.readAsText(file);
+      setSelection({ type: "routine", id: importedRoutine.id });
+      setHistory([{ type: "routine", id: importedRoutine.id }]);
+      setHistoryIndex(0);
+      setExpanded({});
+      setTreeEditMode(false);
+      setExpandedKanbanCards({});
+    } catch (error) {
+      window.alert("Could not load that routine file. It may not be a valid routine template export.");
+    }
   }
 
-  function importJsonFile(file) {
+  async function importJsonFile(file) {
     if (!file) return;
 
-    const reader = new FileReader();
+    try {
+      const parsed = await readJsonFile(file);
+      const rawData = rawDataFromPlannerPayload(parsed);
+      const imported = runDailyMaintenance(normalizeData(rawData));
 
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result || "{}"));
-        const rawData = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
-        const imported = runDailyMaintenance(normalizeData(rawData));
-
-        setData(imported);
-        setSelection({ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null });
-        setHistory([{ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null }]);
-        setHistoryIndex(0);
-        setExpanded({});
-        setTreeEditMode(false);
-        setExpandedKanbanCards({});
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
-        localStorage.setItem(LAST_TICK_KEY, todayString());
-      } catch (error) {
-        window.alert("Could not load that JSON file. It may not be a valid quest planner export.");
-      }
-    };
-
-    reader.readAsText(file);
+      setData(imported);
+      setSelection({ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null });
+      setHistory([{ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null }]);
+      setHistoryIndex(0);
+      setExpanded({});
+      setTreeEditMode(false);
+      setExpandedKanbanCards({});
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+      localStorage.setItem(LAST_TICK_KEY, todayString());
+    } catch (error) {
+      window.alert("Could not load that JSON file. It may not be a valid quest planner export.");
+    }
   }
 
   function resetToDefaults() {
