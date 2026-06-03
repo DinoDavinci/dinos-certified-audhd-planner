@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Plus,
   Play,
@@ -55,29 +55,137 @@ export default function TreeViewTab({
 }) {
   const isRearrangeMode = TREE_INTERACTION_MODE === "rearrange";
   const [dropIndicator, setDropIndicator] = useState(null);
+  const [dragState, setDragState] = useState(null);
   const treeContentRef = useRef(null);
+  const dragStateRef = useRef(null);
+  const dropIndicatorRef = useRef(null);
   const interactionClassName = isRearrangeMode ? "tree-view-rearrange" : "tree-view-normal";
   const shellClassName = embedded
     ? `tree-view-root ${treeModeClass(treeContext)} ${interactionClassName}`
     : `panel panel-scroll ${treeModeClass(treeContext)} ${interactionClassName}`;
   const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
 
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
+
+  useEffect(() => {
+    dropIndicatorRef.current = dropIndicator;
+  }, [dropIndicator]);
+
+  useEffect(() => {
+    function handleWindowPointerMove(event) {
+      const activeDrag = dragStateRef.current;
+      if (!activeDrag) return;
+      if (activeDrag.pointerId !== event.pointerId) return;
+
+      const nextIndicator = getTreeDropIndicatorFromPoint(event, treeContentRef.current);
+      dropIndicatorRef.current = nextIndicator;
+      setDropIndicator(nextIndicator);
+    }
+
+    function handleWindowPointerUp(event) {
+      const activeDrag = dragStateRef.current;
+      if (!activeDrag) return;
+      if (activeDrag.pointerId !== event.pointerId) return;
+      finishTreeDrag(event);
+    }
+
+    function handleWindowPointerCancel(event) {
+      const activeDrag = dragStateRef.current;
+      if (!activeDrag) return;
+      if (activeDrag.pointerId !== event.pointerId) return;
+      cancelTreeDrag();
+    }
+
+    window.addEventListener("pointermove", handleWindowPointerMove);
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerCancel);
+
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel);
+    };
+  }, []);
+
   function updateDropIndicator(event, id, forcedZone = null) {
     if (!isRearrangeMode || !id) return;
+    if (!dragStateRef.current) return;
 
-    const nextIndicator = getTreeDropIndicator(event, treeContentRef.current, id, forcedZone);
+    const nextIndicator =
+      getTreeDropIndicatorFromPoint(event, treeContentRef.current) ||
+      getTreeDropIndicator(event, treeContentRef.current, id, forcedZone);
+
     if (!nextIndicator) return;
 
+    dropIndicatorRef.current = nextIndicator;
     setDropIndicator(nextIndicator);
   }
 
   function clearDropIndicator() {
+    if (dragStateRef.current) return;
+
+    dropIndicatorRef.current = null;
+    setDropIndicator(null);
+  }
+
+  function beginTreeDrag(event, source) {
+    if (!isRearrangeMode || !source?.taskId) return;
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextDragState = {
+      ...source,
+      pointerId: event.pointerId,
+      startedAtClientX: event.clientX,
+      startedAtClientY: event.clientY,
+    };
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragStateRef.current = nextDragState;
+    setDragState(nextDragState);
+    console.log("[Tree rearrange] drag start", nextDragState);
+  }
+
+  function finishTreeDrag(event) {
+    const activeDrag = dragStateRef.current;
+    if (!activeDrag) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const releaseTarget =
+      getTreeDropIndicatorFromPoint(event, treeContentRef.current) ||
+      dropIndicatorRef.current;
+
+    const result = {
+      source: activeDrag,
+      target: releaseTarget,
+    };
+
+    console.log("[Tree rearrange] drag release", result);
+    dragStateRef.current = null;
+    setDragState(null);
+    dropIndicatorRef.current = null;
+    setDropIndicator(null);
+  }
+
+  function cancelTreeDrag() {
+    const activeDrag = dragStateRef.current;
+    if (!activeDrag) return;
+    console.log("[Tree rearrange] drag cancel", activeDrag);
+    dragStateRef.current = null;
+    setDragState(null);
+    dropIndicatorRef.current = null;
     setDropIndicator(null);
   }
 
   return (
     <section
-      className={shellClassName}
+      className={`${shellClassName} ${dragState ? "tree-drag-active" : ""}`}
       style={shellStyle}
     >
       <div className="tree-scene-header">
@@ -85,6 +193,7 @@ export default function TreeViewTab({
           <div className="tree-toolbar-context">
             <span className="tree-mode-pill">{treeContext.type === "focus" ? "Focus" : treeContext.type === "routine" ? "Routine" : treeContext.type === "quest" ? "Quest" : "Empty"}</span>
             {effectiveTreeEditMode && <span className="tree-edit-pill">Editing</span>}
+            {dragState && <span className="tree-drag-pill">Dragging: {dragState.title}</span>}
           </div>
 
           <div className="tree-toolbar-actions">
@@ -108,7 +217,11 @@ export default function TreeViewTab({
 
       <div className="scene-contents-panel tree-contents-panel">
         <div className="scene-contents-margin tree-contents-margin">
-          <div className="tree-scene-content" ref={treeContentRef} onMouseLeave={clearDropIndicator}>
+          <div
+            className="tree-scene-content"
+            ref={treeContentRef}
+            onMouseLeave={clearDropIndicator}
+          >
             {dropIndicator && <TreeDropIndicator indicator={dropIndicator} />}
             {treeContext.type === "routine" && (
               <TreeRootNode
@@ -138,6 +251,7 @@ export default function TreeViewTab({
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
                   updateDropIndicator={updateDropIndicator}
+                  beginTreeDrag={beginTreeDrag}
                   template
                 />
               </TreeRootNode>
@@ -171,6 +285,7 @@ export default function TreeViewTab({
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
                   updateDropIndicator={updateDropIndicator}
+                  beginTreeDrag={beginTreeDrag}
                 />
               </TreeRootNode>
             )}
@@ -232,7 +347,11 @@ function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSele
 
 
 function getTreeDropZone(event) {
-  const rect = event.currentTarget.getBoundingClientRect();
+  return getTreeDropZoneFromElement(event, event.currentTarget);
+}
+
+function getTreeDropZoneFromElement(event, rowElement) {
+  const rect = rowElement.getBoundingClientRect();
   const y = event.clientY - rect.top;
   const ratio = rect.height > 0 ? y / rect.height : 0.5;
 
@@ -243,7 +362,29 @@ function getTreeDropZone(event) {
 
 function getTreeDropIndicator(event, treeContentElement, id, forcedZone = null) {
   const rowElement = event.currentTarget;
-  if (!treeContentElement || !rowElement) return null;
+  return getTreeDropIndicatorForElement(event, treeContentElement, rowElement, id, forcedZone);
+}
+
+function getTreeDropIndicatorFromPoint(event, treeContentElement) {
+  if (!treeContentElement) return null;
+
+  const hitElement = document.elementFromPoint(event.clientX, event.clientY);
+  if (!hitElement || !treeContentElement.contains(hitElement)) return null;
+
+  const subtreeEndElement = hitElement.closest?.(".tree-subtree-end-drop-zone");
+  if (subtreeEndElement && treeContentElement.contains(subtreeEndElement)) {
+    const id = subtreeEndElement.dataset.treeSubtreeEndFor;
+    return getTreeDropIndicatorForElement(event, treeContentElement, subtreeEndElement, id, "subtree-after");
+  }
+
+  const rowElement = hitElement.closest?.("[data-tree-row-id]");
+  if (!rowElement || !treeContentElement.contains(rowElement)) return null;
+
+  return getTreeDropIndicatorForElement(event, treeContentElement, rowElement, rowElement.dataset.treeRowId);
+}
+
+function getTreeDropIndicatorForElement(event, treeContentElement, rowElement, id, forcedZone = null) {
+  if (!treeContentElement || !rowElement || !id) return null;
 
   const contentRect = treeContentElement.getBoundingClientRect();
   const rowElements = Array.from(treeContentElement.querySelectorAll("[data-tree-row-id]"));
@@ -265,7 +406,7 @@ function getTreeDropIndicator(event, treeContentElement, id, forcedZone = null) 
     };
   }
 
-  const zone = forcedZone || getTreeDropZone(event);
+  const zone = forcedZone || getTreeDropZoneFromElement(event, rowElement);
 
   if (zone === "inside") {
     return {
@@ -355,12 +496,12 @@ function getTreeStatusClass(task) {
   return "tree-status-empty";
 }
 
-function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null, dropIndicator = null, updateDropIndicator = null }) {
+function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, parentId = null, template = false, treeEditMode = false, selection = null, treeContext = null, dropIndicator = null, updateDropIndicator = null, beginTreeDrag = null }) {
   if (!tasks || tasks.length === 0) return <div className="text-sm text-neutral-500">No tasks yet.</div>;
 
   return (
     <div className="tree-node-list">
-      {tasks.map((task) => {
+      {tasks.map((task, index) => {
         const children = task.children || [];
         const hasChildren = children.length > 0;
         const open = expanded[task.id] ?? true;
@@ -400,6 +541,15 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                 data-tree-row-id={task.id}
                 data-tree-has-children={hasChildren ? "true" : "false"}
                 data-tree-open={open ? "true" : "false"}
+                data-tree-parent-id={parentId || ""}
+                data-tree-index={index}
+                onPointerDown={(event) => beginTreeDrag?.(event, {
+                  taskId: task.id,
+                  parentId,
+                  index,
+                  title: task.title || "Untitled task",
+                  contextType: treeContext?.type || "unknown",
+                })}
                 onMouseMove={(event) => updateDropIndicator?.(event, task.id)}
                 onClick={() => !treeEditMode && onSelect(task)}
               >
@@ -413,7 +563,11 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                   {hasChildren && <div className="tree-row-mode">{task.mode === "sequence" ? "seq" : "all"}</div>}
                 </div>
 
-                <div className="tree-row-buttons" onClick={(event) => event.stopPropagation()}>
+                <div
+                  className="tree-row-buttons"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
                   {treeEditMode ? (
                     <>
                       <button onClick={() => onMoveUp?.(task)} className="tree-icon-button" title="Move up"><ArrowUp size={14} /></button>
@@ -450,12 +604,14 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                     onMoveDown={onMoveDown}
                     onToggleComplete={onToggleComplete}
                     depth={depth + 1}
+                    parentId={task.id}
                     template={template}
                     treeEditMode={treeEditMode}
                     selection={selection}
                     treeContext={treeContext}
                     dropIndicator={dropIndicator}
                     updateDropIndicator={updateDropIndicator}
+                    beginTreeDrag={beginTreeDrag}
                   />
                 </div>
                 <div

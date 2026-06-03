@@ -2007,6 +2007,15 @@ function DarkStyles() {
         background: rgb(64 64 64);
         color: rgb(229 229 229);
       }
+      .tree-drag-pill {
+        border-radius: 999px;
+        border: 1px solid rgb(59 130 246);
+        background: rgb(30 58 138);
+        padding: 0.1rem 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: rgb(191 219 254);
+      }
       .tree-edit-pill {
         display: inline-flex;
         border-radius: 0.35rem;
@@ -2143,10 +2152,20 @@ function DarkStyles() {
         background: rgba(59, 130, 246, 0.18);
       }
 
-      .tree-view-rearrange .tree-row:hover::after,
+      .tree-view-rearrange .tree-row:hover::after {
+        background: transparent;
+      }
+      .tree-view-rearrange .tree-row {
+        cursor: default;
+      }
+      .tree-view-rearrange.tree-drag-active,
+      .tree-view-rearrange.tree-drag-active .tree-row,
+      .tree-view-rearrange .tree-drag-active .tree-row {
+        cursor: grabbing;
+      }
       .tree-view-rearrange .tree-row-selected::after,
       .tree-view-rearrange .tree-row-selected:hover::after {
-        background: transparent;
+        background: rgba(59, 130, 246, 0.18);
       }
       .tree-drop-overlay {
         position: absolute;
@@ -2174,8 +2193,8 @@ function DarkStyles() {
       .tree-drop-overlay-inside {
         border-radius: 0.25rem;
         border: 2px solid rgba(96, 165, 250, 0.85);
-        background: rgba(59, 130, 246, 0.16);
-        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);
+        background: transparent;
+        box-shadow: none;
       }
       .tree-root-row {
         margin-bottom: 0;
