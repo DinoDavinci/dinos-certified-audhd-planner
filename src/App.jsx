@@ -1825,8 +1825,8 @@ function DarkStyles() {
         top: -0.15rem;
         bottom: calc(50% - 1px);
         width: 2px;
-        background: rgb(82 82 82);
-        opacity: 0.9;
+        background: rgba(255, 255, 255, 0.28);
+        opacity: 1;
       }
       .tree-node-wrap:not(:last-child) > .tree-row-wrap.tree-node-child::after {
         bottom: -0.15rem;
@@ -1838,8 +1838,8 @@ function DarkStyles() {
         top: 0.78rem;
         width: calc(0.55rem + 12px);
         height: 2px;
-        background: rgb(82 82 82);
-        opacity: 0.9;
+        background: rgba(255, 255, 255, 0.28);
+        opacity: 1;
       }
       .tree-row-wrap.tree-node-child.tree-row-leaf::before {
         width: calc(1.9rem + 12px);
@@ -1852,18 +1852,19 @@ function DarkStyles() {
         min-height: 1.55rem;
         border-radius: 0.25rem;
         border: 1px solid transparent;
-        background: rgb(23 23 23);
+        background: transparent;
         padding: 0.12rem 0.3rem;
         cursor: pointer;
-      
-        flex: 1 1 auto;}
-      .tree-row:hover {
-        border-color: rgba(255, 255, 255, 0.22);
-        background: rgba(255, 255, 255, 0.08);
+        flex: 1 1 auto;
       }
-      .tree-row-selected {
-        border-color: rgb(229 229 229);
-        background: rgb(38 38 38);
+      .tree-row:hover {
+        border-color: transparent;
+        background: rgba(59, 130, 246, 0.18);
+      }
+      .tree-row-selected,
+      .tree-row-selected:hover {
+        border-color: rgba(255, 255, 255, 0.62);
+        background: rgba(59, 130, 246, 0.18);
       }
       .tree-root-row {
         margin-bottom: 0.5rem;
@@ -1919,11 +1920,26 @@ function DarkStyles() {
       .tree-root-root-quest-type-cooldown {
         border-width: 2px;
       }
+      .tree-root-quest,
+      .tree-root-routine,
+      .tree-root-focus,
+      .tree-root-quest-type-regular,
+      .tree-root-quest-type-routine,
+      .tree-root-quest-type-cooldown,
+      .tree-root-root-quest-type-regular,
+      .tree-root-root-quest-type-routine,
+      .tree-root-root-quest-type-cooldown {
+        border-color: transparent;
+        border-width: 1px;
+      }
+      .tree-root-row.tree-row-selected {
+        border-color: rgba(255, 255, 255, 0.62);
+      }
       .tree-row-complete {
-        background: rgb(52 68 58);
+        background: transparent;
       }
       .tree-row-complete:hover {
-        background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)), rgb(52 68 58);
+        background: rgba(59, 130, 246, 0.18);
       }
       .tree-row-edit {
         cursor: default;
