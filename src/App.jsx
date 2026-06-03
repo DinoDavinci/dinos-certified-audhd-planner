@@ -2143,12 +2143,10 @@ function DarkStyles() {
         background: rgba(59, 130, 246, 0.18);
       }
 
-      .tree-view-rearrange .tree-row:hover::after {
-        background: transparent;
-      }
+      .tree-view-rearrange .tree-row:hover::after,
       .tree-view-rearrange .tree-row-selected::after,
       .tree-view-rearrange .tree-row-selected:hover::after {
-        background: rgba(59, 130, 246, 0.18);
+        background: transparent;
       }
       .tree-drop-overlay {
         position: absolute;
