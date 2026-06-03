@@ -1666,10 +1666,14 @@ function DarkStyles() {
         width: 3rem;
         background: rgb(82 82 82);
       }
-      .inspector-panel {
+      .inspector-tab-root {
         flex: 0 0 auto;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
       }
-      .inspector-panel.inspector-panel-embedded {
+      .inspector-tab-root.inspector-tab-root-embedded {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;

@@ -18,15 +18,15 @@ import TaskInspector from "./TaskInspector";
 
 export default function InspectorPanel(props) {
   const { rightSplit, embedded = false } = props;
-  const shellClassName = embedded
-    ? "panel-scroll inspector-panel inspector-panel-embedded"
-    : "panel panel-scroll inspector-panel";
-  const shellStyle = embedded ? undefined : { flexBasis: `${rightSplit}%` };
+  const rootClassName = embedded
+    ? "panel-scroll inspector-tab-root inspector-tab-root-embedded"
+    : "panel panel-scroll inspector-tab-root";
+  const rootStyle = embedded ? undefined : { flexBasis: `${rightSplit}%` };
 
   return (
-    <section
-      className={shellClassName}
-      style={shellStyle}
+    <div
+      className={rootClassName}
+      style={rootStyle}
     >
       <div className="inspector-main-margin">
         <div className="inspector-main-vbox">
@@ -38,7 +38,7 @@ export default function InspectorPanel(props) {
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
