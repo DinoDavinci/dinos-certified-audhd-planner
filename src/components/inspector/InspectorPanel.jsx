@@ -18,12 +18,16 @@ import TaskInspector from "./TaskInspector";
 import { PanelTitleBar } from "./inspectorShared";
 
 export default function InspectorPanel(props) {
-  const { rightSplit } = props;
+  const { rightSplit, embedded = false } = props;
+  const shellClassName = embedded
+    ? "panel-scroll inspector-panel inspector-panel-embedded"
+    : "panel panel-scroll inspector-panel";
+  const shellStyle = embedded ? undefined : { flexBasis: `${rightSplit}%` };
 
   return (
     <section
-      className="panel panel-scroll inspector-panel"
-      style={{ flexBasis: `${rightSplit}%` }}
+      className={shellClassName}
+      style={shellStyle}
     >
       <InspectorTitleBar {...props} />
       <div className="panel-content">

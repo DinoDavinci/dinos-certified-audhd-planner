@@ -73,6 +73,7 @@ export default function App() {
 
   const [libraryTab, setLibraryTab] = useState(PANEL_IDS.QUEST_BOARD);
   const [centerTab, setCenterTab] = useState(PANEL_IDS.FOCUS_PANEL || "focusPanel");
+  const [topRightTab, setTopRightTab] = useState(PANEL_IDS.INSPECTOR_PANEL);
   const [selection, setSelectionRaw] = useState({ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null });
   const [history, setHistory] = useState([{ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null }]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -823,6 +824,8 @@ function restoreQuest(questId) {
         />
         <RightPanel
           panelWidth={rightPanelWidth}
+          topRightTab={topRightTab}
+          setTopRightTab={setTopRightTab}
           selection={selection}
           data={data}
           setData={setData}
@@ -985,9 +988,33 @@ function CenterDock({ activePanelId, setActivePanelId, ...focusProps }) {
   );
 }
 
+function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorProps }) {
+  const tabs = [
+    {
+      id: PANEL_IDS.INSPECTOR_PANEL,
+      title: "Inspector",
+      content: <InspectorPanel {...inspectorProps} embedded />,
+    },
+  ];
+
+  return (
+    <DockContainer
+      dockId={DOCK_IDS.TOP_RIGHT}
+      tabs={tabs}
+      activePanelId={activePanelId}
+      onActivePanelChange={setActivePanelId}
+      panelClassName="top-right-dock-wrapper"
+      style={{ flexBasis: `${rightSplit}%` }}
+      contentClassName=""
+    />
+  );
+}
+
 function RightPanel(props) {
   const {
     panelWidth,
+    topRightTab,
+    setTopRightTab,
     selection,
     data,
     activeQuest,
@@ -1041,7 +1068,12 @@ function RightPanel(props) {
 
   return (
     <aside className="right-column" ref={rightColumnRef} style={{ flexBasis: `${panelWidth}px` }}>
-      <InspectorPanel {...props} />
+      <TopRightDock
+        activePanelId={topRightTab}
+        setActivePanelId={setTopRightTab}
+        rightSplit={rightSplit}
+        inspectorProps={props}
+      />
 
       <div
         className="right-splitter"
@@ -1448,6 +1480,32 @@ function DarkStyles() {
         min-height: 0;
         display: flex;
         overflow: hidden;
+      }
+      .top-right-dock-wrapper {
+        flex: 0 0 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .top-right-dock-wrapper > .tab-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .top-right-dock-wrapper > .tab-container > div:last-child {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      .inspector-panel-embedded {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
       }
       .right-column {
         flex: 0 0 auto;
