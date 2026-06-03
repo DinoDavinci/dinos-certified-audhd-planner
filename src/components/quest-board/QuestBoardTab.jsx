@@ -5,9 +5,9 @@ import {
   getQuestProgress,
   isQuestComplete,
   questTypeClass,
-} from "../models/appModel";
+} from "../../models/appModel";
 
-export default function QuestBoardPanel({
+export default function QuestBoardTab({
   search,
   setSearch,
   tagFilter,

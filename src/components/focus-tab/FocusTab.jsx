@@ -16,7 +16,7 @@ import {
   getLeafProgressPercent,
 } from "../../models/appModel";
 
-export default function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
+export default function FocusTab({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
   if (!quest) {
     return (
       <main className="focus-tab-root">

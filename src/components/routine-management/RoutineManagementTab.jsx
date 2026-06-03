@@ -1,9 +1,9 @@
 import React from "react";
 import { Plus, Search } from "lucide-react";
 
-import { formatDayMask } from "../models/appModel";
+import { formatDayMask } from "../../models/appModel";
 
-export default function RoutinePanel({
+export default function RoutineManagementTab({
   search,
   setSearch,
   tagFilter,

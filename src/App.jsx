@@ -44,12 +44,12 @@ import {
   slugifyFilename,
 } from "./utils/fileIO";
 
-import QuestBoardPanel from "./components/QuestBoardPanel";
-import RoutinePanel from "./components/RoutinePanel";
-import ExportPanel from "./components/ExportPanel";
-import FocusPanel from "./components/focus/FocusPanel";
-import TreePanel from "./components/tree/TreePanel";
-import InspectorPanel from "./components/inspector/InspectorPanel";
+import QuestBoardTab from "./components/quest-board/QuestBoardTab";
+import RoutineManagementTab from "./components/routine-management/RoutineManagementTab";
+import ExportOptionsTab from "./components/export-options/ExportOptionsTab";
+import FocusTab from "./components/focus-tab/FocusTab";
+import TreeViewTab from "./components/tree-view/TreeViewTab";
+import InspectorTab from "./components/inspector/InspectorTab";
 import DockContainer from "./components/layout/DockContainer";
 import { DOCK_IDS, PANEL_IDS } from "./layout/panelLayout";
 
@@ -907,7 +907,7 @@ function LibraryPanel({
       id: PANEL_IDS.QUEST_BOARD,
       title: "Quest Board",
       content: (
-        <QuestBoardPanel
+        <QuestBoardTab
           search={search}
           setSearch={setSearch}
           tagFilter={tagFilter}
@@ -927,7 +927,7 @@ function LibraryPanel({
       id: PANEL_IDS.ROUTINE_PANEL,
       title: "Routines",
       content: (
-        <RoutinePanel
+        <RoutineManagementTab
           search={search}
           setSearch={setSearch}
           tagFilter={tagFilter}
@@ -943,7 +943,7 @@ function LibraryPanel({
       id: PANEL_IDS.EXPORT_PANEL,
       title: "Save/Load",
       content: (
-        <ExportPanel
+        <ExportOptionsTab
           exportJson={exportJson}
           importJsonFile={importJsonFile}
           exportQuestFile={exportQuestFile}
@@ -977,7 +977,7 @@ function CenterDock({ activePanelId, setActivePanelId, ...focusProps }) {
     {
       id: focusPanelId,
       title: "Focus",
-      content: <FocusPanel {...focusProps} />,
+      content: <FocusTab {...focusProps} />,
     },
   ];
 
@@ -997,7 +997,7 @@ function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorPr
     {
       id: PANEL_IDS.INSPECTOR_PANEL,
       title: "Inspector",
-      content: <InspectorPanel {...inspectorProps} embedded />,
+      content: <InspectorTab {...inspectorProps} embedded />,
     },
   ];
 
@@ -1024,7 +1024,7 @@ function BottomRightDock({
     {
       id: PANEL_IDS.TREE_VIEW_PANEL,
       title: "Tree View",
-      content: <TreePanel {...treePanelProps} embedded />,
+      content: <TreeViewTab {...treePanelProps} embedded />,
     },
   ];
 

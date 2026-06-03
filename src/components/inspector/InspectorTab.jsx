@@ -21,7 +21,7 @@ import {
   ChildrenSummary,
 } from "./inspectorShared";
 
-export default function InspectorPanel(props) {
+export default function InspectorTab(props) {
   const { rightSplit, embedded = false } = props;
   const rootClassName = embedded
     ? "inspector-root inspector-root-embedded"

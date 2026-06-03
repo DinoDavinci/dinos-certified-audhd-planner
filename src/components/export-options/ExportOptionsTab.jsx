@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function ExportPanel({
+export default function ExportOptionsTab({
   exportJson,
   importJsonFile,
   exportQuestFile,

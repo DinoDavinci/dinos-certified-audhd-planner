@@ -31,7 +31,7 @@ function PanelTitleBar({ title, children, className = "" }) {
   );
 }
 
-export default function TreePanel({
+export default function TreeViewTab({
   treeContext,
   effectiveTreeEditMode,
   treeEditMode,
