@@ -293,6 +293,7 @@ function Inspector({
             }));
           }}
           toggleComplete={() => toggleTask(selected.quest.id, selected.task.id)}
+          deleteTask={() => deleteQuestTask(selected.quest.id, selected.task.id)}
           template={false}
         />
       )}
@@ -335,6 +336,7 @@ function Inspector({
               };
             });
           }}
+          deleteTask={() => deleteRoutineTask(selected.routine.id, selected.task.id)}
           template
         />
       )}

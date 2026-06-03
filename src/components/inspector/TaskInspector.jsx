@@ -1,5 +1,5 @@
 import React from "react";
-import { Play, CheckCircle2, RotateCcw } from "lucide-react";
+import { Play, CheckCircle2, RotateCcw, Trash2 } from "lucide-react";
 
 import {
   MODES,
@@ -21,7 +21,7 @@ import {
   CounterField,
 } from "./inspectorShared";
 
-export default function TaskInspector({ task, parent, ownerTitle, ancestry, setSelection, locked = false, canFocusBranch = false, isBranchFocused = false, setBranchFocus, clearBranchFocus, updateTask, toggleComplete, template }) {
+export default function TaskInspector({ task, parent, ownerTitle, ancestry, setSelection, locked = false, canFocusBranch = false, isBranchFocused = false, setBranchFocus, clearBranchFocus, updateTask, toggleComplete, deleteTask, template }) {
   const hasChildren = (task.children || []).length > 0;
   const complete = isTaskComplete(task);
 
@@ -107,6 +107,17 @@ export default function TaskInspector({ task, parent, ownerTitle, ancestry, setS
             : template
               ? "Template leaf: generated copies can be completed later."
               : "Leaf task: can be completed directly."}
+      </div>
+
+      <div className="danger-zone">
+        <button
+          onClick={deleteTask}
+          disabled={locked || !deleteTask}
+          className="danger-button w-full disabled:opacity-40 disabled:cursor-not-allowed"
+          title={locked ? "Locked tasks cannot be deleted." : "Delete task"}
+        >
+          <Trash2 size={16} /> Delete task
+        </button>
       </div>
 
     </div>
