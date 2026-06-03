@@ -2058,6 +2058,20 @@ function DarkStyles() {
       .tree-node-wrap:not(:last-child) > .tree-row-wrap.tree-node-child::after {
         bottom: -0.15rem;
       }
+      .tree-node-wrap:not(:last-child)::before {
+        content: "";
+        position: absolute;
+        left: calc(-0.55rem - 12px);
+        top: 0.78rem;
+        bottom: -0.15rem;
+        width: 2px;
+        background: ${TREE_BRANCH_LINE_COLOR};
+        opacity: 1;
+        pointer-events: none;
+      }
+      .tree-root-node-wrap::before {
+        display: none;
+      }
       .tree-row-wrap.tree-node-child::before {
         content: "";
         position: absolute;
