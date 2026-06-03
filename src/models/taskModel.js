@@ -522,3 +522,169 @@ export function moveTaskInTree(tasks, id, direction) {
     children: moveTaskInTree(task.children || [], id, direction),
   }));
 }
+
+export function moveTaskToTreeLocation(tasks, sourceTaskId, targetTaskId, placement, options = {}) {
+  const rootId = options.rootId || null;
+  const normalizedPlacement = normalizeTaskDropPlacement(placement);
+  const sourceTask = findTask(tasks, sourceTaskId);
+  const targetIsRoot = rootId && targetTaskId === rootId;
+  const targetTask = targetIsRoot ? null : findTask(tasks, targetTaskId);
+
+  if (!sourceTaskId) {
+    return { tasks: tasks || [], moved: false, reason: "missing-source-id" };
+  }
+
+  if (!targetTaskId) {
+    return { tasks: tasks || [], moved: false, reason: "missing-target-id" };
+  }
+
+  if (!sourceTask) {
+    return { tasks: tasks || [], moved: false, reason: "source-not-found" };
+  }
+
+  if (!targetIsRoot && !targetTask) {
+    return { tasks: tasks || [], moved: false, reason: "target-not-found" };
+  }
+
+  if (sourceTaskId === targetTaskId) {
+    return { tasks: tasks || [], moved: false, reason: "same-source-and-target" };
+  }
+
+  if (!targetIsRoot && treeTaskContainsId(sourceTask, targetTaskId)) {
+    return { tasks: tasks || [], moved: false, reason: "target-inside-source" };
+  }
+
+  const extracted = extractTaskFromTree(tasks || [], sourceTaskId);
+  if (!extracted.task) {
+    return { tasks: tasks || [], moved: false, reason: "source-not-extracted" };
+  }
+
+  let inserted;
+
+  if (targetIsRoot) {
+    if (normalizedPlacement === "first-child") {
+      inserted = {
+        tasks: [extracted.task, ...extracted.tasks],
+        inserted: true,
+      };
+    } else if (normalizedPlacement === "inside") {
+      inserted = {
+        tasks: [...extracted.tasks, extracted.task],
+        inserted: true,
+      };
+    } else {
+      return { tasks: tasks || [], moved: false, reason: "invalid-root-placement" };
+    }
+  } else if (normalizedPlacement === "inside" || normalizedPlacement === "first-child") {
+    inserted = insertTaskAsChild(
+      extracted.tasks,
+      targetTaskId,
+      extracted.task,
+      normalizedPlacement === "first-child"
+    );
+  } else {
+    inserted = insertTaskRelative(extracted.tasks, targetTaskId, extracted.task, normalizedPlacement);
+  }
+
+  if (!inserted.inserted) {
+    return { tasks: tasks || [], moved: false, reason: "insert-target-not-found" };
+  }
+
+  return {
+    tasks: inserted.tasks,
+    moved: true,
+    reason: "moved",
+    sourceTaskId,
+    targetTaskId,
+    placement: normalizedPlacement,
+  };
+}
+
+export function normalizeTaskDropPlacement(placement) {
+  if (placement === "first-child") return "first-child";
+  if (placement === "subtree-after") return "after";
+  if (placement === "before") return "before";
+  if (placement === "after") return "after";
+  return "inside";
+}
+
+function treeTaskContainsId(task, id) {
+  if (!task || !id) return false;
+  if (task.id === id) return true;
+  return (task.children || []).some((child) => treeTaskContainsId(child, id));
+}
+
+function extractTaskFromTree(tasks, sourceTaskId) {
+  let extractedTask = null;
+  const nextTasks = [];
+
+  for (const task of tasks || []) {
+    if (task.id === sourceTaskId) {
+      extractedTask = task;
+      continue;
+    }
+
+    const childResult = extractTaskFromTree(task.children || [], sourceTaskId);
+    if (childResult.task) {
+      extractedTask = childResult.task;
+      nextTasks.push({ ...task, children: childResult.tasks });
+    } else {
+      nextTasks.push(task);
+    }
+  }
+
+  return { tasks: nextTasks, task: extractedTask };
+}
+
+function insertTaskRelative(tasks, targetTaskId, taskToInsert, placement) {
+  const list = [...(tasks || [])];
+  const index = list.findIndex((task) => task.id === targetTaskId);
+
+  if (index !== -1) {
+    const insertIndex = placement === "before" ? index : index + 1;
+    const nextTasks = [...list];
+    nextTasks.splice(insertIndex, 0, taskToInsert);
+    return { tasks: nextTasks, inserted: true };
+  }
+
+  let inserted = false;
+  const nextTasks = list.map((task) => {
+    if (inserted) return task;
+
+    const childResult = insertTaskRelative(task.children || [], targetTaskId, taskToInsert, placement);
+    if (!childResult.inserted) return task;
+
+    inserted = true;
+    return { ...task, children: childResult.tasks };
+  });
+
+  return { tasks: nextTasks, inserted };
+}
+
+function insertTaskAsChild(tasks, targetTaskId, taskToInsert, insertFirst = false) {
+  let inserted = false;
+
+  const nextTasks = (tasks || []).map((task) => {
+    if (inserted) return task;
+
+    if (task.id === targetTaskId) {
+      inserted = true;
+      const children = task.children || [];
+      return {
+        ...task,
+        children: insertFirst
+          ? [taskToInsert, ...children]
+          : [...children, taskToInsert],
+      };
+    }
+
+    const childResult = insertTaskAsChild(task.children || [], targetTaskId, taskToInsert, insertFirst);
+    if (!childResult.inserted) return task;
+
+    inserted = true;
+    return { ...task, children: childResult.tasks };
+  });
+
+  return { tasks: nextTasks, inserted };
+}
+

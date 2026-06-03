@@ -49,6 +49,7 @@ import {
   addTaskToTree,
   deleteTaskFromTree,
   moveTaskInTree,
+  moveTaskToTreeLocation,
   SAMPLE_TASK_DESCRIPTIONS,
 } from "./taskModel";
 
@@ -122,6 +123,7 @@ export {
   addTaskToTree,
   deleteTaskFromTree,
   moveTaskInTree,
+  moveTaskToTreeLocation,
   SAMPLE_TASK_DESCRIPTIONS
 } from "./taskModel";
 
