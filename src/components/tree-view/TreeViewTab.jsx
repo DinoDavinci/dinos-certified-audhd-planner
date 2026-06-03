@@ -138,7 +138,7 @@ export default function TreeViewTab({
   }
 
   function beginTreeDrag(event, source) {
-    if (!isRearrangeMode || !source?.taskId) return;
+    if (!source?.taskId) return;
     if (event.button !== 0) return;
 
     event.preventDefault();
@@ -160,7 +160,7 @@ export default function TreeViewTab({
       const pendingPress = pendingPressRef.current;
       if (!pendingPress || pendingPress.pointerId !== event.pointerId) return;
 
-      pendingPressRef.current = null;
+      pendingPressRef.current = pendingPress;
       dragStateRef.current = pendingPress;
       setInteractionMode("rearrange");
       setDragState(pendingPress);
@@ -182,8 +182,8 @@ export default function TreeViewTab({
     }
 
     if (pendingPress) {
-      pendingPressRef.current = null;
       pendingPress.select?.();
+      pendingPressRef.current = null;
     }
   }
 
@@ -200,7 +200,10 @@ export default function TreeViewTab({
     };
 
     console.log("[Tree rearrange] drag release", result);
+
     activeDrag.select?.();
+
+    pendingPressRef.current = null;
     dragStateRef.current = null;
     setDragState(null);
     setInteractionMode("normal");
