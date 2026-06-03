@@ -1466,6 +1466,16 @@ function DarkStyles() {
         border-bottom-color: rgb(217 119 6);
       }
 
+      .inspector-main-margin {
+        min-height: 0;
+        padding: 4px;
+      }
+      .inspector-main-vbox {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+        gap: 4px;
+      }
       .inspector-toolbar {
         position: sticky;
         top: 0;
@@ -1474,8 +1484,9 @@ function DarkStyles() {
         align-items: center;
         justify-content: space-between;
         gap: 0.5rem;
-        border-bottom: 1px solid rgb(38 38 38);
-        background: rgb(23 23 23);
+        border: 1px solid rgb(45 45 45);
+        border-radius: 0.28rem;
+        background: rgb(31 31 31);
         padding: 0.35rem 0.65rem;
       }
       .inspector-toolbar-section,
@@ -1512,11 +1523,17 @@ function DarkStyles() {
         background: rgb(120 53 15);
         color: rgb(254 215 170);
       }
-      .inspector-properties-section {
-        margin: 4px;
-        border: 1px solid rgb(45 45 45);
+      .inspector-properties-panel {
+        border: 1px solid rgb(55 55 55);
         border-radius: 0.28rem;
-        background: rgb(31 31 31);
+        background: rgb(36 36 36);
+      }
+      .inspector-properties-margin {
+        padding: 4px;
+      }
+      .inspector-properties-section {
+        border-radius: 0.22rem;
+        background: rgb(40 40 40);
         padding: 0.75rem;
       }
       .inspector-mode-content {
@@ -1658,6 +1675,12 @@ function DarkStyles() {
       }
       .inspector-panel {
         flex: 0 0 auto;
+      }
+      .inspector-panel.inspector-panel-embedded {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
       }
       .tree-panel {
         flex: 0 0 auto;

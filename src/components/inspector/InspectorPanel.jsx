@@ -28,9 +28,17 @@ export default function InspectorPanel(props) {
       className={shellClassName}
       style={shellStyle}
     >
-      <InspectorToolbar {...props} />
-      <div className="inspector-properties-section">
-        <Inspector {...props} />
+      <div className="inspector-main-margin">
+        <div className="inspector-main-vbox">
+          <InspectorToolbar {...props} />
+          <div className="inspector-properties-panel">
+            <div className="inspector-properties-margin">
+              <div className="inspector-properties-section">
+                <Inspector {...props} />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -143,8 +151,6 @@ function InspectorToolbar({
       </div>
 
       <div className="inspector-toolbar-actions">
-        <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30"><ArrowLeft size={16} /></button>
-        <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30"><ArrowRight size={16} /></button>
         {goto && (
           <button
             onClick={runGoto}
@@ -155,6 +161,8 @@ function InspectorToolbar({
             Focus
           </button>
         )}
+        <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30"><ArrowLeft size={16} /></button>
+        <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30"><ArrowRight size={16} /></button>
       </div>
     </div>
   );
