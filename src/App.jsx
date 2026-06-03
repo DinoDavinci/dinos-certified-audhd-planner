@@ -1150,7 +1150,7 @@ function PanelTitleBar({ title, children, className = "" }) {
 
 
 function DarkStyles() {
-  const USE_DEBUG_COLOR = false;
+  const USE_DEBUG_COLOR = true;
   const DEBUG_GREEN = "rgb(58 110 78)";
   const TAB_CONTENT_COLOR = USE_DEBUG_COLOR ? DEBUG_GREEN : "rgb(30 30 30)";
 
@@ -2009,10 +2009,30 @@ function DarkStyles() {
         background: rgb(107 33 168);
         color: rgb(243 232 255);
       }
+      .focus-scene-root {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      .focus-empty-message {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.5rem;
+      }
       .focus-panel-content {
-        min-height: calc(100% - 2rem);
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0;
       }
       .focus-document-header {
         padding: 0.25rem 0 0;

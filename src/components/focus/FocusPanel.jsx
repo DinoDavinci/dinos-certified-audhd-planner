@@ -16,29 +16,18 @@ import {
   getLeafProgressPercent,
 } from "../../models/appModel";
 
-function PanelTitleBar({ title, children, className = "" }) {
-  return (
-    <div className={`panel-title-bar ${className}`}>
-      <div className="panel-title">{title}</div>
-      {children && <div className="panel-title-actions">{children}</div>}
-    </div>
-  );
-}
-
 export default function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
   if (!quest) {
     return (
-      <main className="panel panel-scroll focus-col">
-        <PanelTitleBar title="Current Focus" />
-        <div className="panel-content text-neutral-400">Create or select a quest, then make it the current focus.</div>
+      <main className="focus-scene-root">
+        <div className="focus-empty-message text-neutral-400">Create or select a quest, then make it the current focus.</div>
       </main>
     );
   }
 
   return (
-    <main className="panel panel-scroll focus-col">
-      <PanelTitleBar title="Current Focus" />
-      <div className="panel-content focus-panel-content">
+    <main className="focus-scene-root">
+      <div className="focus-panel-content">
       <FocusDocumentHeader
         quest={quest}
         focusPathInfo={focusPathInfo}
