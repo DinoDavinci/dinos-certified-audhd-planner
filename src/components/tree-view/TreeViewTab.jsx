@@ -84,62 +84,66 @@ export default function TreeViewTab({
             </button>
           </div>
         </div>
-
-        {treeContext.type === "routine" && (
-          <TreeRootRow
-            title={treeContext.routine.title}
-            kind="routine"
-            selected={selection.type === "routine" && selection.id === treeContext.routine.id}
-            onSelect={() => !treeEditMode && setSelection({ type: "routine", id: treeContext.routine.id })}
-          />
-        )}
-
-        {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
-          <TreeRootRow
-            title={treeContext.quest.title}
-            kind={`root-${treeContext.type === "focus" ? questTypeClass(treeContext.quest) : questTypeClass(treeContext.quest)}`}
-            selected={selection.type === "quest" && selection.id === treeContext.quest.id}
-            onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
-          />
-        )}
       </div>
 
       <div className="scene-contents-panel tree-contents-panel">
         <div className="scene-contents-margin tree-contents-margin">
           <div className="tree-scene-content">
             {treeContext.type === "routine" && (
-              <QuestTree
-                tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
+              <TreeRootNode
+                id={treeContext.routine.questTemplate?.rootTask?.id || `routine-root-${treeContext.routine.id}`}
+                title={treeContext.routine.title}
+                kind="routine"
+                selected={selection.type === "routine" && selection.id === treeContext.routine.id}
                 expanded={expanded}
                 setExpanded={setExpanded}
-                onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
-                onAddChild={(task) => createRoutineTask(treeContext.routine.id, task.id)}
-                onDelete={(task) => deleteRoutineTask(treeContext.routine.id, task.id)}
-                onMoveUp={(task) => moveRoutineTask(treeContext.routine.id, task.id, -1)}
-                onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
-                onToggleComplete={() => {}}
-                treeEditMode={effectiveTreeEditMode}
-                selection={selection}
-                treeContext={treeContext}
-                template
-              />
+                onSelect={() => !treeEditMode && setSelection({ type: "routine", id: treeContext.routine.id })}
+              >
+                <QuestTree
+                  tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
+                  expanded={expanded}
+                  setExpanded={setExpanded}
+                  onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
+                  onAddChild={(task) => createRoutineTask(treeContext.routine.id, task.id)}
+                  onDelete={(task) => deleteRoutineTask(treeContext.routine.id, task.id)}
+                  onMoveUp={(task) => moveRoutineTask(treeContext.routine.id, task.id, -1)}
+                  onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
+                  onToggleComplete={() => {}}
+                  depth={1}
+                  treeEditMode={effectiveTreeEditMode}
+                  selection={selection}
+                  treeContext={treeContext}
+                  template
+                />
+              </TreeRootNode>
             )}
 
             {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
-              <QuestTree
-                tasks={treeContext.quest.rootTask?.children || []}
+              <TreeRootNode
+                id={treeContext.quest.rootTask?.id || `quest-root-${treeContext.quest.id}`}
+                title={treeContext.quest.title}
+                kind={`root-${treeContext.type === "focus" ? questTypeClass(treeContext.quest) : questTypeClass(treeContext.quest)}`}
+                selected={selection.type === "quest" && selection.id === treeContext.quest.id}
                 expanded={expanded}
                 setExpanded={setExpanded}
-                onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
-                onAddChild={(task) => createQuestTask(treeContext.quest.id, task.id)}
-                onDelete={(task) => deleteQuestTask(treeContext.quest.id, task.id)}
-                onMoveUp={(task) => moveQuestTask(treeContext.quest.id, task.id, -1)}
-                onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
-                onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
-                treeEditMode={effectiveTreeEditMode}
-                selection={selection}
-                treeContext={treeContext}
-              />
+                onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
+              >
+                <QuestTree
+                  tasks={treeContext.quest.rootTask?.children || []}
+                  expanded={expanded}
+                  setExpanded={setExpanded}
+                  onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
+                  onAddChild={(task) => createQuestTask(treeContext.quest.id, task.id)}
+                  onDelete={(task) => deleteQuestTask(treeContext.quest.id, task.id)}
+                  onMoveUp={(task) => moveQuestTask(treeContext.quest.id, task.id, -1)}
+                  onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
+                  onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
+                  depth={1}
+                  treeEditMode={effectiveTreeEditMode}
+                  selection={selection}
+                  treeContext={treeContext}
+                />
+              </TreeRootNode>
             )}
 
             {treeContext.type === "empty" && (
@@ -152,16 +156,40 @@ export default function TreeViewTab({
   );
 }
 
-function TreeRootRow({ title, kind, selected, onSelect }) {
+function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSelect, children }) {
+  const open = expanded[id] ?? true;
   const className = ["tree-row", "tree-root-row", selected ? "tree-row-selected" : "", `tree-root-${kind}`].join(" ");
 
   return (
-    <div className={className} onClick={onSelect}>
-      <div className="tree-root-content">
-        <div className="tree-root-icon">◆</div>
-        <div className="tree-root-title">{title || "Untitled"}</div>
-        <div className="tree-root-icon">◆</div>
+    <div className="tree-node-wrap tree-root-node-wrap">
+      <div className="tree-row-wrap tree-node-root tree-row-branch">
+        <div className="tree-disclosure-gutter">
+          <button
+            className="tree-disclosure"
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded({ ...expanded, [id]: !open });
+            }}
+            title={open ? "Collapse root" : "Expand root"}
+          >
+            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+        </div>
+
+        <div className={className} onClick={onSelect}>
+          <div className="tree-root-content">
+            <div className="tree-root-icon">◆</div>
+            <div className="tree-root-title">{title || "Untitled"}</div>
+            <div className="tree-root-icon">◆</div>
+          </div>
+        </div>
       </div>
+
+      {open && (
+        <div className="tree-children-group">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

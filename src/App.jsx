@@ -2128,12 +2128,12 @@ function DarkStyles() {
         background: rgba(59, 130, 246, 0.18);
       }
       .tree-root-row {
-        margin-bottom: 0.5rem;
+        margin-bottom: 0;
         font-weight: 800;
         justify-content: center;
       }
-      .tree-scene-header .tree-root-row {
-        margin-bottom: 0;
+      .tree-root-node-wrap > .tree-children-group {
+        margin-top: 0.15rem;
       }
       .tree-root-content {
         display: flex;
