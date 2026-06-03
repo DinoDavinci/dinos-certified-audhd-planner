@@ -56,6 +56,7 @@ export default function TreeViewTab({
   const isRearrangeMode = interactionMode === "rearrange";
   const [dropIndicator, setDropIndicator] = useState(null);
   const [dragState, setDragState] = useState(null);
+  const [treeSelection, setTreeSelection] = useState(selection);
   const treeContentRef = useRef(null);
   const dragStateRef = useRef(null);
   const pendingPressRef = useRef(null);
@@ -66,6 +67,10 @@ export default function TreeViewTab({
     ? `tree-view-root ${treeModeClass(treeContext)} ${interactionClassName}`
     : `panel panel-scroll ${treeModeClass(treeContext)} ${interactionClassName}`;
   const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
+
+  useEffect(() => {
+    setTreeSelection(selection);
+  }, [selection]);
 
   useEffect(() => {
     dragStateRef.current = dragState;
@@ -150,8 +155,10 @@ export default function TreeViewTab({
       pointerId: event.pointerId,
       startedAtClientX: event.clientX,
       startedAtClientY: event.clientY,
+      moveContext: getTreeMoveContext(),
     };
 
+    source.selectTree?.();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     pendingPressRef.current = nextPendingPress;
 
@@ -214,7 +221,7 @@ export default function TreeViewTab({
   }
 
   function validateTreeDragOperation(activeDrag, releaseTarget) {
-    const moveContext = getTreeMoveContext();
+    const moveContext = activeDrag?.moveContext || getTreeMoveContext();
     const placement = releaseTarget?.placement || releaseTarget?.zone || null;
 
     if (!moveContext) {
@@ -414,7 +421,7 @@ export default function TreeViewTab({
                 id={treeContext.routine.questTemplate?.rootTask?.id || `routine-root-${treeContext.routine.id}`}
                 title={treeContext.routine.title}
                 kind="routine"
-                selected={selection.type === "routine" && selection.id === treeContext.routine.id}
+                selected={treeSelection.type === "routine" && treeSelection.id === treeContext.routine.id}
                 expanded={expanded}
                 setExpanded={setExpanded}
                 onSelect={() => setSelection({ type: "routine", id: treeContext.routine.id })}
@@ -433,7 +440,7 @@ export default function TreeViewTab({
                   onToggleComplete={() => {}}
                   depth={1}
                   treeEditMode={false}
-                  selection={selection}
+                  selection={treeSelection}
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
                   updateDropIndicator={updateDropIndicator}
@@ -449,7 +456,7 @@ export default function TreeViewTab({
                 id={treeContext.quest.rootTask?.id || `quest-root-${treeContext.quest.id}`}
                 title={treeContext.quest.title}
                 kind={`root-${treeContext.type === "focus" ? questTypeClass(treeContext.quest) : questTypeClass(treeContext.quest)}`}
-                selected={selection.type === "quest" && selection.id === treeContext.quest.id}
+                selected={treeSelection.type === "quest" && treeSelection.id === treeContext.quest.id}
                 expanded={expanded}
                 setExpanded={setExpanded}
                 onSelect={() => setSelection({ type: "quest", id: treeContext.quest.id })}
@@ -468,7 +475,7 @@ export default function TreeViewTab({
                   onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
                   depth={1}
                   treeEditMode={false}
-                  selection={selection}
+                  selection={treeSelection}
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
                   updateDropIndicator={updateDropIndicator}
@@ -737,16 +744,21 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                   index,
                   title: task.title || "Untitled task",
                   contextType: treeContext?.type || "unknown",
+                  selectTree: () => {
+                    if (treeContext?.type === "routine") {
+                      setTreeSelection({ type: "routineTask", routineId: treeContext.routine?.id, id: task.id });
+                      return;
+                    }
+
+                    if (treeContext?.quest?.id) {
+                      setTreeSelection({ type: "task", questId: treeContext.quest.id, id: task.id });
+                    }
+                  },
                   select: () => onSelect(task),
                 })}
                 onMouseMove={(event) => updateDropIndicator?.(event, task.id)}
                 onClick={(event) => {
-                  if (rearrangeMode) {
-                    event.preventDefault();
-                    return;
-                  }
-
-                  if (!treeEditMode) onSelect(task);
+                  event.preventDefault();
                 }}
               >
                 <div className="tree-row-main">
@@ -803,7 +815,7 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                     parentId={task.id}
                     template={template}
                     treeEditMode={treeEditMode}
-                    selection={selection}
+                    selection={treeSelection}
                     treeContext={treeContext}
                     dropIndicator={dropIndicator}
                     updateDropIndicator={updateDropIndicator}
