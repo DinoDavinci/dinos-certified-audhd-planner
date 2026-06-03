@@ -1319,6 +1319,12 @@ function DarkStyles() {
         padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
         scrollbar-gutter: stable;
       }
+      .focus-contents-margin {
+        padding-left: 32px;
+        padding-right: calc(32px + ${SCENE_SCROLL_GUTTER});
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
       .scene-contents-scroll {
         flex: 1 1 auto;
         width: 100%;
