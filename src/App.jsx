@@ -216,7 +216,9 @@ function createQuestTask(questId, parentId = null) {
       ),
     }));
 
-    if (parentId) setExpanded((old) => ({ ...old, [parentId]: true }));
+    const questRootId = quests.find((quest) => quest.id === questId)?.rootTask?.id || null;
+    const expandedId = parentId || questRootId;
+    if (expandedId) setExpanded((old) => ({ ...old, [expandedId]: true }));
     setSelection({ type: "task", questId, id: task.id });
   }
 
@@ -252,7 +254,9 @@ function createQuestTask(questId, parentId = null) {
       };
     });
 
-    if (parentId) setExpanded((old) => ({ ...old, [parentId]: true }));
+    const routineRootId = routines.find((routine) => routine.id === routineId)?.questTemplate?.rootTask?.id || null;
+    const expandedId = parentId || routineRootId;
+    if (expandedId) setExpanded((old) => ({ ...old, [expandedId]: true }));
     setSelection({ type: "routineTask", routineId, id: task.id });
   }
 
