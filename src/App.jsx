@@ -53,6 +53,8 @@ import InspectorPanel from "./components/inspector/InspectorPanel";
 import DockContainer from "./components/layout/DockContainer";
 import { DOCK_IDS, PANEL_IDS } from "./layout/panelLayout";
 
+const RIGHT_DOCK_SPLIT_RESERVE = "0.575rem";
+
 export default function App() {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -1006,7 +1008,7 @@ function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorPr
       activePanelId={activePanelId}
       onActivePanelChange={setActivePanelId}
       panelClassName="top-right-dock-wrapper"
-      style={{ flexBasis: `${rightSplit}%` }}
+      style={{ flexBasis: `calc(${rightSplit}% - ${RIGHT_DOCK_SPLIT_RESERVE})` }}
     />
   );
 }
@@ -1033,7 +1035,7 @@ function BottomRightDock({
       activePanelId={activePanelId}
       onActivePanelChange={setActivePanelId}
       panelClassName="bottom-right-dock-wrapper"
-      style={{ flexBasis: `${100 - rightSplit}%` }}
+      style={{ flexBasis: `calc(${100 - rightSplit}% - ${RIGHT_DOCK_SPLIT_RESERVE})` }}
     />
   );
 }
@@ -1641,7 +1643,7 @@ function DarkStyles() {
         overflow: hidden;
       }
       .top-right-dock-wrapper {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
         min-height: 0;
         display: flex;
         flex-direction: column;
@@ -1667,7 +1669,7 @@ function DarkStyles() {
         min-height: 0;
       }
       .bottom-right-dock-wrapper {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
         min-height: 0;
         display: flex;
         flex-direction: column;
