@@ -25,6 +25,7 @@ import {
   addTaskToTree,
   deleteTaskFromTree,
   moveTaskInTree,
+  moveTaskToTreeLocation,
   seedData,
   normalizeData,
   runDailyMaintenance,
@@ -387,6 +388,117 @@ function moveQuestTask(questId, taskId, direction) {
       };
     });
   }
+
+  function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement) {
+    if (!questId || !sourceTaskId || !targetTaskId) return;
+
+    setData((old) => ({
+      ...old,
+      quests: old.quests.map((quest) => {
+        if (quest.id !== questId) return quest;
+        if (quest.locked) return quest;
+
+        const rootTask = quest.rootTask || {};
+        const moveResult = moveTaskToTreeLocation(
+          rootTask.children || [],
+          sourceTaskId,
+          targetTaskId,
+          placement,
+          { rootId: rootTask.id }
+        );
+
+        if (!moveResult.moved) {
+          console.warn("[Tree rearrange] quest move rejected during mutation", {
+            questId,
+            sourceTaskId,
+            targetTaskId,
+            placement,
+            reason: moveResult.reason,
+          });
+          return quest;
+        }
+
+        return {
+          ...quest,
+          status: "active",
+          completedAt: "",
+          rootTask: {
+            ...rootTask,
+            completed: false,
+            children: moveResult.tasks,
+          },
+        };
+      }),
+    }));
+
+    if (placement === "inside" || placement === "first-child") {
+      setExpanded((old) => ({ ...old, [targetTaskId]: true }));
+    }
+
+    setSelection({ type: "task", questId, id: sourceTaskId });
+  }
+
+  function moveRoutineTaskToLocation(routineId, sourceTaskId, targetTaskId, placement) {
+    if (!routineId || !sourceTaskId || !targetTaskId) return;
+
+    setData((old) => {
+      let updatedRoutine = null;
+
+      const routines = old.routines.map((routine) => {
+        if (routine.id !== routineId) return routine;
+
+        const questTemplate = routine.questTemplate || {};
+        const rootTask = questTemplate.rootTask || {};
+        const moveResult = moveTaskToTreeLocation(
+          rootTask.children || [],
+          sourceTaskId,
+          targetTaskId,
+          placement,
+          { rootId: rootTask.id }
+        );
+
+        if (!moveResult.moved) {
+          console.warn("[Tree rearrange] routine move rejected during mutation", {
+            routineId,
+            sourceTaskId,
+            targetTaskId,
+            placement,
+            reason: moveResult.reason,
+          });
+          return routine;
+        }
+
+        updatedRoutine = {
+          ...routine,
+          questTemplate: {
+            ...questTemplate,
+            rootTask: {
+              ...rootTask,
+              completed: false,
+              children: moveResult.tasks,
+            },
+          },
+        };
+
+        return updatedRoutine;
+      });
+
+      return {
+        ...old,
+        routines,
+        quests: updatedRoutine
+          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
+          : old.quests,
+      };
+    });
+
+    if (placement === "inside" || placement === "first-child") {
+      setExpanded((old) => ({ ...old, [targetTaskId]: true }));
+    }
+
+    setSelection({ type: "routineTask", routineId, id: sourceTaskId });
+  }
+
 
   
 function toggleTask(questId, taskId) {
@@ -860,6 +972,8 @@ function restoreQuest(questId) {
           deleteRoutineTask={deleteRoutineTask}
           moveQuestTask={moveQuestTask}
           moveRoutineTask={moveRoutineTask}
+          moveQuestTaskToLocation={moveQuestTaskToLocation}
+          moveRoutineTaskToLocation={moveRoutineTaskToLocation}
           toggleTask={toggleTask}
           runMaintenanceNow={runMaintenanceNow}
         />
@@ -1058,6 +1172,8 @@ function RightPanel(props) {
     deleteRoutineTask,
     moveQuestTask,
     moveRoutineTask,
+    moveQuestTaskToLocation,
+    moveRoutineTaskToLocation,
     toggleTask,
   } = props;
 
@@ -1124,6 +1240,8 @@ function RightPanel(props) {
           deleteRoutineTask,
           moveQuestTask,
           moveRoutineTask,
+          moveQuestTaskToLocation,
+          moveRoutineTaskToLocation,
           toggleTask,
         }}
       />

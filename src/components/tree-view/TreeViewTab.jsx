@@ -49,6 +49,8 @@ export default function TreeViewTab({
   deleteRoutineTask,
   moveQuestTask,
   moveRoutineTask,
+  moveQuestTaskToLocation,
+  moveRoutineTaskToLocation,
   toggleTask,
   embedded = false,
 }) {
@@ -305,6 +307,37 @@ export default function TreeViewTab({
     };
   }
 
+
+
+  function applyValidatedTreeMove(validation) {
+    if (!validation?.ok) return;
+
+    const sourceTaskId = validation.source?.taskId;
+    const targetTaskId = validation.target?.id;
+    const placement = validation.placement;
+
+    if (!sourceTaskId || !targetTaskId || !placement) return;
+
+    if (validation.context === "routine") {
+      moveRoutineTaskToLocation?.(
+        validation.ownerId,
+        sourceTaskId,
+        targetTaskId,
+        placement
+      );
+      return;
+    }
+
+    if (validation.context === "quest" || validation.context === "focus") {
+      moveQuestTaskToLocation?.(
+        validation.ownerId,
+        sourceTaskId,
+        targetTaskId,
+        placement
+      );
+    }
+  }
+
   function finishTreeDrag(event, activeDrag = dragStateRef.current) {
     if (!activeDrag) return;
 
@@ -321,7 +354,8 @@ export default function TreeViewTab({
     if (!validation.ok) {
       console.warn("[Tree rearrange] rejected drag operation", validation);
     } else {
-      console.log("[Tree rearrange] accepted drag operation dry run", validation);
+      console.log("[Tree rearrange] accepted drag operation", validation);
+      applyValidatedTreeMove(validation);
     }
 
     console.log("[Tree rearrange] drag release", result);
