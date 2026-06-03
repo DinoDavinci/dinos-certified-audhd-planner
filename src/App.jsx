@@ -1710,7 +1710,9 @@ function DarkStyles() {
       }
       .tree-scene-content {
         display: grid;
+        align-content: start;
         gap: 0.15rem;
+        width: 100%;
         min-width: 0;
       }
       .tree-scene-content::after {
@@ -1890,17 +1892,23 @@ function DarkStyles() {
       .tree-node-list {
         display: grid;
         gap: 0.15rem;
+        width: 100%;
+        min-width: 0;
       }
       .tree-node-wrap {
         position: relative;
         display: grid;
         gap: 0.15rem;
+        width: 100%;
+        min-width: 0;
       }
       .tree-row-wrap {
         position: relative;
         display: flex;
         align-items: stretch;
         gap: 0.25rem;
+        width: 100%;
+        min-width: 0;
       }
       .tree-children-group {
         position: relative;
@@ -1908,6 +1916,8 @@ function DarkStyles() {
         padding-left: 0.55rem;
         display: grid;
         gap: 0.15rem;
+        width: calc(100% - 1.35rem);
+        min-width: 0;
       }
       .tree-row-wrap.tree-node-child::after {
         content: "";
@@ -1940,6 +1950,8 @@ function DarkStyles() {
         align-items: center;
         justify-content: space-between;
         gap: 0.5rem;
+        width: 100%;
+        min-width: 0;
         min-height: 1.55rem;
         border-radius: 0.25rem;
         border: 1px solid transparent;
