@@ -36,9 +36,7 @@ function PanelTitleBar({ title, children, className = "" }) {
 
 export default function TreeViewTab({
   treeContext,
-  effectiveTreeEditMode,
-  treeEditMode,
-  setTreeEditMode,
+
   rightSplit,
   selection,
   expanded,
@@ -247,24 +245,37 @@ export default function TreeViewTab({
         <div className="tree-toolbar">
           <div className="tree-toolbar-context">
             <span className="tree-mode-pill">{treeContext.type === "focus" ? "Focus" : treeContext.type === "routine" ? "Routine" : treeContext.type === "quest" ? "Quest" : "Empty"}</span>
-            {effectiveTreeEditMode && <span className="tree-edit-pill">Editing</span>}
             {dragState && <span className="tree-drag-pill">Dragging: {dragState.title}</span>}
           </div>
-
           <div className="tree-toolbar-actions">
-            {effectiveTreeEditMode && treeContext.type === "routine" && (
-              <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
-            )}
-            {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
-              <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
-            )}
             <button
-              onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
-              disabled={Boolean(treeContext.quest?.locked)}
-              className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
-              title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
+              className="title-secondary-button"
+              onClick={() => {
+                if (treeContext.type === "routine" && treeContext.routine) {
+                  const parentId =
+                    selection.type === "routineTask"
+                      ? selection.id
+                      : null;
+
+                  createRoutineTask(treeContext.routine.id, parentId);
+                  return;
+                }
+
+                if (
+                  (treeContext.type === "quest" || treeContext.type === "focus") &&
+                  treeContext.quest &&
+                  !treeContext.quest.locked
+                ) {
+                  const parentId =
+                    selection.type === "task"
+                      ? selection.id
+                      : null;
+
+                  createQuestTask(treeContext.quest.id, parentId);
+                }
+              }}
             >
-              {effectiveTreeEditMode ? "Done" : "Edit"}
+              + Task
             </button>
           </div>
         </div>
@@ -286,7 +297,7 @@ export default function TreeViewTab({
                 selected={selection.type === "routine" && selection.id === treeContext.routine.id}
                 expanded={expanded}
                 setExpanded={setExpanded}
-                onSelect={() => !treeEditMode && setSelection({ type: "routine", id: treeContext.routine.id })}
+                onSelect={() => setSelection({ type: "routine", id: treeContext.routine.id })}
                 dropIndicator={dropIndicator}
                 updateDropIndicator={updateDropIndicator}
               >
@@ -301,7 +312,7 @@ export default function TreeViewTab({
                   onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
                   onToggleComplete={() => {}}
                   depth={1}
-                  treeEditMode={effectiveTreeEditMode}
+                  treeEditMode={false}
                   selection={selection}
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
@@ -321,7 +332,7 @@ export default function TreeViewTab({
                 selected={selection.type === "quest" && selection.id === treeContext.quest.id}
                 expanded={expanded}
                 setExpanded={setExpanded}
-                onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
+                onSelect={() => setSelection({ type: "quest", id: treeContext.quest.id })}
                 dropIndicator={dropIndicator}
                 updateDropIndicator={updateDropIndicator}
               >
@@ -336,7 +347,7 @@ export default function TreeViewTab({
                   onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
                   onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
                   depth={1}
-                  treeEditMode={effectiveTreeEditMode}
+                  treeEditMode={false}
                   selection={selection}
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
@@ -571,7 +582,7 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
           statusClass,
           complete ? "tree-row-complete" : "",
           selected ? "tree-row-selected" : "",
-          treeEditMode ? "tree-row-edit" : "",
+          
         ].join(" ");
 
         return (
@@ -606,7 +617,7 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                   index,
                   title: task.title || "Untitled task",
                   contextType: treeContext?.type || "unknown",
-                  select: () => !treeEditMode && onSelect(task),
+                  select: () => onSelect(task),
                 })}
                 onMouseMove={(event) => updateDropIndicator?.(event, task.id)}
                 onClick={(event) => {

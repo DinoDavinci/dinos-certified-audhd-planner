@@ -84,7 +84,6 @@ export default function App() {
   const [tagFilter, setTagFilter] = useState("All");
   const [hideCompleted, setHideCompleted] = useState(false);
   const [expanded, setExpanded] = useState({});
-  const [treeEditMode, setTreeEditMode] = useState(false);
   const [rightSplit, setRightSplit] = useState(62);
   const [leftPanelWidth, setLeftPanelWidth] = useState(360);
   const [rightPanelWidth, setRightPanelWidth] = useState(430);
@@ -594,7 +593,6 @@ function restoreQuest(questId) {
       setHistory([{ type: "quest", id: importedQuest.id }]);
       setHistoryIndex(0);
       setExpanded({});
-      setTreeEditMode(false);
       setExpandedKanbanCards({});
     } catch (error) {
       window.alert("Could not load that quest file. It may not be a valid quest scene export.");
@@ -640,7 +638,6 @@ function restoreQuest(questId) {
       setHistory([{ type: "routine", id: importedRoutine.id }]);
       setHistoryIndex(0);
       setExpanded({});
-      setTreeEditMode(false);
       setExpandedKanbanCards({});
     } catch (error) {
       window.alert("Could not load that routine file. It may not be a valid routine template export.");
@@ -660,7 +657,6 @@ function restoreQuest(questId) {
       setHistory([{ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null }]);
       setHistoryIndex(0);
       setExpanded({});
-      setTreeEditMode(false);
       setExpandedKanbanCards({});
       localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
       localStorage.setItem(LAST_TICK_KEY, todayString());
@@ -684,7 +680,6 @@ function restoreQuest(questId) {
     setHistory([{ type: "quest", id: resetData.activeQuestId || resetData.quests[0]?.id || null }]);
     setHistoryIndex(0);
     setExpanded({});
-    setTreeEditMode(false);
     setExpandedKanbanCards({});
   }
 
@@ -840,8 +835,6 @@ function restoreQuest(questId) {
           activeQuestId={data.activeQuestId}
           expanded={expanded}
           setExpanded={setExpanded}
-          treeEditMode={treeEditMode}
-          setTreeEditMode={setTreeEditMode}
           rightSplit={rightSplit}
           setRightSplit={setRightSplit}
           goBack={goBack}
@@ -1052,8 +1045,6 @@ function RightPanel(props) {
     activeQuest,
     expanded,
     setExpanded,
-    treeEditMode,
-    setTreeEditMode,
     rightSplit,
     setRightSplit,
     setSelection,
@@ -1067,7 +1058,6 @@ function RightPanel(props) {
   } = props;
 
   const treeContext = getTreeContext(selection, data, activeQuest);
-  const effectiveTreeEditMode = treeContext.quest?.locked ? false : treeEditMode;
   const rightColumnRef = useRef(null);
 
   function beginRightSplitDrag(event) {
@@ -1119,9 +1109,6 @@ function RightPanel(props) {
         rightSplit={rightSplit}
         treePanelProps={{
           treeContext,
-          effectiveTreeEditMode,
-          treeEditMode,
-          setTreeEditMode,
           rightSplit,
           selection,
           expanded,
