@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   Plus,
   Play,
@@ -21,6 +21,9 @@ import {
   questTypeClass,
   treeModeClass,
 } from "../../models/appModel";
+
+
+const TREE_INTERACTION_MODE = "rearrange";
 
 function PanelTitleBar({ title, children, className = "" }) {
   return (
@@ -50,10 +53,27 @@ export default function TreeViewTab({
   toggleTask,
   embedded = false,
 }) {
+  const isRearrangeMode = TREE_INTERACTION_MODE === "rearrange";
+  const [dropIndicator, setDropIndicator] = useState(null);
+  const treeContentRef = useRef(null);
+  const interactionClassName = isRearrangeMode ? "tree-view-rearrange" : "tree-view-normal";
   const shellClassName = embedded
-    ? `tree-view-root ${treeModeClass(treeContext)}`
-    : `panel panel-scroll ${treeModeClass(treeContext)}`;
+    ? `tree-view-root ${treeModeClass(treeContext)} ${interactionClassName}`
+    : `panel panel-scroll ${treeModeClass(treeContext)} ${interactionClassName}`;
   const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
+
+  function updateDropIndicator(event, id) {
+    if (!isRearrangeMode || !id) return;
+
+    const nextIndicator = getTreeDropIndicator(event, treeContentRef.current, id);
+    if (!nextIndicator) return;
+
+    setDropIndicator(nextIndicator);
+  }
+
+  function clearDropIndicator() {
+    setDropIndicator(null);
+  }
 
   return (
     <section
@@ -88,7 +108,8 @@ export default function TreeViewTab({
 
       <div className="scene-contents-panel tree-contents-panel">
         <div className="scene-contents-margin tree-contents-margin">
-          <div className="tree-scene-content">
+          <div className="tree-scene-content" ref={treeContentRef} onMouseLeave={clearDropIndicator}>
+            {dropIndicator && <TreeDropIndicator indicator={dropIndicator} />}
             {treeContext.type === "routine" && (
               <TreeRootNode
                 id={treeContext.routine.questTemplate?.rootTask?.id || `routine-root-${treeContext.routine.id}`}
@@ -98,6 +119,8 @@ export default function TreeViewTab({
                 expanded={expanded}
                 setExpanded={setExpanded}
                 onSelect={() => !treeEditMode && setSelection({ type: "routine", id: treeContext.routine.id })}
+                dropIndicator={dropIndicator}
+                updateDropIndicator={updateDropIndicator}
               >
                 <QuestTree
                   tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
@@ -113,6 +136,8 @@ export default function TreeViewTab({
                   treeEditMode={effectiveTreeEditMode}
                   selection={selection}
                   treeContext={treeContext}
+                  dropIndicator={dropIndicator}
+                  updateDropIndicator={updateDropIndicator}
                   template
                 />
               </TreeRootNode>
@@ -127,6 +152,8 @@ export default function TreeViewTab({
                 expanded={expanded}
                 setExpanded={setExpanded}
                 onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
+                dropIndicator={dropIndicator}
+                updateDropIndicator={updateDropIndicator}
               >
                 <QuestTree
                   tasks={treeContext.quest.rootTask?.children || []}
@@ -142,6 +169,8 @@ export default function TreeViewTab({
                   treeEditMode={effectiveTreeEditMode}
                   selection={selection}
                   treeContext={treeContext}
+                  dropIndicator={dropIndicator}
+                  updateDropIndicator={updateDropIndicator}
                 />
               </TreeRootNode>
             )}
@@ -156,7 +185,7 @@ export default function TreeViewTab({
   );
 }
 
-function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSelect, children }) {
+function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSelect, dropIndicator, updateDropIndicator, children }) {
   const open = expanded[id] ?? true;
   const className = ["tree-row", "tree-root-row", selected ? "tree-row-selected" : "", `tree-root-${kind}`].join(" ");
 
@@ -176,7 +205,7 @@ function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSele
           </button>
         </div>
 
-        <div className={className} onClick={onSelect}>
+        <div className={className} data-tree-row-id={id} onMouseMove={(event) => updateDropIndicator?.(event, id)} onClick={onSelect}>
           <div className="tree-root-content">
             <div className="tree-root-icon">◆</div>
             <div className="tree-root-title">{title || "Untitled"}</div>
@@ -194,6 +223,84 @@ function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSele
   );
 }
 
+
+function getTreeDropZone(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const y = event.clientY - rect.top;
+  const ratio = rect.height > 0 ? y / rect.height : 0.5;
+
+  if (ratio < 0.25) return "before";
+  if (ratio > 0.75) return "after";
+  return "inside";
+}
+
+function getTreeDropIndicator(event, treeContentElement, id) {
+  const rowElement = event.currentTarget;
+  if (!treeContentElement || !rowElement) return null;
+
+  const zone = getTreeDropZone(event);
+  const contentRect = treeContentElement.getBoundingClientRect();
+  const rowRect = rowElement.getBoundingClientRect();
+
+  if (zone === "inside") {
+    return {
+      id,
+      zone,
+      type: "inside",
+      top: rowRect.top - contentRect.top,
+      left: rowRect.left - contentRect.left,
+      width: rowRect.width,
+      height: rowRect.height,
+    };
+  }
+
+  const rowElements = Array.from(treeContentElement.querySelectorAll("[data-tree-row-id]"));
+  const rowIndex = rowElements.indexOf(rowElement);
+  const previousRow = rowIndex > 0 ? rowElements[rowIndex - 1] : null;
+  const nextRow = rowIndex >= 0 && rowIndex < rowElements.length - 1 ? rowElements[rowIndex + 1] : null;
+
+  let boundaryY = zone === "before" ? rowRect.top : rowRect.bottom;
+
+  if (zone === "before" && previousRow) {
+    const previousRect = previousRow.getBoundingClientRect();
+    boundaryY = (previousRect.bottom + rowRect.top) / 2;
+  }
+
+  if (zone === "after" && nextRow) {
+    const nextRect = nextRow.getBoundingClientRect();
+    boundaryY = (rowRect.bottom + nextRect.top) / 2;
+  }
+
+  return {
+    id,
+    zone,
+    type: "boundary",
+    top: boundaryY - contentRect.top,
+    left: rowRect.left - contentRect.left,
+    width: rowRect.width,
+  };
+}
+
+function TreeDropIndicator({ indicator }) {
+  if (!indicator) return null;
+
+  const style = {
+    top: `${indicator.top}px`,
+    left: `${indicator.left}px`,
+    width: `${indicator.width}px`,
+  };
+
+  if (indicator.type === "inside") {
+    style.height = `${indicator.height}px`;
+  }
+
+  const className = indicator.type === "inside"
+    ? "tree-drop-overlay tree-drop-overlay-inside"
+    : "tree-drop-overlay tree-drop-overlay-boundary";
+
+  return <div className={className} style={style} />;
+}
+
 function getTreeStatusClass(task) {
   if (isTaskComplete(task)) return "tree-status-complete";
 
@@ -209,7 +316,7 @@ function getTreeStatusClass(task) {
   return "tree-status-empty";
 }
 
-function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null }) {
+function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null, dropIndicator = null, updateDropIndicator = null }) {
   if (!tasks || tasks.length === 0) return <div className="text-sm text-neutral-500">No tasks yet.</div>;
 
   return (
@@ -251,6 +358,8 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
 
               <div
                 className={rowClass}
+                data-tree-row-id={task.id}
+                onMouseMove={(event) => updateDropIndicator?.(event, task.id)}
                 onClick={() => !treeEditMode && onSelect(task)}
               >
                 <div className="tree-row-main">
@@ -303,6 +412,8 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                   treeEditMode={treeEditMode}
                   selection={selection}
                   treeContext={treeContext}
+                  dropIndicator={dropIndicator}
+                  updateDropIndicator={updateDropIndicator}
                 />
               </div>
             )}

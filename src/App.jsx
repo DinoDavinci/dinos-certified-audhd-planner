@@ -1833,6 +1833,7 @@ function DarkStyles() {
         min-width: 0;
       }
       .tree-scene-content {
+        position: relative;
         display: grid;
         align-content: start;
         gap: 0.15rem;
@@ -2140,6 +2141,32 @@ function DarkStyles() {
       .tree-row-selected::after,
       .tree-row-selected:hover::after {
         background: rgba(59, 130, 246, 0.18);
+      }
+
+      .tree-view-rearrange .tree-row:hover::after {
+        background: transparent;
+      }
+      .tree-view-rearrange .tree-row-selected::after,
+      .tree-view-rearrange .tree-row-selected:hover::after {
+        background: rgba(59, 130, 246, 0.18);
+      }
+      .tree-drop-overlay {
+        position: absolute;
+        pointer-events: none;
+        z-index: 20;
+      }
+      .tree-drop-overlay-boundary {
+        height: 2px;
+        border-radius: 999px;
+        background: rgba(96, 165, 250, 0.9);
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45);
+        transform: translateY(-1px);
+      }
+      .tree-drop-overlay-inside {
+        border-radius: 0.25rem;
+        border: 2px solid rgba(96, 165, 250, 0.85);
+        background: rgba(59, 130, 246, 0.16);
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.35);
       }
       .tree-root-row {
         margin-bottom: 0;
