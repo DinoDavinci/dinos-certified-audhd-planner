@@ -819,7 +819,8 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                     parentId={task.id}
                     template={template}
                     treeEditMode={treeEditMode}
-                    selection={treeSelection}
+                    selection={selection}
+                    setTreeSelection={setTreeSelection}
                     treeContext={treeContext}
                     dropIndicator={dropIndicator}
                     updateDropIndicator={updateDropIndicator}
