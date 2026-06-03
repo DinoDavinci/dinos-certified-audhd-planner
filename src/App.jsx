@@ -74,6 +74,7 @@ export default function App() {
   const [libraryTab, setLibraryTab] = useState(PANEL_IDS.QUEST_BOARD);
   const [centerTab, setCenterTab] = useState(PANEL_IDS.FOCUS_PANEL || "focusPanel");
   const [topRightTab, setTopRightTab] = useState(PANEL_IDS.INSPECTOR_PANEL);
+  const [bottomRightTab, setBottomRightTab] = useState(PANEL_IDS.TREE_VIEW_PANEL);
   const [selection, setSelectionRaw] = useState({ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null });
   const [history, setHistory] = useState([{ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null }]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -826,6 +827,8 @@ function restoreQuest(questId) {
           panelWidth={rightPanelWidth}
           topRightTab={topRightTab}
           setTopRightTab={setTopRightTab}
+          bottomRightTab={bottomRightTab}
+          setBottomRightTab={setBottomRightTab}
           selection={selection}
           data={data}
           setData={setData}
@@ -1010,11 +1013,41 @@ function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorPr
   );
 }
 
+
+function BottomRightDock({
+  activePanelId,
+  setActivePanelId,
+  rightSplit,
+  treePanelProps,
+}) {
+  const tabs = [
+    {
+      id: PANEL_IDS.TREE_VIEW_PANEL,
+      title: "Tree View",
+      content: <TreePanel {...treePanelProps} embedded />,
+    },
+  ];
+
+  return (
+    <DockContainer
+      dockId={DOCK_IDS.BOTTOM_RIGHT}
+      tabs={tabs}
+      activePanelId={activePanelId}
+      onActivePanelChange={setActivePanelId}
+      panelClassName="bottom-right-dock-wrapper"
+      style={{ flexBasis: `${100 - rightSplit}%` }}
+      contentClassName=""
+    />
+  );
+}
+
 function RightPanel(props) {
   const {
     panelWidth,
     topRightTab,
     setTopRightTab,
+    bottomRightTab,
+    setBottomRightTab,
     selection,
     data,
     activeQuest,
@@ -1081,23 +1114,28 @@ function RightPanel(props) {
         title="Drag to resize Inspector / Tree View"
       />
 
-      <TreePanel
-        treeContext={treeContext}
-        effectiveTreeEditMode={effectiveTreeEditMode}
-        treeEditMode={treeEditMode}
-        setTreeEditMode={setTreeEditMode}
+      <BottomRightDock
+        activePanelId={bottomRightTab}
+        setActivePanelId={setBottomRightTab}
         rightSplit={rightSplit}
-        selection={selection}
-        expanded={expanded}
-        setExpanded={setExpanded}
-        setSelection={setSelection}
-        createQuestTask={createQuestTask}
-        createRoutineTask={createRoutineTask}
-        deleteQuestTask={deleteQuestTask}
-        deleteRoutineTask={deleteRoutineTask}
-        moveQuestTask={moveQuestTask}
-        moveRoutineTask={moveRoutineTask}
-        toggleTask={toggleTask}
+        treePanelProps={{
+          treeContext,
+          effectiveTreeEditMode,
+          treeEditMode,
+          setTreeEditMode,
+          rightSplit,
+          selection,
+          expanded,
+          setExpanded,
+          setSelection,
+          createQuestTask,
+          createRoutineTask,
+          deleteQuestTask,
+          deleteRoutineTask,
+          moveQuestTask,
+          moveRoutineTask,
+          toggleTask,
+        }}
       />
     </aside>
   );
@@ -1502,6 +1540,32 @@ function DarkStyles() {
         overflow: hidden;
       }
       .inspector-panel-embedded {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+      }
+      .bottom-right-dock-wrapper {
+        flex: 0 0 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .bottom-right-dock-wrapper > .tab-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .bottom-right-dock-wrapper > .tab-container > div:last-child {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      .tree-panel-embedded {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;

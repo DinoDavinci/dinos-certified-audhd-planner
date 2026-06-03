@@ -48,11 +48,17 @@ export default function TreePanel({
   moveQuestTask,
   moveRoutineTask,
   toggleTask,
+  embedded = false,
 }) {
+  const shellClassName = embedded
+    ? `panel-scroll ${treeModeClass(treeContext)} tree-panel-embedded`
+    : `panel panel-scroll ${treeModeClass(treeContext)}`;
+  const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
+
   return (
     <section
-      className={`panel panel-scroll ${treeModeClass(treeContext)}`}
-      style={{ flexBasis: `${100 - rightSplit}%` }}
+      className={shellClassName}
+      style={shellStyle}
     >
       <PanelTitleBar title="Tree View">
         {effectiveTreeEditMode && treeContext.type === "routine" && (
