@@ -1153,6 +1153,14 @@ function DarkStyles() {
   const USE_DEBUG_COLOR = true;
   const DEBUG_GREEN = "rgb(58 110 78)";
   const TAB_CONTENT_COLOR = USE_DEBUG_COLOR ? DEBUG_GREEN : "rgb(30 30 30)";
+  const SCENE_CONTENTS_PANEL_COLOR = USE_DEBUG_COLOR ? "rgb(76 128 94)" : "rgb(38 38 38)";
+
+  // Tab scene layout contract:
+  // 1. TabContainer owns the tab bar, active tab color, content area panel, and 4px content padding.
+  // 2. Tab scene roots should be plain layout containers, not panel surfaces.
+  // 3. Most tab scenes should use a header/toolbar section plus a contents section.
+  // 4. Contents sections should use .scene-contents-panel > .scene-contents-margin > scene-specific content.
+  // 5. SCENE_CONTENTS_PANEL_COLOR is the shared body/contents panel color for tab scenes.
 
   return (
     <style>{`
@@ -1281,6 +1289,23 @@ function DarkStyles() {
         overflow-y: auto;
         overflow-x: hidden;
         padding: 0;
+      }
+      .scene-contents-panel {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+        border: 1px solid rgb(64 64 64);
+        border-radius: 0.28rem;
+        background: ${SCENE_CONTENTS_PANEL_COLOR};
+      }
+      .scene-contents-margin {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        padding: 4px;
       }
       .library-scene {
         display: block;
@@ -1673,19 +1698,30 @@ function DarkStyles() {
         min-height: 0;
         display: flex;
         flex-direction: column;
+        gap: 4px;
         overflow: hidden;
         background: transparent;
         border: none;
         box-shadow: none;
         padding: 0;
       }
-      .tree-scene-content {
-        flex: 1 1 auto;
+      .tree-scene-header {
+        flex: 0 0 auto;
+        display: grid;
+        gap: 4px;
         min-width: 0;
-        min-height: 0;
+      }
+      .tree-scene-content {
+        display: grid;
+        gap: 0.15rem;
+        min-width: 0;
+      }
+      .tree-contents-panel {
+        flex: 1 1 auto;
+      }
+      .tree-contents-margin {
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 0;
       }
       .tree-toolbar {
         flex: 0 0 auto;
@@ -1694,7 +1730,6 @@ function DarkStyles() {
         justify-content: space-between;
         gap: 0.5rem;
         min-height: 1.7rem;
-        margin-bottom: 4px;
       }
       .tree-toolbar-context,
       .tree-toolbar-actions {
@@ -1863,13 +1898,16 @@ function DarkStyles() {
       }
       .tree-row-selected,
       .tree-row-selected:hover {
-        border-color: rgba(255, 255, 255, 0.62);
+        border-color: rgba(255, 255, 255, 0.82);
         background: rgba(59, 130, 246, 0.18);
       }
       .tree-root-row {
         margin-bottom: 0.5rem;
         font-weight: 800;
         justify-content: center;
+      }
+      .tree-scene-header .tree-root-row {
+        margin-bottom: 0;
       }
       .tree-root-content {
         display: flex;
@@ -1933,7 +1971,7 @@ function DarkStyles() {
         border-width: 1px;
       }
       .tree-root-row.tree-row-selected {
-        border-color: rgba(255, 255, 255, 0.62);
+        border-color: rgba(255, 255, 255, 0.82);
       }
       .tree-row-complete {
         background: transparent;

@@ -60,30 +60,31 @@ export default function TreePanel({
       className={shellClassName}
       style={shellStyle}
     >
-      <div className="tree-toolbar">
-        <div className="tree-toolbar-context">
-          <span className="tree-mode-pill">{treeContext.type === "focus" ? "Focus" : treeContext.type === "routine" ? "Routine" : treeContext.type === "quest" ? "Quest" : "Empty"}</span>
-          {effectiveTreeEditMode && <span className="tree-edit-pill">Editing</span>}
+      <div className="tree-scene-header">
+        <div className="tree-toolbar">
+          <div className="tree-toolbar-context">
+            <span className="tree-mode-pill">{treeContext.type === "focus" ? "Focus" : treeContext.type === "routine" ? "Routine" : treeContext.type === "quest" ? "Quest" : "Empty"}</span>
+            {effectiveTreeEditMode && <span className="tree-edit-pill">Editing</span>}
+          </div>
+
+          <div className="tree-toolbar-actions">
+            {effectiveTreeEditMode && treeContext.type === "routine" && (
+              <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
+            )}
+            {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
+              <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
+            )}
+            <button
+              onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
+              disabled={Boolean(treeContext.quest?.locked)}
+              className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
+              title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
+            >
+              {effectiveTreeEditMode ? "Done" : "Edit"}
+            </button>
+          </div>
         </div>
 
-        <div className="tree-toolbar-actions">
-          {effectiveTreeEditMode && treeContext.type === "routine" && (
-            <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
-          )}
-          {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
-            <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
-          )}
-          <button
-            onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
-            disabled={Boolean(treeContext.quest?.locked)}
-            className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
-            title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
-          >
-            {effectiveTreeEditMode ? "Done" : "Edit"}
-          </button>
-        </div>
-      </div>
-      <div className="tree-scene-content">
         {treeContext.type === "routine" && (
           <TreeRootRow
             title={treeContext.routine.title}
@@ -101,45 +102,51 @@ export default function TreePanel({
             onSelect={() => !treeEditMode && setSelection({ type: "quest", id: treeContext.quest.id })}
           />
         )}
+      </div>
 
-        {treeContext.type === "routine" && (
-          <QuestTree
-            tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
-            expanded={expanded}
-            setExpanded={setExpanded}
-            onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
-            onAddChild={(task) => createRoutineTask(treeContext.routine.id, task.id)}
-            onDelete={(task) => deleteRoutineTask(treeContext.routine.id, task.id)}
-            onMoveUp={(task) => moveRoutineTask(treeContext.routine.id, task.id, -1)}
-            onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
-            onToggleComplete={() => {}}
-            treeEditMode={effectiveTreeEditMode}
-            selection={selection}
-            treeContext={treeContext}
-            template
-          />
-        )}
+      <div className="scene-contents-panel tree-contents-panel">
+        <div className="scene-contents-margin tree-contents-margin">
+          <div className="tree-scene-content">
+            {treeContext.type === "routine" && (
+              <QuestTree
+                tasks={treeContext.routine.questTemplate?.rootTask?.children || []}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                onSelect={(task) => setSelection({ type: "routineTask", routineId: treeContext.routine.id, id: task.id })}
+                onAddChild={(task) => createRoutineTask(treeContext.routine.id, task.id)}
+                onDelete={(task) => deleteRoutineTask(treeContext.routine.id, task.id)}
+                onMoveUp={(task) => moveRoutineTask(treeContext.routine.id, task.id, -1)}
+                onMoveDown={(task) => moveRoutineTask(treeContext.routine.id, task.id, 1)}
+                onToggleComplete={() => {}}
+                treeEditMode={effectiveTreeEditMode}
+                selection={selection}
+                treeContext={treeContext}
+                template
+              />
+            )}
 
-        {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
-          <QuestTree
-            tasks={treeContext.quest.rootTask?.children || []}
-            expanded={expanded}
-            setExpanded={setExpanded}
-            onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
-            onAddChild={(task) => createQuestTask(treeContext.quest.id, task.id)}
-            onDelete={(task) => deleteQuestTask(treeContext.quest.id, task.id)}
-            onMoveUp={(task) => moveQuestTask(treeContext.quest.id, task.id, -1)}
-            onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
-            onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
-            treeEditMode={effectiveTreeEditMode}
-            selection={selection}
-            treeContext={treeContext}
-          />
-        )}
+            {(treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && (
+              <QuestTree
+                tasks={treeContext.quest.rootTask?.children || []}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                onSelect={(task) => setSelection({ type: "task", questId: treeContext.quest.id, id: task.id })}
+                onAddChild={(task) => createQuestTask(treeContext.quest.id, task.id)}
+                onDelete={(task) => deleteQuestTask(treeContext.quest.id, task.id)}
+                onMoveUp={(task) => moveQuestTask(treeContext.quest.id, task.id, -1)}
+                onMoveDown={(task) => moveQuestTask(treeContext.quest.id, task.id, 1)}
+                onToggleComplete={(task) => toggleTask(treeContext.quest.id, task.id)}
+                treeEditMode={effectiveTreeEditMode}
+                selection={selection}
+                treeContext={treeContext}
+              />
+            )}
 
-        {treeContext.type === "empty" && (
-          <div className="text-sm text-neutral-500">No quest or routine selected.</div>
-        )}
+            {treeContext.type === "empty" && (
+              <div className="text-sm text-neutral-500">No quest or routine selected.</div>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
