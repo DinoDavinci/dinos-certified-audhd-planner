@@ -1157,6 +1157,7 @@ function DarkStyles() {
   const TAB_CONTENT_COLOR = USE_DEBUG_COLOR ? DEBUG_GREEN : "rgb(30 30 30)";
   const SCENE_CONTENTS_PANEL_COLOR = USE_DEBUG_COLOR ? "rgb(76 128 94)" : "rgba(0, 0, 0, 0.55)";
   const SCENE_SCROLL_BUFFER = "32px";
+  const SCENE_SCROLL_GUTTER = "4px";
   const TREE_BRANCH_LINE_COLOR = "rgb(120 120 120)";
 
   // Tab scene layout contract:
@@ -1166,8 +1167,9 @@ function DarkStyles() {
   // 4. Contents sections should use .scene-contents-panel > .scene-contents-margin > scene-specific content.
   // 5. SCENE_CONTENTS_PANEL_COLOR is the shared body/contents panel color for tab scenes.
   // 6. SCENE_SCROLL_BUFFER is a shared value, but should only be applied by scenes that need extra bottom scroll room.
-  // 7. TREE_BRANCH_LINE_COLOR keeps tree branch connector lines easy to tune without hunting through CSS.
-  // 8. Contents margins own vertical scrolling; scene-specific content sits inside that scroll area.
+  // 7. SCENE_SCROLL_GUTTER adds extra right padding between content and the scrollbar.
+  // 8. TREE_BRANCH_LINE_COLOR keeps tree branch connector lines easy to tune without hunting through CSS.
+  // 9. Contents margins own vertical scrolling; scene-specific content sits inside that scroll area.
 
   return (
     <style>{`
@@ -1314,6 +1316,7 @@ function DarkStyles() {
         display: flex;
         overflow: hidden;
         padding: 4px;
+        padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
         scrollbar-gutter: stable;
       }
       .scene-contents-scroll {
@@ -1840,6 +1843,7 @@ function DarkStyles() {
         overflow-y: auto;
         overflow-x: hidden;
         padding: 4px;
+        padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
         scrollbar-gutter: stable;
       }
       .inspector-scene-content {
