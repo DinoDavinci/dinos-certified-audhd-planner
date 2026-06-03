@@ -46,29 +46,31 @@ export default function QuestBoardPanel({
 
       <div className="scene-contents-panel quest-board-contents-panel">
         <div className="scene-contents-margin quest-board-contents-margin">
-          <div className="quest-board-list">
-            {quests.map((quest) => (
-              <button
-                key={quest.id}
-                onClick={() => selectQuest(quest)}
-                className={`library-card text-left ${questTypeClass(quest)} ${isQuestComplete(quest) ? "library-card-complete" : ""} ${quest.id === activeQuestId ? "border-neutral-300 bg-neutral-800" : ""}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="font-semibold">{quest.title}</div>
-                  {dueBadge(quest)}
-                </div>
+          <div className="scene-contents-scroll quest-board-contents-scroll">
+            <div className="quest-board-list">
+              {quests.map((quest) => (
+                <button
+                  key={quest.id}
+                  onClick={() => selectQuest(quest)}
+                  className={`library-card text-left ${questTypeClass(quest)} ${isQuestComplete(quest) ? "library-card-complete" : ""} ${quest.id === activeQuestId ? "border-neutral-300 bg-neutral-800" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-semibold">{quest.title}</div>
+                    {dueBadge(quest)}
+                  </div>
 
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-800">
-                  <div className="h-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
-                </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-800">
+                    <div className="h-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
+                  </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {isQuestComplete(quest) && <span className="pill-complete">Completed</span>}
-                  {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
-                  {quest.sourceType === "routine" && <span className="pill-blue">Routine</span>}
-                </div>
-              </button>
-            ))}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {isQuestComplete(quest) && <span className="pill-complete">Completed</span>}
+                    {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
+                    {quest.sourceType === "routine" && <span className="pill-blue">Routine</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

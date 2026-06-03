@@ -1338,6 +1338,10 @@ function DarkStyles() {
         display: block;
       }
       .quest-board-scene {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         gap: 4px;
@@ -1351,14 +1355,19 @@ function DarkStyles() {
       }
       .quest-board-contents-panel {
         flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
       }
       .quest-board-contents-margin {
-        display: block;
-        overflow-y: auto;
-        overflow-x: hidden;
+        overflow: hidden;
+      }
+      .quest-board-contents-scroll {
+        padding: 0;
       }
       .quest-board-list {
         display: grid;
+        align-content: start;
         gap: 0.75rem;
         width: 100%;
         min-width: 0;
@@ -1653,6 +1662,23 @@ function DarkStyles() {
       }
       .library-col {
         flex: 0 0 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .library-col > .tab-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .library-col > .tab-container > .tab-container-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
       }
       .focus-col {
         flex: 1 1 auto;
