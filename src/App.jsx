@@ -72,6 +72,7 @@ export default function App() {
   });
 
   const [libraryTab, setLibraryTab] = useState(PANEL_IDS.QUEST_BOARD);
+  const [centerTab, setCenterTab] = useState(PANEL_IDS.FOCUS_PANEL || "focusPanel");
   const [selection, setSelectionRaw] = useState({ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null });
   const [history, setHistory] = useState([{ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null }]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -785,7 +786,9 @@ function restoreQuest(questId) {
           title="Drag to resize Library"
         />
 
-        <FocusPanel
+        <CenterDock
+          activePanelId={centerTab}
+          setActivePanelId={setCenterTab}
           quest={activeQuest}
           actionable={actionable}
           focusBoard={focusBoard}
@@ -955,6 +958,29 @@ function LibraryPanel({
       onActivePanelChange={setTab}
       className="library-col"
       style={{ flexBasis: `${panelWidth}px` }}
+    />
+  );
+}
+
+
+function CenterDock({ activePanelId, setActivePanelId, ...focusProps }) {
+  const focusPanelId = PANEL_IDS.FOCUS_PANEL || "focusPanel";
+  const tabs = [
+    {
+      id: focusPanelId,
+      title: "Focus",
+      content: <FocusPanel {...focusProps} />,
+    },
+  ];
+
+  return (
+    <DockContainer
+      dockId={DOCK_IDS.CENTER || "center"}
+      tabs={tabs}
+      activePanelId={activePanelId}
+      onActivePanelChange={setActivePanelId}
+      panelClassName="center-dock-wrapper"
+      contentClassName=""
     />
   );
 }
@@ -1401,6 +1427,27 @@ function DarkStyles() {
       .focus-col {
         flex: 1 1 auto;
         min-width: 420px;
+      }
+      .center-dock-wrapper {
+        flex: 1 1 auto;
+        min-width: 420px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .center-dock-wrapper > .tab-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .center-dock-wrapper > .tab-container > div:last-child {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
       }
       .right-column {
         flex: 0 0 auto;
