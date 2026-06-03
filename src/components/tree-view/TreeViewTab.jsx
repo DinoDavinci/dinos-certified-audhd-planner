@@ -166,6 +166,21 @@ function TreeRootRow({ title, kind, selected, onSelect }) {
   );
 }
 
+function getTreeStatusClass(task) {
+  if (isTaskComplete(task)) return "tree-status-complete";
+
+  if (hasCountTarget(task) && getCountProgress(task).progress > 0) {
+    return "tree-status-in-progress";
+  }
+
+  const children = task.children || [];
+  if (children.some((child) => getTreeStatusClass(child) !== "tree-status-empty")) {
+    return "tree-status-in-progress";
+  }
+
+  return "tree-status-empty";
+}
+
 function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, template = false, treeEditMode = false, selection = null, treeContext = null }) {
   if (!tasks || tasks.length === 0) return <div className="text-sm text-neutral-500">No tasks yet.</div>;
 
@@ -176,10 +191,12 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
         const hasChildren = children.length > 0;
         const open = expanded[task.id] ?? true;
         const complete = isTaskComplete(task);
+        const statusClass = getTreeStatusClass(task);
 
         const selected = isTreeTaskSelected(selection, treeContext, task);
         const rowClass = [
           "tree-row",
+          statusClass,
           complete ? "tree-row-complete" : "",
           selected ? "tree-row-selected" : "",
           treeEditMode ? "tree-row-edit" : "",

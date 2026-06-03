@@ -2072,6 +2072,9 @@ function DarkStyles() {
         width: calc(1.9rem + 12px);
       }
       .tree-row {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -2086,13 +2089,42 @@ function DarkStyles() {
         cursor: pointer;
         flex: 1 1 auto;
       }
+      .tree-row::before,
+      .tree-row::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+      }
+      .tree-row::before {
+        z-index: -2;
+        background: transparent;
+      }
+      .tree-row::after {
+        z-index: -1;
+        background: transparent;
+      }
+      .tree-row.tree-status-complete::before {
+        background: rgba(34, 197, 94, 0.20);
+      }
+      .tree-row.tree-status-in-progress::before {
+        background: rgba(234, 179, 8, 0.22);
+      }
       .tree-row:hover {
         border-color: transparent;
+        background: transparent;
+      }
+      .tree-row:hover::after {
         background: rgba(59, 130, 246, 0.18);
       }
       .tree-row-selected,
       .tree-row-selected:hover {
         border-color: rgba(255, 255, 255, 0.82);
+        background: transparent;
+      }
+      .tree-row-selected::after,
+      .tree-row-selected:hover::after {
         background: rgba(59, 130, 246, 0.18);
       }
       .tree-root-row {
