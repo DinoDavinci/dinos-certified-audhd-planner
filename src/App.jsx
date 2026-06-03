@@ -1150,10 +1150,12 @@ function PanelTitleBar({ title, children, className = "" }) {
 
 
 function DarkStyles() {
-  const USE_DEBUG_COLOR = true;
+  const USE_DEBUG_COLOR = false;
   const DEBUG_GREEN = "rgb(58 110 78)";
   const TAB_CONTENT_COLOR = USE_DEBUG_COLOR ? DEBUG_GREEN : "rgb(30 30 30)";
-  const SCENE_CONTENTS_PANEL_COLOR = USE_DEBUG_COLOR ? "rgb(76 128 94)" : "rgb(38 38 38)";
+  const SCENE_CONTENTS_PANEL_COLOR = USE_DEBUG_COLOR ? "rgb(76 128 94)" : "rgba(20, 20, 20, 0.40)";
+  const SCENE_SCROLL_BUFFER = "96px";
+  const TREE_BRANCH_LINE_COLOR = "rgb(120 120 120)";
 
   // Tab scene layout contract:
   // 1. TabContainer owns the tab bar, active tab color, content area panel, and 4px content padding.
@@ -1161,6 +1163,8 @@ function DarkStyles() {
   // 3. Most tab scenes should use a header/toolbar section plus a contents section.
   // 4. Contents sections should use .scene-contents-panel > .scene-contents-margin > scene-specific content.
   // 5. SCENE_CONTENTS_PANEL_COLOR is the shared body/contents panel color for tab scenes.
+  // 6. SCENE_SCROLL_BUFFER is a shared value, but should only be applied by scenes that need extra bottom scroll room.
+  // 7. TREE_BRANCH_LINE_COLOR keeps tree branch connector lines easy to tune without hunting through CSS.
 
   return (
     <style>{`
@@ -1716,6 +1720,11 @@ function DarkStyles() {
         gap: 0.15rem;
         min-width: 0;
       }
+      .tree-scene-content::after {
+        content: "";
+        display: block;
+        height: ${SCENE_SCROLL_BUFFER};
+      }
       .tree-contents-panel {
         flex: 1 1 auto;
       }
@@ -1860,7 +1869,7 @@ function DarkStyles() {
         top: -0.15rem;
         bottom: calc(50% - 1px);
         width: 2px;
-        background: rgba(255, 255, 255, 0.28);
+        background: ${TREE_BRANCH_LINE_COLOR};
         opacity: 1;
       }
       .tree-node-wrap:not(:last-child) > .tree-row-wrap.tree-node-child::after {
@@ -1873,7 +1882,7 @@ function DarkStyles() {
         top: 0.78rem;
         width: calc(0.55rem + 12px);
         height: 2px;
-        background: rgba(255, 255, 255, 0.28);
+        background: ${TREE_BRANCH_LINE_COLOR};
         opacity: 1;
       }
       .tree-row-wrap.tree-node-child.tree-row-leaf::before {
