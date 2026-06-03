@@ -1150,6 +1150,10 @@ function PanelTitleBar({ title, children, className = "" }) {
 
 
 function DarkStyles() {
+  const USE_DEBUG_COLOR = false;
+  const DEBUG_GREEN = "rgb(58 110 78)";
+  const TAB_CONTENT_COLOR = USE_DEBUG_COLOR ? DEBUG_GREEN : "rgb(30 30 30)";
+
   return (
     <style>{`
       html, body, #root {
@@ -1249,7 +1253,7 @@ function DarkStyles() {
       }
       .tab-container-tab-active {
         border-color: rgb(64 64 64);
-        background: rgb(30 30 30);
+        background: ${TAB_CONTENT_COLOR};
         color: rgb(245 245 245);
       }
       .tab-container-content {
@@ -1260,7 +1264,8 @@ function DarkStyles() {
         border: 1px solid rgb(64 64 64);
         border-top: none;
         border-radius: 0 0 0.35rem 0.35rem;
-        background: rgb(30 30 30);
+        background: ${TAB_CONTENT_COLOR};
+        padding: 4px;
       }
       .tab-scene-root {
         flex: 1 1 auto;
@@ -1275,7 +1280,7 @@ function DarkStyles() {
         min-height: 0;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 0.75rem;
+        padding: 0;
       }
       .library-scene {
         display: block;
