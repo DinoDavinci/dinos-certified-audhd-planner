@@ -986,7 +986,6 @@ function CenterDock({ activePanelId, setActivePanelId, ...focusProps }) {
       activePanelId={activePanelId}
       onActivePanelChange={setActivePanelId}
       panelClassName="center-dock-wrapper"
-      contentClassName=""
     />
   );
 }
@@ -1008,7 +1007,6 @@ function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorPr
       onActivePanelChange={setActivePanelId}
       panelClassName="top-right-dock-wrapper"
       style={{ flexBasis: `${rightSplit}%` }}
-      contentClassName=""
     />
   );
 }
@@ -1036,7 +1034,6 @@ function BottomRightDock({
       onActivePanelChange={setActivePanelId}
       panelClassName="bottom-right-dock-wrapper"
       style={{ flexBasis: `${100 - rightSplit}%` }}
-      contentClassName=""
     />
   );
 }
@@ -1216,6 +1213,9 @@ function DarkStyles() {
       }
       .tab-container {
         min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
       .tab-container-bar {
         position: sticky;
@@ -1226,7 +1226,7 @@ function DarkStyles() {
         justify-content: flex-start;
         gap: 0.25rem;
         min-height: 2.15rem;
-        border-bottom: 1px solid rgb(38 38 38);
+        border-bottom: 1px solid rgb(64 64 64);
         border-radius: 0.35rem 0.35rem 0 0;
         background: rgb(38 38 38);
         padding: 0.25rem 0.35rem 0;
@@ -1249,8 +1249,36 @@ function DarkStyles() {
       }
       .tab-container-tab-active {
         border-color: rgb(64 64 64);
-        background: rgb(23 23 23);
+        background: rgb(30 30 30);
         color: rgb(245 245 245);
+      }
+      .tab-container-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+        border: 1px solid rgb(64 64 64);
+        border-top: none;
+        border-radius: 0 0 0.35rem 0.35rem;
+        background: rgb(30 30 30);
+      }
+      .tab-scene-root {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      .tab-scene-margin {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.75rem;
+      }
+      .library-scene {
+        display: block;
       }
       .library-tab-bar {
         justify-content: flex-start;
@@ -1581,7 +1609,7 @@ function DarkStyles() {
         flex-direction: column;
         overflow: hidden;
       }
-      .center-dock-wrapper > .tab-container > div:last-child {
+      .center-dock-wrapper > .tab-container > .tab-container-content {
         flex: 1 1 auto;
         min-height: 0;
         display: flex;
@@ -1601,7 +1629,7 @@ function DarkStyles() {
         flex-direction: column;
         overflow: hidden;
       }
-      .top-right-dock-wrapper > .tab-container > div:last-child {
+      .top-right-dock-wrapper > .tab-container > .tab-container-content {
         flex: 1 1 auto;
         min-height: 0;
         display: flex;
@@ -1627,7 +1655,7 @@ function DarkStyles() {
         flex-direction: column;
         overflow: hidden;
       }
-      .bottom-right-dock-wrapper > .tab-container > div:last-child {
+      .bottom-right-dock-wrapper > .tab-container > .tab-container-content {
         flex: 1 1 auto;
         min-height: 0;
         display: flex;
@@ -1665,6 +1693,19 @@ function DarkStyles() {
         margin: 0.2rem auto 0;
         width: 3rem;
         background: rgb(82 82 82);
+      }
+      .inspector-tab-content-debug {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+        background: rgb(35 80 56);
+      }
+      .inspector-tab-content-debug > .inspector-tab-root {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
       }
       .inspector-tab-root {
         flex: 0 0 auto;

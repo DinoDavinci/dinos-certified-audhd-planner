@@ -10,7 +10,7 @@ export default function DockContainer({
   className = "",
   panelClassName = "panel panel-scroll",
   style = undefined,
-  contentClassName = "panel-content",
+  contentClassName = "tab-scene-root",
   empty = null,
 }) {
   const visibleTabs = tabs.filter(Boolean);

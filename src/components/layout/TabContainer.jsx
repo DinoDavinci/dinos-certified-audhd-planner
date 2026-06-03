@@ -5,7 +5,7 @@ export default function TabContainer({
   activeTabId,
   onActiveTabChange,
   className = "",
-  contentClassName = "panel-content",
+  contentClassName = "tab-scene-root",
   empty = null,
 }) {
   const visibleTabs = tabs.filter(Boolean);
@@ -30,7 +30,7 @@ export default function TabContainer({
         ))}
       </div>
 
-      <div className={contentClassName}>
+      <div className={["tab-container-content", contentClassName].filter(Boolean).join(" ")}>
         {activeTab.content}
       </div>
     </div>

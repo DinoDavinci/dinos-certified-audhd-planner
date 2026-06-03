@@ -14,8 +14,8 @@ export default function RoutinePanel({
   selectRoutine,
 }) {
   return (
-    <>
-      <div className="mt-4 space-y-2">
+    <div className="tab-scene-margin library-scene">
+      <div className="space-y-2">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-neutral-500" size={16} />
           <input className="field py-2 pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="" />
@@ -47,6 +47,6 @@ export default function RoutinePanel({
           </button>
         ))}
       </div>
-    </>
+    </div>
   );
 }

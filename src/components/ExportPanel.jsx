@@ -12,7 +12,7 @@ export default function ExportPanel({
   resetToDefaults,
 }) {
   return (
-    <div className="mt-4 space-y-3">
+    <div className="tab-scene-margin library-scene space-y-3">
       <button type="button" onClick={exportJson} className="primary-button w-full justify-center">Export all data</button>
       <label className="primary-button w-full cursor-pointer justify-center">
         Load all data
