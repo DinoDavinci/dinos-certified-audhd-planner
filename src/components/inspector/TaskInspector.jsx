@@ -13,8 +13,6 @@ import {
 } from "../../models/appModel";
 
 import {
-  AncestryPath,
-  ChildrenSummary,
   ProgressActionButton,
   InspectorProgressBar,
   FormText,
@@ -29,11 +27,6 @@ export default function TaskInspector({ task, parent, ownerTitle, ancestry, setS
 
   return (
     <div className="space-y-4">
-      <div className="wiki-meta-block">
-        <AncestryPath ancestry={ancestry || []} setSelection={setSelection} />
-        <ChildrenSummary task={task} ancestry={ancestry || []} setSelection={setSelection} />
-      </div>
-
       {!template && (
         <div className="main-action-row">
           {hasChildren ? (

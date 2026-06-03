@@ -15,12 +15,17 @@ import {
 import QuestInspector from "./QuestInspector";
 import RoutineInspector from "./RoutineInspector";
 import TaskInspector from "./TaskInspector";
+import {
+  QuestChildrenSummary,
+  AncestryPath,
+  ChildrenSummary,
+} from "./inspectorShared";
 
 export default function InspectorPanel(props) {
   const { rightSplit, embedded = false } = props;
   const rootClassName = embedded
-    ? "panel-scroll inspector-tab-root inspector-tab-root-embedded"
-    : "panel-scroll inspector-tab-root";
+    ? "inspector-tab-root inspector-tab-root-embedded"
+    : "inspector-tab-root";
   const rootStyle = embedded ? undefined : { flexBasis: `${rightSplit}%` };
 
   return (
@@ -31,8 +36,9 @@ export default function InspectorPanel(props) {
       <div className="inspector-main-margin">
         <div className="inspector-main-vbox">
           <InspectorToolbar {...props} />
-          <div className="inspector-properties-panel">
-            <div className="inspector-properties-margin">
+          <InspectorRelations {...props} />
+          <div className="scene-contents-panel inspector-contents-panel">
+            <div className="scene-contents-margin inspector-contents-margin">
               <Inspector {...props} />
             </div>
           </div>
@@ -166,6 +172,46 @@ function InspectorToolbar({
   );
 }
 
+function InspectorRelations({ selection, data, setSelection }) {
+  const selected = resolveSelection(selection, data);
+  if (!selected || !selection || selection.type === "none") return null;
+
+  if (selection.type === "quest" && selected?.quest) {
+    return (
+      <div className="inspector-relations-strip">
+        <div className="wiki-meta-block">
+          <QuestChildrenSummary quest={selected.quest} setSelection={setSelection} />
+        </div>
+      </div>
+    );
+  }
+
+  if (selection.type === "task" && selected?.task) {
+    const ancestry = getTaskAncestry(selection, data) || [];
+    return (
+      <div className="inspector-relations-strip">
+        <div className="wiki-meta-block">
+          <AncestryPath ancestry={ancestry} setSelection={setSelection} />
+          <ChildrenSummary task={selected.task} ancestry={ancestry} setSelection={setSelection} />
+        </div>
+      </div>
+    );
+  }
+
+  if (selection.type === "routineTask" && selected?.task) {
+    const ancestry = getTaskAncestry(selection, data) || [];
+    return (
+      <div className="inspector-relations-strip">
+        <div className="wiki-meta-block">
+          <AncestryPath ancestry={ancestry} setSelection={setSelection} />
+          <ChildrenSummary task={selected.task} ancestry={ancestry} setSelection={setSelection} />
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
 function Inspector({
   selection,
   data,

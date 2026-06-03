@@ -1527,17 +1527,6 @@ function DarkStyles() {
         background: rgb(120 53 15);
         border-bottom-color: rgb(217 119 6);
       }
-
-      .inspector-main-margin {
-        min-height: 0;
-        padding: 4px;
-      }
-      .inspector-main-vbox {
-        display: flex;
-        min-height: 0;
-        flex-direction: column;
-        gap: 4px;
-      }
       .inspector-toolbar {
         position: sticky;
         top: 0;
@@ -1582,14 +1571,6 @@ function DarkStyles() {
         border-color: rgb(217 119 6);
         background: rgb(120 53 15);
         color: rgb(254 215 170);
-      }
-      .inspector-properties-panel {
-        border: 1px solid rgb(70 70 70);
-        border-radius: 0.28rem;
-        background: rgb(48 48 48);
-      }
-      .inspector-properties-margin {
-        padding: 4px;
       }
       .inspector-mode-content {
         display: grid;
@@ -1799,6 +1780,38 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
         min-height: 0;
+      }
+
+      .inspector-main-margin {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+        padding: 0;
+      }
+      .inspector-main-vbox {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow: hidden;
+      }
+      .inspector-relations-strip {
+        flex: 0 0 auto;
+        min-width: 0;
+        border-radius: 0.28rem;
+        background: rgba(0, 0, 0, 0.18);
+        padding: 4px;
+      }
+      .inspector-contents-panel {
+        flex: 1 1 auto;
+      }
+      .inspector-contents-margin {
+        overflow-y: auto;
+        overflow-x: hidden;
       }
       .tree-panel {
         flex: 0 0 auto;

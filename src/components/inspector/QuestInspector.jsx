@@ -11,7 +11,6 @@ import {
 } from "../../models/appModel";
 
 import {
-  QuestChildrenSummary,
   ProgressActionButton,
   InspectorProgressBar,
   FormText,
@@ -38,10 +37,6 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
 
   return (
     <div className="space-y-4">
-      <div className="wiki-meta-block">
-        <QuestChildrenSummary quest={quest} setSelection={setSelection} />
-      </div>
-
       <div className="main-action-row">
         <ProgressActionButton
           progress={getQuestProgress(quest)}
