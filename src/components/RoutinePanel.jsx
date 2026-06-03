@@ -14,7 +14,7 @@ export default function RoutinePanel({
   selectRoutine,
 }) {
   return (
-    <div className="tab-scene-margin library-scene routine-scene">
+    <div className="tab-scene-margin library-scene routine-management-root">
       <div className="routine-toolbar">
         <div className="space-y-2">
           <div className="relative">

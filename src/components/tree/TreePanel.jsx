@@ -51,7 +51,7 @@ export default function TreePanel({
   embedded = false,
 }) {
   const shellClassName = embedded
-    ? `tree-scene-root ${treeModeClass(treeContext)}`
+    ? `tree-view-root ${treeModeClass(treeContext)}`
     : `panel panel-scroll ${treeModeClass(treeContext)}`;
   const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
 

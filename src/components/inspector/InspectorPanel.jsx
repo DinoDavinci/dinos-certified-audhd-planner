@@ -24,8 +24,8 @@ import {
 export default function InspectorPanel(props) {
   const { rightSplit, embedded = false } = props;
   const rootClassName = embedded
-    ? "inspector-tab-root inspector-tab-root-embedded"
-    : "inspector-tab-root";
+    ? "inspector-root inspector-root-embedded"
+    : "inspector-root";
   const rootStyle = embedded ? undefined : { flexBasis: `${rightSplit}%` };
 
   return (

@@ -22,7 +22,7 @@ export default function QuestBoardPanel({
   selectQuest,
 }) {
   return (
-    <div className="tab-scene-margin library-scene quest-board-scene">
+    <div className="tab-scene-margin library-scene quest-board-root">
       <div className="quest-board-toolbar">
         <div className="space-y-2">
           <div className="relative">

@@ -1337,7 +1337,7 @@ function DarkStyles() {
       .library-scene {
         display: block;
       }
-      .quest-board-scene {
+      .quest-board-root {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
@@ -1374,7 +1374,7 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
       }
-      .routine-scene {
+      .routine-management-root {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
@@ -1812,7 +1812,7 @@ function DarkStyles() {
         display: flex;
         overflow: hidden;
       }
-      .tree-scene-root {
+      .tree-view-root {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
@@ -1900,13 +1900,13 @@ function DarkStyles() {
         overflow: hidden;
         background: rgb(35 80 56);
       }
-      .inspector-tab-content-debug > .inspector-tab-root {
+      .inspector-tab-content-debug > .inspector-root {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
         min-height: 0;
       }
-      .inspector-tab-root {
+      .inspector-root {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
@@ -1918,7 +1918,7 @@ function DarkStyles() {
         box-shadow: none;
         padding: 0;
       }
-      .inspector-tab-root.inspector-tab-root-embedded {
+      .inspector-root.inspector-root-embedded {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
@@ -2287,7 +2287,7 @@ function DarkStyles() {
         background: rgb(107 33 168);
         color: rgb(243 232 255);
       }
-      .focus-scene-root {
+      .focus-tab-root {
         flex: 1 1 auto;
         min-width: 0;
         min-height: 0;

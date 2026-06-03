@@ -19,7 +19,7 @@ import {
 export default function FocusPanel({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
   if (!quest) {
     return (
-      <main className="focus-scene-root">
+      <main className="focus-tab-root">
         <div className="scene-contents-panel focus-contents-panel">
           <div className="scene-contents-margin focus-contents-margin">
             <div className="focus-scene-content focus-empty-message text-neutral-400">Create or select a quest, then make it the current focus.</div>
@@ -30,7 +30,7 @@ export default function FocusPanel({ quest, actionable, focusBoard, focusPathInf
   }
 
   return (
-    <main className="focus-scene-root">
+    <main className="focus-tab-root">
       <div className="scene-contents-panel focus-contents-panel">
         <div className="scene-contents-margin focus-contents-margin">
           <div className="focus-panel-content focus-scene-content">
