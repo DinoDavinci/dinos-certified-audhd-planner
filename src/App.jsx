@@ -1374,6 +1374,43 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
       }
+      .routine-scene {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow: hidden;
+      }
+      .routine-toolbar {
+        flex: 0 0 auto;
+        display: grid;
+        gap: 0.75rem;
+        min-width: 0;
+      }
+      .routine-contents-panel {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .routine-contents-margin {
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 4px;
+        padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
+        scrollbar-gutter: stable;
+      }
+      .routine-list {
+        display: grid;
+        align-content: start;
+        gap: 0.75rem;
+        width: 100%;
+        min-width: 0;
+      }
       .library-tab-bar {
         justify-content: flex-start;
         gap: 0.25rem;
