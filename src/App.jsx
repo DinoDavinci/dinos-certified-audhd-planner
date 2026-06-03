@@ -2162,6 +2162,17 @@ function DarkStyles() {
         box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45);
         transform: translateY(-1px);
       }
+
+      .tree-view-normal .tree-subtree-end-drop-zone {
+        display: none;
+      }
+      .tree-subtree-end-drop-zone {
+        height: 0.45rem;
+        min-height: 0.45rem;
+        margin-top: -0.15rem;
+        margin-bottom: -0.15rem;
+        background: transparent;
+      }
       .tree-drop-overlay-inside {
         border-radius: 0.25rem;
         border: 2px solid rgba(96, 165, 250, 0.85);

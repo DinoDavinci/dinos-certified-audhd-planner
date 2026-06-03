@@ -62,10 +62,10 @@ export default function TreeViewTab({
     : `panel panel-scroll ${treeModeClass(treeContext)} ${interactionClassName}`;
   const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
 
-  function updateDropIndicator(event, id) {
+  function updateDropIndicator(event, id, forcedZone = null) {
     if (!isRearrangeMode || !id) return;
 
-    const nextIndicator = getTreeDropIndicator(event, treeContentRef.current, id);
+    const nextIndicator = getTreeDropIndicator(event, treeContentRef.current, id, forcedZone);
     if (!nextIndicator) return;
 
     setDropIndicator(nextIndicator);
@@ -205,7 +205,14 @@ function TreeRootNode({ id, title, kind, selected, expanded, setExpanded, onSele
           </button>
         </div>
 
-        <div className={className} data-tree-row-id={id} onMouseMove={(event) => updateDropIndicator?.(event, id)} onClick={onSelect}>
+        <div
+          className={className}
+          data-tree-row-id={id}
+          data-tree-has-children="true"
+          data-tree-open={open ? "true" : "false"}
+          onMouseMove={(event) => updateDropIndicator?.(event, id)}
+          onClick={onSelect}
+        >
           <div className="tree-root-content">
             <div className="tree-root-icon">◆</div>
             <div className="tree-root-title">{title || "Untitled"}</div>
@@ -234,13 +241,31 @@ function getTreeDropZone(event) {
   return "inside";
 }
 
-function getTreeDropIndicator(event, treeContentElement, id) {
+function getTreeDropIndicator(event, treeContentElement, id, forcedZone = null) {
   const rowElement = event.currentTarget;
   if (!treeContentElement || !rowElement) return null;
 
-  const zone = getTreeDropZone(event);
   const contentRect = treeContentElement.getBoundingClientRect();
-  const rowRect = rowElement.getBoundingClientRect();
+  const rowElements = Array.from(treeContentElement.querySelectorAll("[data-tree-row-id]"));
+  const sourceRow = findTreeRowById(rowElements, id);
+  const targetRow = sourceRow || rowElement;
+  const rowRect = targetRow.getBoundingClientRect();
+
+  if (forcedZone === "subtree-after") {
+    const colliderRect = rowElement.getBoundingClientRect();
+
+    return {
+      id,
+      zone: "after",
+      type: "boundary",
+      top: colliderRect.top + colliderRect.height / 2 - contentRect.top,
+      left: rowRect.left - contentRect.left,
+      width: rowRect.width,
+      placement: "subtree-after",
+    };
+  }
+
+  const zone = forcedZone || getTreeDropZone(event);
 
   if (zone === "inside") {
     return {
@@ -254,31 +279,45 @@ function getTreeDropIndicator(event, treeContentElement, id) {
     };
   }
 
-  const rowElements = Array.from(treeContentElement.querySelectorAll("[data-tree-row-id]"));
-  const rowIndex = rowElements.indexOf(rowElement);
+  const rowIndex = rowElements.indexOf(targetRow);
   const previousRow = rowIndex > 0 ? rowElements[rowIndex - 1] : null;
   const nextRow = rowIndex >= 0 && rowIndex < rowElements.length - 1 ? rowElements[rowIndex + 1] : null;
+  const isExpandedComposite = targetRow.dataset.treeHasChildren === "true" && targetRow.dataset.treeOpen === "true";
 
   let boundaryY = zone === "before" ? rowRect.top : rowRect.bottom;
+  let boundaryRow = targetRow;
+  let placement = zone;
 
   if (zone === "before" && previousRow) {
     const previousRect = previousRow.getBoundingClientRect();
     boundaryY = (previousRect.bottom + rowRect.top) / 2;
   }
 
-  if (zone === "after" && nextRow) {
+  if (zone === "after" && isExpandedComposite && nextRow) {
+    const nextRect = nextRow.getBoundingClientRect();
+    boundaryY = (rowRect.bottom + nextRect.top) / 2;
+    boundaryRow = nextRow;
+    placement = "first-child";
+  } else if (zone === "after" && nextRow) {
     const nextRect = nextRow.getBoundingClientRect();
     boundaryY = (rowRect.bottom + nextRect.top) / 2;
   }
+
+  const boundaryRect = boundaryRow.getBoundingClientRect();
 
   return {
     id,
     zone,
     type: "boundary",
     top: boundaryY - contentRect.top,
-    left: rowRect.left - contentRect.left,
-    width: rowRect.width,
+    left: boundaryRect.left - contentRect.left,
+    width: boundaryRect.width,
+    placement,
   };
+}
+
+function findTreeRowById(rowElements, id) {
+  return rowElements.find((rowElement) => rowElement.dataset.treeRowId === id) || null;
 }
 
 function TreeDropIndicator({ indicator }) {
@@ -359,6 +398,8 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
               <div
                 className={rowClass}
                 data-tree-row-id={task.id}
+                data-tree-has-children={hasChildren ? "true" : "false"}
+                data-tree-open={open ? "true" : "false"}
                 onMouseMove={(event) => updateDropIndicator?.(event, task.id)}
                 onClick={() => !treeEditMode && onSelect(task)}
               >
@@ -396,26 +437,33 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
             </div>
 
             {hasChildren && open && (
-              <div className="tree-children-group">
-                <QuestTree
-                  tasks={children}
-                  expanded={expanded}
-                  setExpanded={setExpanded}
-                  onSelect={onSelect}
-                  onAddChild={onAddChild}
-                  onDelete={onDelete}
-                  onMoveUp={onMoveUp}
-                  onMoveDown={onMoveDown}
-                  onToggleComplete={onToggleComplete}
-                  depth={depth + 1}
-                  template={template}
-                  treeEditMode={treeEditMode}
-                  selection={selection}
-                  treeContext={treeContext}
-                  dropIndicator={dropIndicator}
-                  updateDropIndicator={updateDropIndicator}
+              <>
+                <div className="tree-children-group">
+                  <QuestTree
+                    tasks={children}
+                    expanded={expanded}
+                    setExpanded={setExpanded}
+                    onSelect={onSelect}
+                    onAddChild={onAddChild}
+                    onDelete={onDelete}
+                    onMoveUp={onMoveUp}
+                    onMoveDown={onMoveDown}
+                    onToggleComplete={onToggleComplete}
+                    depth={depth + 1}
+                    template={template}
+                    treeEditMode={treeEditMode}
+                    selection={selection}
+                    treeContext={treeContext}
+                    dropIndicator={dropIndicator}
+                    updateDropIndicator={updateDropIndicator}
+                  />
+                </div>
+                <div
+                  className="tree-subtree-end-drop-zone"
+                  data-tree-subtree-end-for={task.id}
+                  onMouseMove={(event) => updateDropIndicator?.(event, task.id, "subtree-after")}
                 />
-              </div>
+              </>
             )}
           </div>
         );
