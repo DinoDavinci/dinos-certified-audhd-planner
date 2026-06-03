@@ -1153,8 +1153,8 @@ function DarkStyles() {
   const USE_DEBUG_COLOR = false;
   const DEBUG_GREEN = "rgb(58 110 78)";
   const TAB_CONTENT_COLOR = USE_DEBUG_COLOR ? DEBUG_GREEN : "rgb(30 30 30)";
-  const SCENE_CONTENTS_PANEL_COLOR = USE_DEBUG_COLOR ? "rgb(76 128 94)" : "rgba(20, 20, 20, 0.40)";
-  const SCENE_SCROLL_BUFFER = "96px";
+  const SCENE_CONTENTS_PANEL_COLOR = USE_DEBUG_COLOR ? "rgb(76 128 94)" : "rgba(0, 0, 0, 0.55)";
+  const SCENE_SCROLL_BUFFER = "32px";
   const TREE_BRANCH_LINE_COLOR = "rgb(120 120 120)";
 
   // Tab scene layout contract:
@@ -1300,7 +1300,7 @@ function DarkStyles() {
         min-height: 0;
         display: flex;
         overflow: hidden;
-        border: 1px solid rgb(64 64 64);
+        border: none;
         border-radius: 0.28rem;
         background: ${SCENE_CONTENTS_PANEL_COLOR};
       }
