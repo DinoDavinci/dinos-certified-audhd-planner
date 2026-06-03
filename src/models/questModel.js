@@ -16,6 +16,74 @@ import {
 // Quest model helpers.
 // Quest now owns a locked rootTask whose children contain the visible task tree.
 
+export const SCHEDULE_TYPES = ["none", "cooldown", "routine", "event"];
+
+export const SCHEDULE_LABELS = {
+  none: "None",
+  cooldown: "Cooldown",
+  routine: "Routine",
+  event: "Event",
+};
+
+export function makeQuestSchedule(overrides = {}) {
+  return {
+    dayMask: overrides.dayMask ?? 0,
+    eventDate: overrides.eventDate || "",
+    cooldownAmount: Math.max(1, Number(overrides.cooldownAmount || 6)),
+    cooldownUnit: overrides.cooldownUnit || "months",
+    ...overrides,
+  };
+}
+
+export function normalizeScheduleType(value, fallback = "none") {
+  return SCHEDULE_TYPES.includes(value) ? value : fallback;
+}
+
+export function normalizeQuestSchedule(quest = {}) {
+  const rawSchedule = quest.schedule && typeof quest.schedule === "object"
+    ? quest.schedule
+    : {};
+
+  const legacyCooldownEnabled = Boolean(quest.cooldownEnabled);
+  const fallbackType = legacyCooldownEnabled ? "cooldown" : "none";
+  const scheduleType = normalizeScheduleType(quest.scheduleType, fallbackType);
+
+  return {
+    scheduleType,
+    schedule: makeQuestSchedule({
+      cooldownAmount: quest.cooldownAmount ?? rawSchedule.cooldownAmount ?? 6,
+      cooldownUnit: quest.cooldownUnit || rawSchedule.cooldownUnit || "months",
+      dayMask: rawSchedule.dayMask ?? quest.dayMask ?? 0,
+      eventDate: rawSchedule.eventDate || quest.eventDate || "",
+      ...rawSchedule,
+    }),
+  };
+}
+
+export function getQuestScheduleLabel(quest) {
+  const scheduleType = normalizeScheduleType(quest?.scheduleType, quest?.cooldownEnabled ? "cooldown" : "none");
+  return SCHEDULE_LABELS[scheduleType] || "None";
+}
+
+export function getQuestScheduleSummary(quest) {
+  const scheduleType = normalizeScheduleType(quest?.scheduleType, quest?.cooldownEnabled ? "cooldown" : "none");
+  const schedule = makeQuestSchedule(quest?.schedule || {});
+
+  if (scheduleType === "cooldown") {
+    return `Cooldown · ${schedule.cooldownAmount} ${schedule.cooldownUnit}`;
+  }
+
+  if (scheduleType === "routine") {
+    return "Routine";
+  }
+
+  if (scheduleType === "event") {
+    return schedule.eventDate ? `Event · ${schedule.eventDate}` : "Event · No date";
+  }
+
+  return quest?.deadline ? `No schedule · Due ${quest.deadline}` : "No schedule";
+}
+
 
 export function makeQuestRootTask(overrides = {}) {
   return makeTask({
@@ -47,7 +115,9 @@ export function makeQuest(overrides = {}) {
     children: incomingRootTask?.children || legacyTasks,
   });
 
-  const { tasks, rootTask: _ignoredRootTask, mode, ...rest } = overrides;
+  const normalizedSchedule = normalizeQuestSchedule(overrides);
+  const { tasks, rootTask: _ignoredRootTask, mode, schedule, scheduleType, ...rest } = overrides;
+  const cooldownEnabled = normalizedSchedule.scheduleType === "cooldown";
 
   return {
     id: newId("quest"),
@@ -58,15 +128,23 @@ export function makeQuest(overrides = {}) {
     deadline: "",
     status: "active",
     completedAt: "",
-    cooldownEnabled: false,
-    cooldownAmount: 6,
-    cooldownUnit: "months",
+    scheduleType: normalizedSchedule.scheduleType,
+    schedule: normalizedSchedule.schedule,
+    // Legacy mirrors kept during the scheduling refactor so existing UI and maintenance stay stable.
+    cooldownEnabled,
+    cooldownAmount: normalizedSchedule.schedule.cooldownAmount,
+    cooldownUnit: normalizedSchedule.schedule.cooldownUnit,
     sourceType: "manual",
     routineId: null,
     locked: false,
     rootTask,
     createdAt: new Date().toISOString(),
     ...rest,
+    scheduleType: normalizedSchedule.scheduleType,
+    schedule: normalizedSchedule.schedule,
+    cooldownEnabled,
+    cooldownAmount: normalizedSchedule.schedule.cooldownAmount,
+    cooldownUnit: normalizedSchedule.schedule.cooldownUnit,
   };
 }
 
