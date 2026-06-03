@@ -1489,13 +1489,34 @@ function DarkStyles() {
         display: inline-flex;
         align-items: center;
         border-radius: 0.35rem;
+        border: 1px solid rgb(64 64 64);
         background: rgb(38 38 38);
         padding: 0.18rem 0.5rem;
         font-size: 0.75rem;
         font-weight: 850;
         color: rgb(229 229 229);
       }
+      .inspector-selection-badge.inspector-title-quest {
+        border-color: rgb(21 128 61);
+        background: rgb(20 83 45);
+        color: rgb(187 247 208);
+      }
+      .inspector-selection-badge.inspector-title-task {
+        border-color: rgb(30 64 175);
+        background: rgb(30 58 138);
+        color: rgb(191 219 254);
+      }
+      .inspector-selection-badge.inspector-title-routine,
+      .inspector-selection-badge.inspector-title-routineTask {
+        border-color: rgb(217 119 6);
+        background: rgb(120 53 15);
+        color: rgb(254 215 170);
+      }
       .inspector-properties-section {
+        margin: 4px;
+        border: 1px solid rgb(45 45 45);
+        border-radius: 0.28rem;
+        background: rgb(31 31 31);
         padding: 0.75rem;
       }
       .inspector-mode-content {

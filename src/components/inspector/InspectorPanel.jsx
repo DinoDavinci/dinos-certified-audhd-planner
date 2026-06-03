@@ -137,9 +137,9 @@ function InspectorToolbar({
   }
 
   return (
-    <div className={`inspector-toolbar ${getInspectorAccentClass(selection)}`}>
+    <div className="inspector-toolbar">
       <div className="inspector-toolbar-section">
-        <span className="inspector-selection-badge">{getSelectionType(selection)}</span>
+        <span className={`inspector-selection-badge ${getInspectorAccentClass(selection)}`}>{getSelectionType(selection)}</span>
       </div>
 
       <div className="inspector-toolbar-actions">
