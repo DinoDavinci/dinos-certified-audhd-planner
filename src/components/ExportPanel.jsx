@@ -12,8 +12,10 @@ export default function ExportPanel({
   resetToDefaults,
 }) {
   return (
-    <div className="tab-scene-margin library-scene space-y-3">
-      <button type="button" onClick={exportJson} className="primary-button w-full justify-center">Export all data</button>
+    <div className="export-options-root">
+      <div className="export-options-scroll">
+        <div className="export-options-content space-y-3">
+          <button type="button" onClick={exportJson} className="primary-button w-full justify-center">Export all data</button>
       <label className="primary-button w-full cursor-pointer justify-center">
         Load all data
         <input
@@ -81,8 +83,10 @@ export default function ExportPanel({
       </div>
 
       <button type="button" onClick={resetToDefaults} className="danger-button w-full justify-center">Reset to defaults</button>
-      <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
-        Export all data creates a backup of quests and routines. Quest files export/import one quest scene at a time. Routine files export/import one routine template at a time. Load all data replaces the current app state with the selected JSON file.
+          <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-400">
+            Export all data creates a backup of quests and routines. Quest files export/import one quest scene at a time. Routine files export/import one routine template at a time. Load all data replaces the current app state with the selected JSON file.
+          </div>
+        </div>
       </div>
     </div>
   );

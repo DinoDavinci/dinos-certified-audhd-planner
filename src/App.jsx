@@ -1411,6 +1411,28 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
       }
+      .export-options-root {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      .export-options-scroll {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-gutter: stable;
+      }
+      .export-options-content {
+        width: 100%;
+        min-width: 0;
+        padding: 8px;
+      }
       .library-tab-bar {
         justify-content: flex-start;
         gap: 0.25rem;
