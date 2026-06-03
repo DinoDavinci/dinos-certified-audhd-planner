@@ -20,7 +20,7 @@ export default function InspectorPanel(props) {
   const { rightSplit, embedded = false } = props;
   const rootClassName = embedded
     ? "panel-scroll inspector-tab-root inspector-tab-root-embedded"
-    : "panel panel-scroll inspector-tab-root";
+    : "panel-scroll inspector-tab-root";
   const rootStyle = embedded ? undefined : { flexBasis: `${rightSplit}%` };
 
   return (
