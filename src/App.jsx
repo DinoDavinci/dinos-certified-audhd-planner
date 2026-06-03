@@ -1785,6 +1785,8 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
         min-height: 0;
+        display: flex;
+        overflow: hidden;
         background: transparent;
         border: none;
         box-shadow: none;
@@ -1795,6 +1797,8 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
         min-height: 0;
+        display: flex;
+        overflow: hidden;
       }
 
       .inspector-main-margin {
@@ -1823,9 +1827,16 @@ function DarkStyles() {
       }
       .inspector-contents-panel {
         flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
       }
       .inspector-contents-margin {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
         display: flex;
+        overflow: hidden;
         padding: 2px 8px;
       }
       .inspector-contents-scroll {
@@ -1833,6 +1844,8 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
         min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
       }
       .tree-panel {
         flex: 0 0 auto;
