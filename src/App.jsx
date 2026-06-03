@@ -1337,6 +1337,32 @@ function DarkStyles() {
       .library-scene {
         display: block;
       }
+      .quest-board-scene {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow: hidden;
+      }
+      .quest-board-toolbar {
+        flex: 0 0 auto;
+        display: grid;
+        gap: 0.75rem;
+        min-width: 0;
+      }
+      .quest-board-contents-panel {
+        flex: 1 1 auto;
+      }
+      .quest-board-contents-margin {
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .quest-board-list {
+        display: grid;
+        gap: 0.75rem;
+        width: 100%;
+        min-width: 0;
+      }
       .library-tab-bar {
         justify-content: flex-start;
         gap: 0.25rem;
