@@ -39,7 +39,9 @@ export default function InspectorPanel(props) {
           <InspectorRelations {...props} />
           <div className="scene-contents-panel inspector-contents-panel">
             <div className="scene-contents-margin inspector-contents-margin">
-              <Inspector {...props} />
+              <div className="scene-contents-scroll inspector-contents-scroll">
+                <Inspector {...props} />
+              </div>
             </div>
           </div>
         </div>
