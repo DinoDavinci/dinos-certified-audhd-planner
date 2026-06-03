@@ -23,7 +23,6 @@ import {
 } from "../../models/appModel";
 
 
-const TREE_INTERACTION_MODE = "rearrange";
 const TREE_DRAG_HOLD_MS = 180;
 
 function PanelTitleBar({ title, children, className = "" }) {
@@ -54,7 +53,8 @@ export default function TreeViewTab({
   toggleTask,
   embedded = false,
 }) {
-  const isRearrangeMode = TREE_INTERACTION_MODE === "rearrange";
+  const [interactionMode, setInteractionMode] = useState("normal");
+  const isRearrangeMode = interactionMode === "rearrange";
   const [dropIndicator, setDropIndicator] = useState(null);
   const [dragState, setDragState] = useState(null);
   const treeContentRef = useRef(null);
@@ -162,6 +162,7 @@ export default function TreeViewTab({
 
       pendingPressRef.current = null;
       dragStateRef.current = pendingPress;
+      setInteractionMode("rearrange");
       setDragState(pendingPress);
       console.log("[Tree rearrange] drag start", pendingPress);
     }, TREE_DRAG_HOLD_MS);
@@ -199,8 +200,10 @@ export default function TreeViewTab({
     };
 
     console.log("[Tree rearrange] drag release", result);
+    activeDrag.select?.();
     dragStateRef.current = null;
     setDragState(null);
+    setInteractionMode("normal");
     dropIndicatorRef.current = null;
     setDropIndicator(null);
   }
@@ -220,6 +223,7 @@ export default function TreeViewTab({
 
     dragStateRef.current = null;
     setDragState(null);
+    setInteractionMode("normal");
     dropIndicatorRef.current = null;
     setDropIndicator(null);
   }
