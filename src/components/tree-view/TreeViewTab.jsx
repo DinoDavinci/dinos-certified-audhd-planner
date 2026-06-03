@@ -441,6 +441,7 @@ export default function TreeViewTab({
                   depth={1}
                   treeEditMode={false}
                   selection={treeSelection}
+                  setTreeSelection={setTreeSelection}
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
                   updateDropIndicator={updateDropIndicator}
@@ -476,6 +477,7 @@ export default function TreeViewTab({
                   depth={1}
                   treeEditMode={false}
                   selection={treeSelection}
+                  setTreeSelection={setTreeSelection}
                   treeContext={treeContext}
                   dropIndicator={dropIndicator}
                   updateDropIndicator={updateDropIndicator}
@@ -691,7 +693,7 @@ function getTreeStatusClass(task) {
   return "tree-status-empty";
 }
 
-function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, parentId = null, template = false, treeEditMode = false, selection = null, treeContext = null, dropIndicator = null, updateDropIndicator = null, beginTreeDrag = null, rearrangeMode = false }) {
+function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelete, onMoveUp, onMoveDown, onToggleComplete, depth = 0, parentId = null, template = false, treeEditMode = false, selection = null, setTreeSelection = null, treeContext = null, dropIndicator = null, updateDropIndicator = null, beginTreeDrag = null, rearrangeMode = false }) {
   if (!tasks || tasks.length === 0) return <div className="text-sm text-neutral-500">No tasks yet.</div>;
 
   return (
@@ -745,6 +747,8 @@ function QuestTree({ tasks, expanded, setExpanded, onSelect, onAddChild, onDelet
                   title: task.title || "Untitled task",
                   contextType: treeContext?.type || "unknown",
                   selectTree: () => {
+                    if (!setTreeSelection) return;
+
                     if (treeContext?.type === "routine") {
                       setTreeSelection({ type: "routineTask", routineId: treeContext.routine?.id, id: task.id });
                       return;
