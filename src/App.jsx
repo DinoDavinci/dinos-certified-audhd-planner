@@ -2173,25 +2173,37 @@ function DarkStyles() {
         min-width: 0;
         min-height: 0;
         display: flex;
+        flex-direction: column;
         overflow: hidden;
       }
       .focus-empty-message {
-        flex: 1 1 auto;
+        width: 100%;
         min-width: 0;
         min-height: 0;
-        overflow-y: auto;
-        overflow-x: hidden;
         padding: 0.5rem;
       }
       .focus-panel-content {
-        flex: 1 1 auto;
+        width: 100%;
         min-width: 0;
         min-height: 0;
         display: flex;
         flex-direction: column;
+        overflow: visible;
+        padding: 0;
+      }
+      .focus-contents-panel {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+      }
+      .focus-contents-margin {
+        display: block;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 0;
+      }
+      .focus-scene-content {
+        width: 100%;
+        min-width: 0;
       }
       .focus-document-header {
         padding: 0.25rem 0 0;

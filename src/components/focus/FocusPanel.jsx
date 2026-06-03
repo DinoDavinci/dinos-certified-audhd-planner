@@ -20,14 +20,20 @@ export default function FocusPanel({ quest, actionable, focusBoard, focusPathInf
   if (!quest) {
     return (
       <main className="focus-scene-root">
-        <div className="focus-empty-message text-neutral-400">Create or select a quest, then make it the current focus.</div>
+        <div className="scene-contents-panel focus-contents-panel">
+          <div className="scene-contents-margin focus-contents-margin">
+            <div className="focus-scene-content focus-empty-message text-neutral-400">Create or select a quest, then make it the current focus.</div>
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
     <main className="focus-scene-root">
-      <div className="focus-panel-content">
+      <div className="scene-contents-panel focus-contents-panel">
+        <div className="scene-contents-margin focus-contents-margin">
+          <div className="focus-panel-content focus-scene-content">
       <FocusDocumentHeader
         quest={quest}
         focusPathInfo={focusPathInfo}
@@ -117,6 +123,8 @@ export default function FocusPanel({ quest, actionable, focusBoard, focusPathInf
           summary={`${focusBoard.completedCount} / ${focusBoard.totalCount}`}
         />
       </section>
+          </div>
+        </div>
       </div>
     </main>
   );
