@@ -1163,11 +1163,11 @@ function DarkStyles() {
   // 1. TabContainer owns the tab bar, active tab color, content area panel, and 4px content padding.
   // 2. Tab scene roots should be plain layout containers, not panel surfaces.
   // 3. Most tab scenes should use a header/toolbar section plus a contents section.
-  // 4. Contents sections should use .scene-contents-panel > .scene-contents-margin > .scene-contents-scroll > scene-specific content.
+  // 4. Contents sections should use .scene-contents-panel > .scene-contents-margin > scene-specific content.
   // 5. SCENE_CONTENTS_PANEL_COLOR is the shared body/contents panel color for tab scenes.
   // 6. SCENE_SCROLL_BUFFER is a shared value, but should only be applied by scenes that need extra bottom scroll room.
   // 7. TREE_BRANCH_LINE_COLOR keeps tree branch connector lines easy to tune without hunting through CSS.
-  // 8. Contents sections are expected to include a .scene-contents-scroll child for vertical scrolling.
+  // 8. Contents margins own vertical scrolling; scene-specific content sits inside that scroll area.
 
   return (
     <style>{`
@@ -1314,6 +1314,7 @@ function DarkStyles() {
         display: flex;
         overflow: hidden;
         padding: 4px;
+        scrollbar-gutter: stable;
       }
       .scene-contents-scroll {
         flex: 1 1 auto;
@@ -1322,6 +1323,7 @@ function DarkStyles() {
         min-height: 0;
         overflow-y: auto;
         overflow-x: hidden;
+        scrollbar-gutter: stable;
       }
       .library-scene {
         display: block;
@@ -1834,20 +1836,21 @@ function DarkStyles() {
         overflow: hidden;
       }
       .inspector-contents-margin {
-        flex: 1 1 auto;
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 4px;
+        scrollbar-gutter: stable;
+      }
+      .inspector-scene-content {
+        width: 100%;
         min-width: 0;
-        min-height: 0;
-        display: flex;
-        overflow: hidden;
-        padding: 2px 8px;
+        padding: 2px;
       }
       .inspector-contents-scroll {
-        flex: 1 1 auto;
         width: 100%;
         min-width: 0;
         min-height: 0;
-        overflow-y: auto;
-        overflow-x: hidden;
       }
       .tree-panel {
         flex: 0 0 auto;
