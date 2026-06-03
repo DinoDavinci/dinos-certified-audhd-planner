@@ -15,7 +15,6 @@ import {
 import QuestInspector from "./QuestInspector";
 import RoutineInspector from "./RoutineInspector";
 import TaskInspector from "./TaskInspector";
-import { PanelTitleBar } from "./inspectorShared";
 
 export default function InspectorPanel(props) {
   const { rightSplit, embedded = false } = props;
@@ -29,8 +28,8 @@ export default function InspectorPanel(props) {
       className={shellClassName}
       style={shellStyle}
     >
-      <InspectorTitleBar {...props} />
-      <div className="panel-content">
+      <InspectorToolbar {...props} />
+      <div className="inspector-properties-section">
         <Inspector {...props} />
       </div>
     </section>
@@ -46,7 +45,7 @@ function getSelectionType(selection) {
   return "Nothing";
 }
 
-function getInspectorBarClass(selection) {
+function getInspectorAccentClass(selection) {
   const type = selection?.type || "none";
   if (type === "quest") return "inspector-title-quest";
   if (type === "routine") return "inspector-title-routine";
@@ -110,7 +109,7 @@ function getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId) {
   return null;
 }
 
-function InspectorTitleBar({
+function InspectorToolbar({
   selection,
   data,
   activeQuestId,
@@ -138,20 +137,26 @@ function InspectorTitleBar({
   }
 
   return (
-    <PanelTitleBar title={`Inspector - ${getSelectionType(selection)}`} className={getInspectorBarClass(selection)}>
-      <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30"><ArrowLeft size={16} /></button>
-      <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30"><ArrowRight size={16} /></button>
-      {goto && (
-        <button
-          onClick={runGoto}
-          disabled={goto.disabled}
-          className="title-secondary-button"
-          title={goto.title}
-        >
-          Focus
-        </button>
-      )}
-    </PanelTitleBar>
+    <div className={`inspector-toolbar ${getInspectorAccentClass(selection)}`}>
+      <div className="inspector-toolbar-section">
+        <span className="inspector-selection-badge">{getSelectionType(selection)}</span>
+      </div>
+
+      <div className="inspector-toolbar-actions">
+        <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30"><ArrowLeft size={16} /></button>
+        <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30"><ArrowRight size={16} /></button>
+        {goto && (
+          <button
+            onClick={runGoto}
+            disabled={goto.disabled}
+            className="title-secondary-button"
+            title={goto.title}
+          >
+            Focus
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -183,9 +188,7 @@ function Inspector({
 }) {
   const selected = resolveSelection(selection, data);
   return (
-    <div>
-
-
+    <div className="inspector-mode-content">
       {selection.type === "quest" && selected?.quest && (
         <QuestInspector
           quest={selected.quest}

@@ -1465,6 +1465,43 @@ function DarkStyles() {
         background: rgb(120 53 15);
         border-bottom-color: rgb(217 119 6);
       }
+
+      .inspector-toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        border-bottom: 1px solid rgb(38 38 38);
+        background: rgb(23 23 23);
+        padding: 0.35rem 0.65rem;
+      }
+      .inspector-toolbar-section,
+      .inspector-toolbar-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        min-width: 0;
+      }
+      .inspector-selection-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 0.35rem;
+        background: rgb(38 38 38);
+        padding: 0.18rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 850;
+        color: rgb(229 229 229);
+      }
+      .inspector-properties-section {
+        padding: 0.75rem;
+      }
+      .inspector-mode-content {
+        display: grid;
+        gap: 0.85rem;
+      }
       .inspector-action-row {
         display: flex;
         flex-wrap: wrap;

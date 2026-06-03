@@ -115,16 +115,6 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
         </div>
       )}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4">
-        <div className="mb-2 flex justify-between text-sm">
-          <span className="text-neutral-400">Progress</span>
-          <span>{getQuestProgress(quest)}%</span>
-        </div>
-        <div className="h-3 overflow-hidden rounded-full bg-neutral-800">
-          <div className="h-full rounded-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
-        </div>
-      </div>
-
       <div className="danger-zone">
         <button
           onClick={deleteQuest}

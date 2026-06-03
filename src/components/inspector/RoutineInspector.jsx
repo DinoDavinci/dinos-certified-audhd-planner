@@ -62,9 +62,6 @@ export default function RoutineInspector({ routine, allTags, setData, deleteRout
 
   return (
     <div className="space-y-4">
-      <div className="main-action-row">
-      </div>
-
       <FormText label="Title" value={routine.title} onChange={(value) => updateRoutine({ title: value })} />
       <FormTextarea label="Description" value={routine.description} onChange={(value) => updateRoutine({ description: value })} />
       <TagEditor tags={routine.tags || []} allTags={allTags} onChange={(tags) => updateRoutine({ tags })} />
