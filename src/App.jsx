@@ -1360,10 +1360,12 @@ function DarkStyles() {
         overflow: hidden;
       }
       .quest-board-contents-margin {
-        overflow: hidden;
-      }
-      .quest-board-contents-scroll {
-        padding: 0;
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 4px;
+        padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
+        scrollbar-gutter: stable;
       }
       .quest-board-list {
         display: grid;
