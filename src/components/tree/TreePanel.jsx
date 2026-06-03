@@ -51,7 +51,7 @@ export default function TreePanel({
   embedded = false,
 }) {
   const shellClassName = embedded
-    ? `panel-scroll ${treeModeClass(treeContext)} tree-panel-embedded`
+    ? `tree-scene-root ${treeModeClass(treeContext)}`
     : `panel panel-scroll ${treeModeClass(treeContext)}`;
   const shellStyle = embedded ? undefined : { flexBasis: `${100 - rightSplit}%` };
 
@@ -60,23 +60,30 @@ export default function TreePanel({
       className={shellClassName}
       style={shellStyle}
     >
-      <PanelTitleBar title="Tree View">
-        {effectiveTreeEditMode && treeContext.type === "routine" && (
-          <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
-        )}
-        {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
-          <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
-        )}
-        <button
-          onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
-          disabled={Boolean(treeContext.quest?.locked)}
-          className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
-          title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
-        >
-          {effectiveTreeEditMode ? "Done" : "Edit"}
-        </button>
-      </PanelTitleBar>
-      <div className="panel-content">
+      <div className="tree-toolbar">
+        <div className="tree-toolbar-context">
+          <span className="tree-mode-pill">{treeContext.type === "focus" ? "Focus" : treeContext.type === "routine" ? "Routine" : treeContext.type === "quest" ? "Quest" : "Empty"}</span>
+          {effectiveTreeEditMode && <span className="tree-edit-pill">Editing</span>}
+        </div>
+
+        <div className="tree-toolbar-actions">
+          {effectiveTreeEditMode && treeContext.type === "routine" && (
+            <button onClick={() => createRoutineTask(treeContext.routine.id, null)} className="title-secondary-button">+ Task</button>
+          )}
+          {effectiveTreeEditMode && (treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest && !treeContext.quest.locked && (
+            <button onClick={() => createQuestTask(treeContext.quest.id, null)} className="title-secondary-button">+ Task</button>
+          )}
+          <button
+            onClick={() => !treeContext.quest?.locked && setTreeEditMode(!treeEditMode)}
+            disabled={Boolean(treeContext.quest?.locked)}
+            className={treeContext.quest?.locked ? "title-secondary-button title-button-disabled" : effectiveTreeEditMode ? "title-primary-button" : "title-secondary-button"}
+            title={treeContext.quest?.locked ? "Routine-generated quests are read-only. Edit the source routine instead." : "Edit tree"}
+          >
+            {effectiveTreeEditMode ? "Done" : "Edit"}
+          </button>
+        </div>
+      </div>
+      <div className="tree-scene-content">
         {treeContext.type === "routine" && (
           <TreeRootRow
             title={treeContext.routine.title}

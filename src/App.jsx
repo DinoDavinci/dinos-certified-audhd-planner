@@ -1666,11 +1666,42 @@ function DarkStyles() {
         display: flex;
         overflow: hidden;
       }
-      .tree-panel-embedded {
+      .tree-scene-root {
         flex: 1 1 auto;
         width: 100%;
         min-width: 0;
         min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+      .tree-scene-content {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0;
+      }
+      .tree-toolbar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-height: 1.7rem;
+        margin-bottom: 4px;
+      }
+      .tree-toolbar-context,
+      .tree-toolbar-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        min-width: 0;
       }
       .right-column {
         flex: 0 0 auto;
@@ -1728,7 +1759,6 @@ function DarkStyles() {
       .tree-panel {
         flex: 0 0 auto;
         transition: border-color 0.15s ease, background 0.15s ease;
-      
       }
       .focus-tree {
         border-color: rgb(30 64 175);
