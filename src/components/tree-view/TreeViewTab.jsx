@@ -18,6 +18,7 @@ import {
   isTaskComplete,
   isTaskReadyToComplete,
   isTreeTaskSelected,
+  moveTaskToTreeLocation,
   questTypeClass,
   treeModeClass,
 } from "../../models/appModel";
@@ -185,6 +186,118 @@ export default function TreeViewTab({
     }
   }
 
+
+  function getTreeMoveContext() {
+    if (treeContext.type === "routine" && treeContext.routine) {
+      const rootTask = treeContext.routine.questTemplate?.rootTask || null;
+      return {
+        kind: "routine",
+        ownerId: treeContext.routine.id,
+        rootId: rootTask?.id || `routine-root-${treeContext.routine.id}`,
+        tasks: rootTask?.children || [],
+        locked: false,
+      };
+    }
+
+    if ((treeContext.type === "quest" || treeContext.type === "focus") && treeContext.quest) {
+      const rootTask = treeContext.quest.rootTask || null;
+      return {
+        kind: treeContext.type,
+        ownerId: treeContext.quest.id,
+        rootId: rootTask?.id || `quest-root-${treeContext.quest.id}`,
+        tasks: rootTask?.children || [],
+        locked: Boolean(treeContext.quest.locked),
+      };
+    }
+
+    return null;
+  }
+
+  function validateTreeDragOperation(activeDrag, releaseTarget) {
+    const moveContext = getTreeMoveContext();
+    const placement = releaseTarget?.placement || releaseTarget?.zone || null;
+
+    if (!moveContext) {
+      return {
+        ok: false,
+        reason: "missing-tree-context",
+        source: activeDrag || null,
+        target: releaseTarget || null,
+      };
+    }
+
+    if (moveContext.locked) {
+      return {
+        ok: false,
+        reason: "locked-tree-context",
+        source: activeDrag || null,
+        target: releaseTarget || null,
+        context: moveContext.kind,
+      };
+    }
+
+    if (!activeDrag?.taskId) {
+      return {
+        ok: false,
+        reason: "missing-source-task",
+        source: activeDrag || null,
+        target: releaseTarget || null,
+        context: moveContext.kind,
+      };
+    }
+
+    if (!releaseTarget?.id) {
+      return {
+        ok: false,
+        reason: "missing-drop-target",
+        source: activeDrag,
+        target: releaseTarget || null,
+        context: moveContext.kind,
+      };
+    }
+
+    if (!placement) {
+      return {
+        ok: false,
+        reason: "missing-drop-placement",
+        source: activeDrag,
+        target: releaseTarget,
+        context: moveContext.kind,
+      };
+    }
+
+    const dryRun = moveTaskToTreeLocation(
+      moveContext.tasks,
+      activeDrag.taskId,
+      releaseTarget.id,
+      placement,
+      { rootId: moveContext.rootId }
+    );
+
+    if (!dryRun.moved) {
+      return {
+        ok: false,
+        reason: dryRun.reason || "move-rejected",
+        source: activeDrag,
+        target: releaseTarget,
+        placement,
+        context: moveContext.kind,
+        ownerId: moveContext.ownerId,
+      };
+    }
+
+    return {
+      ok: true,
+      reason: "move-accepted-dry-run",
+      source: activeDrag,
+      target: releaseTarget,
+      placement,
+      context: moveContext.kind,
+      ownerId: moveContext.ownerId,
+      result: dryRun,
+    };
+  }
+
   function finishTreeDrag(event, activeDrag = dragStateRef.current) {
     if (!activeDrag) return;
 
@@ -196,6 +309,13 @@ export default function TreeViewTab({
       source: activeDrag,
       target: releaseTarget,
     };
+
+    const validation = validateTreeDragOperation(activeDrag, releaseTarget);
+    if (!validation.ok) {
+      console.warn("[Tree rearrange] rejected drag operation", validation);
+    } else {
+      console.log("[Tree rearrange] accepted drag operation dry run", validation);
+    }
 
     console.log("[Tree rearrange] drag release", result);
 
