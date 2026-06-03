@@ -1484,10 +1484,8 @@ function DarkStyles() {
         align-items: center;
         justify-content: space-between;
         gap: 0.5rem;
-        border: 1px solid rgb(45 45 45);
-        border-radius: 0.28rem;
-        background: rgb(31 31 31);
-        padding: 0.35rem 0.65rem;
+        min-height: 1.7rem;
+        padding: 0;
       }
       .inspector-toolbar-section,
       .inspector-toolbar-actions {
@@ -1524,17 +1522,12 @@ function DarkStyles() {
         color: rgb(254 215 170);
       }
       .inspector-properties-panel {
-        border: 1px solid rgb(55 55 55);
+        border: 1px solid rgb(70 70 70);
         border-radius: 0.28rem;
-        background: rgb(36 36 36);
+        background: rgb(48 48 48);
       }
       .inspector-properties-margin {
         padding: 4px;
-      }
-      .inspector-properties-section {
-        border-radius: 0.22rem;
-        background: rgb(40 40 40);
-        padding: 0.75rem;
       }
       .inspector-mode-content {
         display: grid;

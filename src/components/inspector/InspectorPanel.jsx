@@ -33,9 +33,7 @@ export default function InspectorPanel(props) {
           <InspectorToolbar {...props} />
           <div className="inspector-properties-panel">
             <div className="inspector-properties-margin">
-              <div className="inspector-properties-section">
-                <Inspector {...props} />
-              </div>
+              <Inspector {...props} />
             </div>
           </div>
         </div>
