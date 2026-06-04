@@ -378,6 +378,138 @@ export function buildFocusBoardFromRoot(root) {
 }
 
 
+function makeExecutionLayer(task, options = {}) {
+  const progress = countLeafProgress(task);
+  const children = task?.children || [];
+
+  return {
+    task,
+    progress,
+    hasChildren: children.length > 0,
+    complete: isTaskComplete(task),
+    ready: isTaskReadyToComplete(task),
+    isTerminal: !!options.isTerminal,
+  };
+}
+
+function getExecutionPathFromTask(task) {
+  if (!task) return [];
+  if (isTaskComplete(task)) return [task];
+
+  const children = task.children || [];
+  if (children.length === 0) return [task];
+  if (isTaskReadyToComplete(task)) return [task];
+
+  const nextChild = children.find((child) => !isTaskComplete(child));
+  if (!nextChild) return [task];
+
+  return [task, ...getExecutionPathFromTask(nextChild)];
+}
+
+function makeExecutionStack(task, options = {}) {
+  const path = getExecutionPathFromTask(task);
+  const terminalTask = path[path.length - 1] || task;
+  const progress = countLeafProgress(task);
+  const complete = isTaskComplete(task);
+  const ready = isTaskReadyToComplete(task);
+  const started = progress.complete > 0 || ready;
+  const isUpcoming = !!options.isUpcoming;
+  const isSelfStack = !!options.isSelfStack;
+
+  let status = "available";
+  if (complete) {
+    status = "completed";
+  } else if (ready && !isUpcoming) {
+    status = "available";
+  } else if (started && !isUpcoming) {
+    status = "inProgress";
+  }
+
+  return {
+    kind: isSelfStack ? (task?.isRootTask ? "rootTask" : "taskConfirmation") : "executionStack",
+    stackId: `${isSelfStack ? "self" : "task"}-${task.id}`,
+    task,
+    rootTask: task,
+    actionTask: complete ? null : terminalTask,
+    path,
+    pathText: path.map((item) => item.title || "Untitled").join(" › "),
+    layers: path.map((item, index) => {
+      const isTerminal = index === path.length - 1;
+      const isReadyCompositeCompletion =
+        isTerminal &&
+        !complete &&
+        isTaskReadyToComplete(item) &&
+        (item.children || []).length > 0;
+
+      return {
+        ...makeExecutionLayer(item, { isTerminal }),
+        displayTitle: isReadyCompositeCompletion
+          ? item.isRootTask
+            ? "Complete quest"
+            : `Complete ${item.title || "task"}`
+          : item.title,
+        displayDescription: isReadyCompositeCompletion
+          ? item.isRootTask
+            ? "Complete this quest."
+            : "Complete this task."
+          : item.description,
+        isReadyCompositeCompletion,
+      };
+    }),
+    progress,
+    complete,
+    ready,
+    isUpcoming,
+    isBlocked: isUpcoming,
+    status,
+  };
+}
+
+function getEligibleImmediateChildIds(tasks, mode) {
+  const open = (tasks || []).filter((task) => !isTaskComplete(task));
+  if (mode === "sequence") return new Set(open[0] ? [open[0].id] : []);
+  return new Set(open.map((task) => task.id));
+}
+
+export function buildExecutionBoardFromRoot(root) {
+  if (!root) {
+    return {
+      available: [],
+      inProgress: [],
+      completed: [],
+      totalCount: 0,
+      completedCount: 0,
+    };
+  }
+
+  const tasks = root.tasks || [];
+  const eligibleIds = getEligibleImmediateChildIds(tasks, root.mode || "all");
+  const stacks = tasks.map((task) => makeExecutionStack(task, {
+    isUpcoming: !isTaskComplete(task) && !eligibleIds.has(task.id),
+  }));
+
+  if (root.selfTask) {
+    const selfTask = root.selfTask;
+    const rootTaskReadyWithoutChildren =
+      selfTask.isRootTask &&
+      !isTaskComplete(selfTask) &&
+      (selfTask.children || []).length === 0;
+
+    if (isTaskComplete(selfTask) || isTaskReadyToComplete(selfTask) || rootTaskReadyWithoutChildren) {
+      stacks.unshift(makeExecutionStack(selfTask, { isSelfStack: true }));
+    }
+  }
+
+  return {
+    available: stacks.filter((stack) => stack.status === "available"),
+    inProgress: stacks.filter((stack) => stack.status === "inProgress"),
+    completed: stacks.filter((stack) => stack.status === "completed"),
+    totalCount: stacks.length,
+    completedCount: stacks.filter((stack) => stack.status === "completed").length,
+  };
+}
+
+
 export function buildFocusBoard(quest) {
   if (!quest) return buildFocusBoardFromRoot(null);
   return buildFocusBoardFromRoot({

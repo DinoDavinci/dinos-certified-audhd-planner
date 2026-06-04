@@ -21,6 +21,7 @@ function isQuestCompletionRow(row) {
 }
 
 export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFocus, clearBranchFocus, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
+  const [showUpcomingStacks, setShowUpcomingStacks] = useState(true);
   if (!quest) {
     return (
       <main className="focus-tab-root">
@@ -57,7 +58,18 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
         </div>
       </div>
 
-      <section className="mt-5 focus-board">
+      <div className="focus-board-toolbar">
+        <label className="focus-board-toggle">
+          <input
+            type="checkbox"
+            checked={showUpcomingStacks}
+            onChange={(event) => setShowUpcomingStacks(event.target.checked)}
+          />
+          Show upcoming
+        </label>
+      </div>
+
+      <section className="focus-board">
         <FocusColumn
           title="Available"
           rows={focusBoard.available}
@@ -66,16 +78,16 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
           toggleTask={toggleTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
-          showCompleteButton
+          showUpcoming={showUpcomingStacks}
         />
         <FocusColumn
           title="In Progress"
           rows={focusBoard.inProgress}
-          emptyText="No parent tasks in progress."
+          emptyText="No tasks in progress."
           selectTask={selectTask}
+          toggleTask={toggleTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
-          showProgress
         />
         <FocusColumn
           title="Completed"
@@ -335,6 +347,128 @@ function FocusPathLinks({ row, selectTask }) {
   );
 }
 
+function getLayerExpansionKey(stack, layer) {
+  return `stack:${stack.stackId}:${layer.task.id}`;
+}
+
+function getLayerProgressLabel(layer) {
+  if (layer.complete) return "Done";
+  if (hasCountTarget(layer.task) && !layer.complete) {
+    const { progress, target } = getCountProgress(layer.task);
+    return `${progress}/${target}`;
+  }
+  if (layer.progress?.total > 0) {
+    return `${layer.progress.complete}/${layer.progress.total}`;
+  }
+  return "";
+}
+
+function ExecutionStackLayer({ stack, layer, depth, selectTask, toggleTask, uncompleteTask, expandedKanbanCards = {}, setExpandedKanbanCards, showUncompleteButton = false }) {
+  const task = layer.task;
+  const displayTitle = layer.displayTitle || task.title || "Untitled";
+  const displayDescription = layer.displayDescription ?? task.description ?? "";
+  const hasDescription = Boolean(displayDescription.trim());
+  const expansionKey = getLayerExpansionKey(stack, layer);
+  const expanded = Boolean(expandedKanbanCards[expansionKey]);
+  const isActionLayer = layer.isTerminal && stack.actionTask?.id === task.id && !stack.isBlocked && !stack.complete;
+  const actionState = getKanbanActionState(task);
+  const progressLabel = getLayerProgressLabel(layer);
+
+  return (
+    <div className={`execution-stack-layer execution-stack-layer-depth-${Math.min(depth, 5)} ${layer.isTerminal ? "execution-stack-layer-terminal" : ""}`}>
+      <div className="execution-stack-layer-bar">
+        <div className="execution-stack-layer-main">
+          {hasDescription && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedKanbanCards?.((old) => ({ ...old, [expansionKey]: !old[expansionKey] }));
+              }}
+              className="focus-card-done focus-card-dropdown"
+              title={expanded ? "Hide description" : "Show description"}
+            >
+              {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="execution-stack-layer-title"
+            onClick={() => !isQuestCompletionRow(stack) && selectTask(task)}
+            title="Select in inspector"
+          >
+            {displayTitle}
+          </button>
+        </div>
+
+        <div className="execution-stack-layer-meta">
+          {isActionLayer && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleTask(task);
+              }}
+              className={`focus-card-done ${actionState === "progress" ? "focus-card-action-progress" : "focus-card-action-complete"}`}
+              title={getKanbanActionTitle(task)}
+            >
+              {actionState === "progress" ? <Play size={14} /> : <CheckCircle2 size={14} />}
+            </button>
+          )}
+
+          {stack.complete && layer.isTerminal && showUncompleteButton && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                uncompleteTask(task);
+              }}
+              className="focus-card-done focus-card-action-uncomplete"
+              title="Mark incomplete"
+            >
+              <X size={14} />
+            </button>
+          )}
+
+          {!isActionLayer && !(stack.complete && layer.isTerminal && showUncompleteButton) && (
+            <span className={layer.complete ? "execution-stack-done-pill" : stack.isUpcoming && layer.isTerminal ? "execution-stack-upcoming-pill" : "execution-stack-progress-pill"}>
+              {stack.isUpcoming && layer.isTerminal ? "Upcoming" : progressLabel}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {hasDescription && expanded && (
+        <div className="execution-stack-layer-body">
+          <RichDescription text={displayDescription} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExecutionStackCard({ stack, selectTask, toggleTask, uncompleteTask, expandedKanbanCards = {}, setExpandedKanbanCards, showUncompleteButton = false }) {
+  return (
+    <div className={`execution-stack-card ${stack.isUpcoming ? "execution-stack-card-upcoming" : ""} ${stack.complete ? "focus-card-complete" : ""}`}>
+      {(stack.layers || []).map((layer, index) => (
+        <ExecutionStackLayer
+          key={`${stack.stackId}:${layer.task.id}:${index}`}
+          stack={stack}
+          layer={layer}
+          depth={index}
+          selectTask={selectTask}
+          toggleTask={toggleTask}
+          uncompleteTask={uncompleteTask}
+          expandedKanbanCards={expandedKanbanCards}
+          setExpandedKanbanCards={setExpandedKanbanCards}
+          showUncompleteButton={showUncompleteButton}
+        />
+      ))}
+    </div>
+  );
+}
+
 function FocusColumn({
   title,
   rows,
@@ -344,115 +478,36 @@ function FocusColumn({
   uncompleteTask,
   expandedKanbanCards = {},
   setExpandedKanbanCards,
-  showCompleteButton = false,
-  showUncompleteButton = false,
-  showProgress = false,
   completed = false,
+  showUncompleteButton = false,
+  showUpcoming = true,
   summary = null,
 }) {
+  const visibleRows = showUpcoming ? rows : rows.filter((row) => !row.isUpcoming);
+
   return (
     <div className="focus-column">
       <div className="focus-column-title">
         <span>{title}</span>
-        <span className="focus-column-count">{summary || rows.length}</span>
+        <span className="focus-column-count">{summary || visibleRows.length}</span>
       </div>
 
       <div className="focus-column-list">
-        {rows.length === 0 && <div className="focus-empty">{emptyText}</div>}
+        {visibleRows.length === 0 && <div className="focus-empty">{emptyText}</div>}
 
-        {rows.map((row) => {
-          const hasDescription = Boolean((row.task.description || "").trim());
-          const expanded = Boolean(expandedKanbanCards[row.task.id]);
-
-          return (
-            <div
-              key={row.task.id}
-              className={completed ? "focus-card focus-card-complete" : "focus-card"}
-            >
-              <div
-                className="focus-card-bar"
-                onClick={() => !isQuestCompletionRow(row) && selectTask(row.task)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    if (!isQuestCompletionRow(row)) selectTask(row.task);
-                  }
-                }}
-              >
-                <div className="focus-card-main">
-                  <div className="focus-card-title-line">
-                    {hasDescription && (
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setExpandedKanbanCards?.((old) => ({ ...old, [row.task.id]: !old[row.task.id] }));
-                        }}
-                        className="focus-card-done focus-card-dropdown"
-                        title={expanded ? "Hide description" : "Show description"}
-                      >
-                        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      </button>
-                    )}
-                    <FocusPathLinks row={row} selectTask={selectTask} />
-                  </div>
-                  {showProgress && row.progress && (
-                    <div className="focus-card-progress-bar" title={`${row.progress.complete} / ${row.progress.total}`}>
-                      <div
-                        className="focus-card-progress-fill"
-                        style={{ width: `${row.progress.total > 0 ? Math.round((row.progress.complete / row.progress.total) * 100) : 0}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="focus-card-actions">
-                  {showCompleteButton && (
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleTask(row);
-                      }}
-                      className={`focus-card-done ${getKanbanActionState(row.task) === "progress" ? "focus-card-action-progress" : "focus-card-action-complete"}`}
-                      title={getKanbanActionTitle(row.task)}
-                    >
-                      {getKanbanActionState(row.task) === "progress" ? <Play size={14} /> : <CheckCircle2 size={14} />}
-                    </button>
-                  )}
-
-                  {showUncompleteButton && (
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        uncompleteTask(row);
-                      }}
-                      className="focus-card-done focus-card-action-uncomplete"
-                      title="Mark incomplete"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {hasCountTarget(row.task) && !row.task.completed && (
-                <div className="focus-card-progress-bar focus-card-progress-full" title={`${getCountProgress(row.task).progress} / ${getCountProgress(row.task).target}`}>
-                  <div
-                    className="focus-card-progress-fill"
-                    style={{ width: `${getLeafProgressPercent(row.task)}%` }}
-                  />
-                </div>
-              )}
-
-              {hasDescription && expanded && (
-                <div className="focus-card-body">
-                  <RichDescription text={row.task.description} />
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {visibleRows.map((row) => (
+          <ExecutionStackCard
+            key={row.stackId || row.task.id}
+            stack={row}
+            selectTask={selectTask}
+            toggleTask={toggleTask}
+            uncompleteTask={uncompleteTask}
+            expandedKanbanCards={expandedKanbanCards}
+            setExpandedKanbanCards={setExpandedKanbanCards}
+            completed={completed}
+            showUncompleteButton={showUncompleteButton}
+          />
+        ))}
       </div>
     </div>
   );

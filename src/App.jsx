@@ -17,6 +17,7 @@ import {
   isQuestReadyToComplete,
   nextTasksInList,
   buildFocusBoardFromRoot,
+  buildExecutionBoardFromRoot,
   addQuestCompletionCard,
   getFocusPathInfo,
   updateQuestTree,
@@ -108,10 +109,7 @@ export default function App() {
   const activeQuest = quests.find((quest) => quest.id === data.activeQuestId) || quests[0] || null;
   const focusPathInfo = getFocusPathInfo(activeQuest, data.activeBranchTaskId);
   const actionable = nextTasksInList(focusPathInfo.root?.tasks || [], focusPathInfo.root?.mode || "all");
-  const focusBoard = addQuestCompletionCard(
-    buildFocusBoardFromRoot(focusPathInfo.root),
-    activeQuest
-  );
+  const focusBoard = buildExecutionBoardFromRoot(focusPathInfo.root);
 
   function setSelection(next) {
     setSelectionRaw(next);
@@ -2517,6 +2515,125 @@ function DarkStyles() {
         text-align: center;
         white-space: nowrap;
       }
+
+      .focus-board-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        margin-bottom: 0.45rem;
+      }
+      .focus-board-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.78rem;
+        font-weight: 750;
+        color: rgb(180 180 180);
+        user-select: none;
+      }
+      .focus-board-toggle input {
+        accent-color: rgb(212 212 212);
+      }
+      .execution-stack-card {
+        flex: 0 0 auto;
+        overflow: hidden;
+        border: 1px solid rgb(38 38 38);
+        background: rgb(10 10 10);
+      }
+      .execution-stack-card:hover {
+        border-color: rgb(82 82 82);
+      }
+      .execution-stack-card-upcoming {
+        opacity: 0.58;
+      }
+      .execution-stack-layer {
+        border-bottom: 1px solid rgb(38 38 38);
+      }
+      .execution-stack-layer:last-child {
+        border-bottom: 0;
+      }
+      .execution-stack-layer-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.35rem;
+        min-height: 2rem;
+        background: rgb(38 38 38);
+        padding: 0.3rem 0.35rem;
+      }
+      .execution-stack-layer-depth-1 .execution-stack-layer-bar {
+        background: rgb(31 31 31);
+        padding-left: 0.7rem;
+      }
+      .execution-stack-layer-depth-2 .execution-stack-layer-bar {
+        background: rgb(25 25 25);
+        padding-left: 1.05rem;
+      }
+      .execution-stack-layer-depth-3 .execution-stack-layer-bar,
+      .execution-stack-layer-depth-4 .execution-stack-layer-bar,
+      .execution-stack-layer-depth-5 .execution-stack-layer-bar {
+        background: rgb(20 20 20);
+        padding-left: 1.4rem;
+      }
+      .execution-stack-layer-terminal .execution-stack-layer-bar {
+        background: rgb(23 23 23);
+      }
+      .execution-stack-layer-main {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        min-width: 0;
+      }
+      .execution-stack-layer-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgb(212 212 212);
+        text-align: left;
+        font-size: 0.82rem;
+        font-weight: 750;
+      }
+      .execution-stack-layer-title:hover {
+        color: white;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .execution-stack-layer-meta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.25rem;
+        flex: 0 0 auto;
+        color: rgb(163 163 163);
+        font-size: 0.72rem;
+        font-weight: 850;
+      }
+      .execution-stack-progress-pill,
+      .execution-stack-done-pill,
+      .execution-stack-upcoming-pill {
+        border-radius: 999px;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.08rem 0.4rem;
+        white-space: nowrap;
+      }
+      .execution-stack-done-pill {
+        border-color: rgb(21 128 61);
+        background: rgb(20 83 45);
+        color: rgb(187 247 208);
+      }
+      .execution-stack-upcoming-pill {
+        color: rgb(140 140 140);
+      }
+      .execution-stack-layer-body {
+        border-top: 1px solid rgb(38 38 38);
+        background: rgb(10 10 10);
+        padding: 0.5rem;
+      }
+
       .focus-board {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
