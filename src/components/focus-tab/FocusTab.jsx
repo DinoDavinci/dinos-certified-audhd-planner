@@ -75,6 +75,7 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
           rows={focusBoard.available}
           emptyText="No available tasks."
           selectTask={selectTask}
+          setBranchFocus={setBranchFocus}
           toggleTask={toggleTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
@@ -85,6 +86,7 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
           rows={focusBoard.inProgress}
           emptyText="No tasks in progress."
           selectTask={selectTask}
+          setBranchFocus={setBranchFocus}
           toggleTask={toggleTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
@@ -94,6 +96,7 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
           rows={focusBoard.completed}
           emptyText="Nothing completed yet."
           selectTask={selectTask}
+          setBranchFocus={setBranchFocus}
           uncompleteTask={uncompleteTask}
           expandedKanbanCards={expandedKanbanCards}
           setExpandedKanbanCards={setExpandedKanbanCards}
@@ -363,7 +366,7 @@ function getLayerProgressLabel(layer) {
   return "";
 }
 
-function ExecutionStackLayer({ stack, layer, depth, selectTask, toggleTask, uncompleteTask, expandedKanbanCards = {}, setExpandedKanbanCards, showUncompleteButton = false }) {
+function ExecutionStackLayer({ stack, layer, depth, selectTask, setBranchFocus, toggleTask, uncompleteTask, expandedKanbanCards = {}, setExpandedKanbanCards, showUncompleteButton = false }) {
   const task = layer.task;
   const displayTitle = layer.displayTitle || task.title || "Untitled";
   const displayDescription = layer.displayDescription ?? task.description ?? "";
@@ -373,6 +376,7 @@ function ExecutionStackLayer({ stack, layer, depth, selectTask, toggleTask, unco
   const isActionLayer = layer.isTerminal && stack.actionTask?.id === task.id && !stack.isBlocked && !stack.complete;
   const actionState = getKanbanActionState(task);
   const progressLabel = getLayerProgressLabel(layer);
+  const isCompositeTask = (task.children || []).length > 0;
 
   return (
     <div className={`execution-stack-layer execution-stack-layer-depth-${Math.min(depth, 5)} ${layer.isTerminal ? "execution-stack-layer-terminal" : ""}`}>
@@ -395,8 +399,16 @@ function ExecutionStackLayer({ stack, layer, depth, selectTask, toggleTask, unco
           <button
             type="button"
             className="execution-stack-layer-title"
-            onClick={() => !isQuestCompletionRow(stack) && selectTask(task)}
-            title="Select in inspector"
+            onClick={() => {
+              if (isQuestCompletionRow(stack)) return;
+              if (isCompositeTask) {
+                selectTask(task);
+                setBranchFocus?.(task.id);
+              } else {
+                selectTask(task);
+              }
+            }}
+            title={isCompositeTask ? "Focus this branch" : "Select in inspector"}
           >
             {displayTitle}
           </button>
@@ -454,7 +466,7 @@ function ExecutionStackLayer({ stack, layer, depth, selectTask, toggleTask, unco
   );
 }
 
-function ExecutionStackCard({ stack, selectTask, toggleTask, uncompleteTask, expandedKanbanCards = {}, setExpandedKanbanCards, showUncompleteButton = false }) {
+function ExecutionStackCard({ stack, selectTask, setBranchFocus, toggleTask, uncompleteTask, expandedKanbanCards = {}, setExpandedKanbanCards, showUncompleteButton = false }) {
   return (
     <div className={`execution-stack-card ${stack.isUpcoming ? "execution-stack-card-upcoming" : ""} ${stack.complete ? "focus-card-complete" : ""}`}>
       {(stack.layers || []).map((layer, index) => (
@@ -464,6 +476,7 @@ function ExecutionStackCard({ stack, selectTask, toggleTask, uncompleteTask, exp
           layer={layer}
           depth={index}
           selectTask={selectTask}
+          setBranchFocus={setBranchFocus}
           toggleTask={toggleTask}
           uncompleteTask={uncompleteTask}
           expandedKanbanCards={expandedKanbanCards}
@@ -480,6 +493,7 @@ function FocusColumn({
   rows,
   emptyText,
   selectTask,
+  setBranchFocus,
   toggleTask,
   uncompleteTask,
   expandedKanbanCards = {},
@@ -506,6 +520,7 @@ function FocusColumn({
             key={row.stackId || row.task.id}
             stack={row}
             selectTask={selectTask}
+            setBranchFocus={setBranchFocus}
             toggleTask={toggleTask}
             uncompleteTask={uncompleteTask}
             expandedKanbanCards={expandedKanbanCards}
