@@ -689,7 +689,10 @@ async function importJsonFile(file) {
           focusPathInfo={focusPathInfo}
           setBranchFocus={setBranchFocus}
           clearBranchFocus={clearBranchFocus}
-          selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
+          selectQuest={(quest) => {
+            makeFocus(quest.id);
+            setSelection({ type: "quest", id: quest.id });
+          }}
           selectTask={(task) => setSelection({ type: "task", questId: activeQuest.id, id: task.id })}
           toggleTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
