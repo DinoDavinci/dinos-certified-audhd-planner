@@ -11,6 +11,7 @@ import {
   findTaskPath,
   nextTasksInList,
   resetTasks,
+  resetTaskSubtree,
 } from "./taskModel";
 
 // Quest model helpers.
@@ -128,6 +129,7 @@ export function makeQuest(overrides = {}) {
     deadline: "",
     status: "active",
     completedAt: "",
+    openedAt: todayString(),
     scheduleType: normalizedSchedule.scheduleType,
     schedule: normalizedSchedule.schedule,
     // Legacy mirrors kept during the scheduling refactor so existing UI and maintenance stay stable.
@@ -145,6 +147,20 @@ export function makeQuest(overrides = {}) {
     cooldownEnabled,
     cooldownAmount: normalizedSchedule.schedule.cooldownAmount,
     cooldownUnit: normalizedSchedule.schedule.cooldownUnit,
+  };
+}
+
+
+export function openQuestAttempt(quest, date = todayString(), patch = {}) {
+  const rootTask = getQuestRootTask(quest);
+
+  return {
+    ...quest,
+    status: "active",
+    completedAt: "",
+    openedAt: date,
+    rootTask: resetTaskSubtree(rootTask),
+    ...patch,
   };
 }
 

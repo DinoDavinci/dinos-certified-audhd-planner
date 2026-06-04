@@ -70,6 +70,7 @@ import {
   getBranchFocusInfo,
   getFocusPathInfo,
   getChildBranches,
+  openQuestAttempt,
 } from "./questModel";
 
 export {
@@ -281,6 +282,7 @@ export function normalizeData(parsed) {
           ...quest,
           locked: quest.locked ?? quest.sourceType === "routine",
           completedAt: quest.completedAt || "",
+          openedAt: quest.openedAt || "",
           cooldownEnabled: quest.cooldownEnabled || false,
           cooldownAmount: quest.cooldownAmount || 6,
           cooldownUnit: quest.cooldownUnit || "months",
@@ -342,12 +344,7 @@ export function runDailyMaintenance(data) {
     ) {
       const resetDate = addCooldown(quest.completedAt, quest.cooldownAmount, quest.cooldownUnit);
       if (resetDate <= today) {
-        return {
-          ...quest,
-          status: "active",
-          completedAt: "",
-          rootTask: resetTaskSubtree(quest.rootTask),
-        };
+        return openQuestAttempt(quest, today);
       }
     }
 
