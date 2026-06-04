@@ -16,7 +16,11 @@ import {
   getLeafProgressPercent,
 } from "../../models/appModel";
 
-export default function FocusTab({ quest, actionable, focusBoard, focusPathInfo, branchFocusId, setBranchFocus, clearBranchFocus, dueBadge, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
+function isQuestCompletionRow(row) {
+  return row?.kind === "questCompletion" || row?.kind === "rootTask";
+}
+
+export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFocus, clearBranchFocus, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
   if (!quest) {
     return (
       <main className="focus-tab-root">
@@ -43,11 +47,11 @@ export default function FocusTab({ quest, actionable, focusBoard, focusPathInfo,
         clearBranchFocus={clearBranchFocus}
       />
 
-      {focusBoard.available.some((row) => ((row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask") || row.kind === "rootTask") || isQuestComplete(quest) ? (
+      {focusBoard.available.some((row) => isQuestCompletionRow(row)) || isQuestComplete(quest) ? (
         <div className="complete-quest-celebration">
           <button
             onClick={() => {
-              const completionRow = focusBoard.available.find((row) => ((row.kind === "questCompletion" || row.kind === "rootTask") || row.kind === "rootTask") || row.kind === "rootTask");
+              const completionRow = focusBoard.available.find((row) => isQuestCompletionRow(row));
               if (completionRow) toggleTask(completionRow);
             }}
             className={isQuestComplete(quest) ? "recommended-complete-quest-button recommended-complete-quest-button-done" : "recommended-complete-quest-button"}
@@ -241,88 +245,6 @@ function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectTask, se
   );
 }
 
-function FocusPathTitle({ quest, focusPathInfo, selectQuest, setBranchFocus, clearBranchFocus }) {
-  const pathItems = focusPathInfo?.path || [];
-
-  return (
-    <div className="focus-path-title">
-      <button onClick={() => { clearBranchFocus(); selectQuest(quest); }} className="focus-path-title-link">
-        {quest.title || "Untitled quest"}
-      </button>
-      {pathItems.map((task) => (
-        <React.Fragment key={task.id}>
-          <span className="focus-path-title-separator">›</span>
-          <button onClick={() => setBranchFocus(task.id)} className="focus-path-title-link">
-            {task.title || "Untitled"}
-          </button>
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-function FocusBranchNav({ focusPathInfo, setBranchFocus }) {
-  const childBranches = focusPathInfo?.childBranches || [];
-
-  return (
-    <div className="focus-branch-nav">
-      <span className="focus-branch-label">Child branches:</span>
-      {childBranches.length === 0 && <span className="focus-nav-muted">None</span>}
-      {childBranches.map((task) => (
-        <button key={task.id} className="focus-nav-chip" onClick={() => setBranchFocus(task.id)}>
-          {task.title || "Untitled"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function FocusNavigation({ quest, focusPathInfo, setBranchFocus, clearBranchFocus }) {
-  if (!quest) return null;
-
-  const childBranches = focusPathInfo?.childBranches || [];
-  const pathItems = focusPathInfo?.path || [];
-
-  return (
-    <section className="focus-nav">
-      <div className="focus-nav-line">
-        <span className="focus-nav-label">Focus Root:</span>
-        <button className="focus-nav-link" onClick={clearBranchFocus}>{quest.title || "Untitled quest"}</button>
-        {pathItems.map((task) => (
-          <React.Fragment key={task.id}>
-            <span className="focus-nav-separator">›</span>
-            <button className="focus-nav-link" onClick={() => setBranchFocus(task.id)}>
-              {task.title || "Untitled"}
-            </button>
-          </React.Fragment>
-        ))}
-      </div>
-
-      {focusPathInfo?.branchTask && (
-        <div className="focus-nav-line">
-          <span className="focus-nav-label">Up:</span>
-          {focusPathInfo.parent ? (
-            <button className="focus-nav-link" onClick={() => setBranchFocus(focusPathInfo.parent.id)}>
-              {focusPathInfo.parent.title || "Untitled"}
-            </button>
-          ) : (
-            <button className="focus-nav-link" onClick={clearBranchFocus}>{quest.title || "Untitled quest"}</button>
-          )}
-        </div>
-      )}
-
-      <div className="focus-nav-line">
-        <span className="focus-nav-label">Child Branches:</span>
-        {childBranches.length === 0 && <span className="focus-nav-muted">None</span>}
-        {childBranches.map((task) => (
-          <button key={task.id} className="focus-nav-chip" onClick={() => setBranchFocus(task.id)}>
-            {task.title || "Untitled"}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function FocusPathLinks({ row, selectTask }) {
   return (
@@ -334,7 +256,7 @@ function FocusPathLinks({ row, selectTask }) {
             className="focus-path-link"
             onClick={(event) => {
               event.stopPropagation();
-              if ((row.kind !== "questCompletion" && row.kind !== "rootTask")) selectTask(task);
+              if (!isQuestCompletionRow(row)) selectTask(task);
             }}
             title="Select in inspector"
           >
@@ -382,13 +304,13 @@ function FocusColumn({
             >
               <div
                 className="focus-card-bar"
-                onClick={() => (row.kind !== "questCompletion" && row.kind !== "rootTask") && selectTask(row.task)}
+                onClick={() => !isQuestCompletionRow(row) && selectTask(row.task)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    if ((row.kind !== "questCompletion" && row.kind !== "rootTask")) selectTask(row.task);
+                    if (!isQuestCompletionRow(row)) selectTask(row.task);
                   }
                 }}
               >

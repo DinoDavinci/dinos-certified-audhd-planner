@@ -26,15 +26,6 @@ import {
 
 const TREE_DRAG_HOLD_MS = 180;
 
-function PanelTitleBar({ title, children, className = "" }) {
-  return (
-    <div className={`panel-title-bar ${className}`}>
-      <div className="panel-title">{title}</div>
-      {children && <div className="panel-title-actions">{children}</div>}
-    </div>
-  );
-}
-
 export default function TreeViewTab({
   treeContext,
 

@@ -27,7 +27,7 @@ import {
   DayMaskEditor,
 } from "./inspectorShared";
 
-export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBranchTaskId = null, setData, makeFocus, completeQuest, restoreQuest, deleteQuest }) {
+export default function QuestInspector({ quest, allTags, setData, completeQuest, restoreQuest, deleteQuest }) {
   function updateQuest(patch) {
     setData((old) => ({
       ...old,
@@ -131,7 +131,6 @@ function getSchedulePatch(quest, nextScheduleType, schedulePatch = {}) {
   return {
     scheduleType: nextScheduleType,
     schedule: nextSchedule,
-    // Legacy mirrors kept until the maintenance refactor no longer reads these fields.
     cooldownEnabled,
     cooldownAmount: nextSchedule.cooldownAmount,
     cooldownUnit: nextSchedule.cooldownUnit,
@@ -142,7 +141,7 @@ function ScheduleTypeSelect({ value, onChange, disabled = false }) {
   return (
     <div>
       <label className="block text-sm font-medium text-neutral-300">Regime</label>
-      <select className="field mt-1" value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+      <select className="field mt-1" value={value} onChange={(event) => onChange(event.target.value)}>
         {SCHEDULE_TYPES.map((type) => (
           <option key={type} value={type}>{SCHEDULE_LABELS[type] || type}</option>
         ))}
@@ -155,7 +154,6 @@ function QuestScheduleGroup({ quest, updateQuest }) {
   const [open, setOpen] = useState(false);
   const scheduleType = getQuestScheduleType(quest);
   const schedule = getQuestSchedule(quest);
-  const disabled = false;
 
   function updateScheduleType(nextScheduleType) {
     updateQuest(getSchedulePatch(quest, nextScheduleType));
@@ -187,14 +185,14 @@ function QuestScheduleGroup({ quest, updateQuest }) {
 
       {open && (
         <div className="grid gap-3 border-t border-neutral-800 p-3">
-          <ScheduleTypeSelect value={scheduleType} onChange={updateScheduleType} disabled={disabled} />
+          <ScheduleTypeSelect value={scheduleType} onChange={updateScheduleType} />
 
           {scheduleType === "none" && (
             <FormDate
               label="Due date"
               value={quest.deadline}
               onChange={(value) => updateQuest({ deadline: value })}
-              disabled={disabled}
+             
             />
           )}
 
@@ -205,14 +203,14 @@ function QuestScheduleGroup({ quest, updateQuest }) {
                   label="Cooldown amount"
                   value={schedule.cooldownAmount}
                   onChange={(value) => updateSchedule({ cooldownAmount: value })}
-                  disabled={disabled}
+                 
                 />
                 <SelectField
                   label="Cooldown unit"
                   value={schedule.cooldownUnit}
                   options={COOLDOWN_UNITS}
                   onChange={(value) => updateSchedule({ cooldownUnit: value })}
-                  disabled={disabled}
+                 
                 />
               </div>
 
@@ -229,7 +227,7 @@ function QuestScheduleGroup({ quest, updateQuest }) {
               label="Active days"
               value={schedule.dayMask}
               onChange={(value) => updateSchedule({ dayMask: value })}
-              disabled={disabled}
+             
             />
           )}
 
@@ -238,7 +236,7 @@ function QuestScheduleGroup({ quest, updateQuest }) {
               label="Event date"
               value={schedule.eventDate}
               onChange={(value) => updateSchedule({ eventDate: value })}
-              disabled={disabled}
+             
             />
           )}
         </div>

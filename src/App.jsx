@@ -52,6 +52,10 @@ import { DOCK_IDS, PANEL_IDS } from "./layout/panelLayout";
 
 const RIGHT_DOCK_SPLIT_RESERVE = "0.575rem";
 
+function isQuestCompletionRow(row) {
+  return row?.kind === "questCompletion" || row?.kind === "rootTask";
+}
+
 export default function App() {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -506,7 +510,7 @@ function restoreQuest(questId) {
     try {
       const parsed = await readJsonFile(file);
       const rawQuest = rawQuestFromQuestPayload(parsed);
-      const normalized = normalizeData({ quests: [rawQuest], routines: [] });
+      const normalized = normalizeData({ quests: [rawQuest] });
       const importedQuest = normalized.quests[0];
 
       if (!importedQuest) throw new Error("No quest found in file.");
@@ -681,24 +685,21 @@ async function importJsonFile(file) {
           activePanelId={centerTab}
           setActivePanelId={setCenterTab}
           quest={activeQuest}
-          actionable={actionable}
           focusBoard={focusBoard}
           focusPathInfo={focusPathInfo}
-          branchFocusId={data.activeBranchTaskId}
           setBranchFocus={setBranchFocus}
           clearBranchFocus={clearBranchFocus}
-          dueBadge={dueBadge}
           selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
           selectTask={(task) => setSelection({ type: "task", questId: activeQuest.id, id: task.id })}
           toggleTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
-            return (((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
+            return isQuestCompletionRow(rowOrTask)
               ? completeQuest(activeQuest.id)
               : toggleTask(activeQuest.id, task.id);
           }}
           uncompleteTask={(rowOrTask) => {
             const task = rowOrTask.task || rowOrTask;
-            return (((rowOrTask.kind === "questCompletion" || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask") || rowOrTask.kind === "rootTask")
+            return isQuestCompletionRow(rowOrTask)
               ? restoreQuest(activeQuest.id)
               : uncompleteTask(activeQuest.id, task.id);
           }}
@@ -724,7 +725,6 @@ async function importJsonFile(file) {
           setSelection={setSelection}
           allTags={allTags}
           activeQuest={activeQuest}
-          activeQuestId={data.activeQuestId}
           expanded={expanded}
           setExpanded={setExpanded}
           rightSplit={rightSplit}
@@ -1014,17 +1014,6 @@ function RightPanel(props) {
     </aside>
   );
 }
-
-
-function PanelTitleBar({ title, children, className = "" }) {
-  return (
-    <div className={`panel-title-bar ${className}`}>
-      <div className="panel-title-text">{title}</div>
-      {children && <div className="panel-title-actions">{children}</div>}
-    </div>
-  );
-}
-
 
 function DarkStyles() {
   const USE_DEBUG_COLOR = false;

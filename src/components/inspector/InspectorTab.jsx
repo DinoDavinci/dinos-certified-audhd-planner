@@ -203,17 +203,12 @@ function Inspector({
   setSelection,
   allTags,
   activeQuestId,
-  goBack,
-  goForward,
-  canGoBack,
-  canGoForward,
   makeFocus,
   activeBranchTaskId,
   setBranchFocus,
   clearBranchFocus,
   completeQuest,
   restoreQuest,
-  createQuestTask,
   deleteQuest,
   deleteQuestTask,
   toggleTask,
@@ -225,12 +220,8 @@ function Inspector({
         <QuestInspector
           quest={selected.quest}
           allTags={allTags}
-          isFocus={selected.quest.id === activeQuestId && !activeBranchTaskId}
-          isQuestRoot={selected.quest.id === activeQuestId}
-          activeBranchTaskId={activeBranchTaskId}
           setData={setData}
           setSelection={setSelection}
-          makeFocus={() => makeFocus(selected.quest.id)}
           completeQuest={() => completeQuest(selected.quest.id)}
           restoreQuest={() => restoreQuest(selected.quest.id)}
           deleteQuest={() => deleteQuest(selected.quest.id)}
@@ -289,11 +280,5 @@ function resolveSelection(selection, data) {
   }
 
   return null;
-}
-
-function inspectorTitle(selection, selected) {
-  if (selection.type === "quest" && selected?.quest) return `Quest: ${selected.quest.title || "Untitled"}`;
-  if (selection.type === "task" && selected?.task) return `Task: ${selected.task.title || "Untitled"}`;
-  return "Nothing selected";
 }
 
