@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Folder,
   FolderOpen,
+  FileText,
   Plus,
   Search,
   Trash2,
@@ -144,38 +145,22 @@ export default function QuestBoardTab({
 
       <div className="scene-contents-panel quest-board-contents-panel">
         <div className="scene-contents-margin quest-board-contents-margin">
-          <div className="quest-directory-tree">
+          <div className="quest-directory-tree quest-directory-normal">
             <InboxSection
               quests={quests}
               folders={folders}
               activeQuestId={activeQuestId}
               selectedFolderId={selectedFolderId}
               setSelectedFolderId={setSelectedFolderId}
+              expandedFolders={expandedFolders}
+              setExpandedFolders={setExpandedFolders}
               dueBadge={dueBadge}
               selectQuest={selectQuest}
+              renameQuestFolder={renameQuestFolder}
+              deleteQuestFolder={deleteQuestFolder}
               moveQuestToFolder={moveQuestToFolder}
+              moveQuestFolderToFolder={moveQuestFolderToFolder}
             />
-
-            {getDirectFolderChildren(folders, null).map((folder) => (
-              <QuestFolderNode
-                key={folder.id}
-                folder={folder}
-                folders={folders}
-                quests={quests}
-                activeQuestId={activeQuestId}
-                selectedFolderId={selectedFolderId}
-                setSelectedFolderId={setSelectedFolderId}
-                expandedFolders={expandedFolders}
-                setExpandedFolders={setExpandedFolders}
-                dueBadge={dueBadge}
-                selectQuest={selectQuest}
-                renameQuestFolder={renameQuestFolder}
-                deleteQuestFolder={deleteQuestFolder}
-                moveQuestToFolder={moveQuestToFolder}
-                moveQuestFolderToFolder={moveQuestFolderToFolder}
-                depth={0}
-              />
-            ))}
           </div>
         </div>
       </div>
@@ -189,16 +174,22 @@ function InboxSection({
   activeQuestId,
   selectedFolderId,
   setSelectedFolderId,
+  expandedFolders,
+  setExpandedFolders,
   dueBadge,
   selectQuest,
+  renameQuestFolder,
+  deleteQuestFolder,
   moveQuestToFolder,
+  moveQuestFolderToFolder,
 }) {
+  const rootFolders = getDirectFolderChildren(folders, null);
   const inboxQuests = getDirectFolderQuests(quests, null);
-  const count = inboxQuests.length;
+  const count = rootFolders.length + inboxQuests.length;
 
   return (
     <div className="quest-directory-section">
-      <div className={`quest-directory-inbox-row ${selectedFolderId == null ? "quest-directory-folder-selected" : ""}`}>
+      <div className={`quest-directory-item quest-directory-folder-item quest-directory-root-item quest-directory-inbox-row ${selectedFolderId == null ? "quest-directory-folder-selected" : ""}`}>
         <button
           type="button"
           className="quest-directory-folder-main"
@@ -212,9 +203,30 @@ function InboxSection({
       </div>
 
       <div className="quest-directory-children">
-        {inboxQuests.length === 0 && (
-          <div className="quest-directory-empty">No quests in Inbox.</div>
+        {rootFolders.length === 0 && inboxQuests.length === 0 && (
+          <div className="quest-directory-empty">No quests or folders in Inbox.</div>
         )}
+
+        {rootFolders.map((folder) => (
+          <QuestFolderNode
+            key={folder.id}
+            folder={folder}
+            folders={folders}
+            quests={quests}
+            activeQuestId={activeQuestId}
+            selectedFolderId={selectedFolderId}
+            setSelectedFolderId={setSelectedFolderId}
+            expandedFolders={expandedFolders}
+            setExpandedFolders={setExpandedFolders}
+            dueBadge={dueBadge}
+            selectQuest={selectQuest}
+            renameQuestFolder={renameQuestFolder}
+            deleteQuestFolder={deleteQuestFolder}
+            moveQuestToFolder={moveQuestToFolder}
+            moveQuestFolderToFolder={moveQuestFolderToFolder}
+            depth={0}
+          />
+        ))}
 
         {inboxQuests.map((quest) => (
           <QuestDirectoryCard
@@ -255,26 +267,29 @@ function QuestFolderNode({
   const count = countFolderContents(folders, quests, folder.id);
 
   return (
-    <div className="quest-directory-folder">
-      <div className={`quest-directory-folder-row ${selectedFolderId === folder.id ? "quest-directory-folder-selected" : ""}`}>
-        <button
-          type="button"
-          className="tree-disclosure"
-          onClick={(event) => {
-            event.stopPropagation();
-            setExpandedFolders({ ...expandedFolders, [folder.id]: !open });
-          }}
-          title={open ? "Collapse folder" : "Expand folder"}
-        >
-          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        </button>
+    <div className="quest-directory-folder quest-directory-branch-node quest-directory-folder-branch-node">
+      <div className="quest-directory-row-wrap">
+        <div className="quest-directory-disclosure-gutter">
+          <button
+            type="button"
+            className="tree-disclosure"
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpandedFolders({ ...expandedFolders, [folder.id]: !open });
+            }}
+            title={open ? "Collapse folder" : "Expand folder"}
+          >
+            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+        </div>
 
-        <button
-          type="button"
-          className="quest-directory-folder-main"
-          onClick={() => setSelectedFolderId(folder.id)}
-          title="Select folder"
-        >
+        <div className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${selectedFolderId === folder.id ? "quest-directory-folder-selected" : ""}`}>
+          <button
+            type="button"
+            className="quest-directory-folder-main"
+            onClick={() => setSelectedFolderId(folder.id)}
+            title="Select folder"
+          >
           {open ? <FolderOpen size={16} /> : <Folder size={16} />}
           <span className="quest-directory-folder-title">{folder.title || "Untitled Folder"}</span>
           <span className="quest-directory-folder-count">{count}</span>
@@ -320,6 +335,7 @@ function QuestFolderNode({
             <Trash2 size={14} />
           </button>
         </div>
+      </div>
       </div>
 
       {open && (
@@ -367,42 +383,40 @@ function QuestFolderNode({
 }
 
 function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQuestToFolder, folders }) {
+  const progress = getQuestProgress(quest);
+  const complete = isQuestComplete(quest);
+  const inactive = isQuestInactive(quest);
+
   return (
-    <div className="quest-directory-quest-card">
+    <div className="quest-directory-quest-card quest-directory-branch-node quest-directory-quest-branch-node">
       <button
         type="button"
         onClick={() => selectQuest(quest)}
-        className={`library-card text-left ${questTypeClass(quest)} ${(isQuestComplete(quest) || isQuestInactive(quest)) ? "library-card-complete" : ""} ${quest.id === activeQuestId ? "border-neutral-300 bg-neutral-800" : ""}`}
+        className={`quest-directory-item quest-directory-quest-item ${questTypeClass(quest)} ${complete || inactive ? "quest-directory-quest-muted" : ""} ${quest.id === activeQuestId ? "quest-directory-quest-selected" : ""}`}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="font-semibold">{quest.title}</div>
-          {dueBadge(quest)}
+        <div className="quest-directory-quest-icon">
+          <FileText size={18} />
         </div>
 
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-800">
-          <div className="h-full bg-slate-200" style={{ width: `${getQuestProgress(quest)}%` }} />
-        </div>
+        <div className="quest-directory-quest-body">
+          <div className="quest-directory-quest-title-row">
+            <div className="quest-directory-quest-title">{quest.title || "Untitled Quest"}</div>
+            {dueBadge(quest)}
+          </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {isQuestComplete(quest) && <span className="pill-complete">Completed</span>}
-          {isQuestInactive(quest) && <span className="pill">Disabled</span>}
-          {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
+          <div className="quest-directory-quest-progress-track">
+            <div className="quest-directory-quest-progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+
+          <div className="quest-directory-quest-meta-row">
+            {complete && <span className="pill-complete">Completed</span>}
+            {inactive && <span className="pill">Disabled</span>}
+            {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
+          </div>
         </div>
       </button>
 
-      <select
-        className="field mt-1 py-1 text-xs"
-        value={quest.folderId || ""}
-        onChange={(event) => moveQuestToFolder(quest.id, event.target.value || null)}
-        title="Move quest to folder"
-      >
-        <option value="">Inbox</option>
-        {(folders || []).map((folder) => (
-          <option key={folder.id} value={folder.id}>
-            {folder.title || "Untitled Folder"}
-          </option>
-        ))}
-      </select>
+
     </div>
   );
 }

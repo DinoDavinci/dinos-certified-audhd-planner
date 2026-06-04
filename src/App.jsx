@@ -1523,10 +1523,26 @@ function DarkStyles() {
         gap: 0.2rem;
         min-width: 0;
       }
-      .quest-directory-folder-row {
+      .quest-directory-row-wrap {
         display: flex;
         align-items: center;
         gap: 0.25rem;
+        min-width: 0;
+        width: 100%;
+      }
+      .quest-directory-disclosure-gutter {
+        flex: 0 0 1.05rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 1.65rem;
+      }
+      .quest-directory-folder-row {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 0;
         min-height: 1.55rem;
         border-radius: 0.25rem;
         border: 1px solid transparent;
@@ -1584,11 +1600,55 @@ function DarkStyles() {
         color: rgb(212 212 212);
       }
       .quest-directory-children {
+        --quest-directory-branch-color: ${TREE_BRANCH_LINE_COLOR};
+        --quest-directory-branch-left: -8px;
+        --quest-directory-elbow-width: 8px;
         display: grid;
         gap: 0.2rem;
-        margin-left: 1.15rem;
-        padding-left: 0.45rem;
-        border-left: 1px solid rgb(82 82 82);
+        margin-left: 0.65rem;
+        padding-left: 0.25rem;
+        border-left: none;
+        position: relative;
+        width: calc(100% - 0.65rem);
+        min-width: 0;
+      }
+      .quest-directory-branch-node {
+        position: relative;
+        --branch-center: 0.825rem;
+      }
+      .quest-directory-folder-branch-node {
+        --branch-center: 0.825rem;
+      }
+      .quest-directory-quest-branch-node {
+        --branch-center: 2.1rem;
+      }
+      .quest-directory-branch-node::before {
+        content: "";
+        position: absolute;
+        left: var(--quest-directory-branch-left);
+        top: var(--branch-center);
+        width: var(--quest-directory-elbow-width);
+        height: 2px;
+        background: var(--quest-directory-branch-color);
+        opacity: 1;
+        pointer-events: none;
+      }
+      .quest-directory-branch-node::after {
+        content: "";
+        position: absolute;
+        left: var(--quest-directory-branch-left);
+        top: -0.2rem;
+        bottom: calc(100% - var(--branch-center) - 1px);
+        width: 2px;
+        background: var(--quest-directory-branch-color);
+        opacity: 1;
+        pointer-events: none;
+      }
+      .quest-directory-children > .quest-directory-branch-node:not(:last-child)::after {
+        bottom: -0.2rem;
+      }
+      .quest-directory-children > .quest-directory-branch-node:not(:last-child)::marker {
+        display: none;
       }
       .quest-directory-inbox-row {
         display: flex;
@@ -1614,6 +1674,95 @@ function DarkStyles() {
       }
       .quest-directory-quest-card {
         width: 100%;
+        position: relative;
+      }
+      .quest-directory-item {
+        width: 100%;
+        min-width: 0;
+        border-radius: 0.3rem;
+        border: 1px solid transparent;
+        transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
+      }
+      .quest-directory-item:hover {
+        border-color: rgb(82 82 82);
+        background: rgb(38 38 38);
+      }
+      .quest-directory-folder-item {
+        min-height: 1.65rem;
+      }
+      .quest-directory-root-item {
+        background: rgba(23, 23, 23, 0.72);
+      }
+      .quest-directory-folder > .quest-directory-children {
+        margin-top: 0.15rem;
+      }
+      .quest-directory-quest-item {
+        display: flex;
+        align-items: stretch;
+        gap: 0.55rem;
+        min-height: 4.2rem;
+        background: rgba(23, 23, 23, 0.82);
+        padding: 0.55rem 0.6rem;
+        text-align: left;
+      }
+      .quest-directory-quest-selected {
+        border-color: rgb(212 212 212);
+        background: rgb(38 38 38);
+      }
+      .quest-directory-quest-muted {
+        opacity: 0.68;
+      }
+      .quest-directory-quest-icon {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: flex-start;
+        justify-content: center;
+        width: 1.4rem;
+        padding-top: 0.1rem;
+        color: rgb(212 212 212);
+      }
+      .quest-directory-quest-body {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: grid;
+        align-content: start;
+        gap: 0.35rem;
+      }
+      .quest-directory-quest-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-width: 0;
+      }
+      .quest-directory-quest-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.9rem;
+        font-weight: 850;
+        color: rgb(229 229 229);
+      }
+      .quest-directory-quest-progress-track {
+        height: 0.42rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgb(38 38 38);
+      }
+      .quest-directory-quest-progress-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: rgb(229 229 229);
+      }
+      .quest-directory-quest-meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        min-height: 1rem;
+      }
+      .quest-directory-debug-select {
+        opacity: 0.78;
       }
       .quest-board-list {
         display: grid;
