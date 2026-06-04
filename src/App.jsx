@@ -46,7 +46,6 @@ import {
 } from "./utils/fileIO";
 
 import QuestBoardTab from "./components/quest-board/QuestBoardTab";
-import RoutineManagementTab from "./components/routine-management/RoutineManagementTab";
 import ExportOptionsTab from "./components/export-options/ExportOptionsTab";
 import DebugTab from "./components/debug/DebugTab";
 import FocusTab from "./components/focus-tab/FocusTab";
@@ -266,8 +265,7 @@ function createQuestTask(questId, parentId = null) {
 
       return {
         ...old,
-        routines,
-        quests: updatedRoutine
+              quests: updatedRoutine
           ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
           : old.quests,
       };
@@ -349,8 +347,7 @@ function deleteQuestTask(questId, taskId) {
 
       return {
         ...old,
-        routines,
-        quests: updatedRoutine
+              quests: updatedRoutine
           ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
           : old.quests,
       };
@@ -399,8 +396,7 @@ function moveQuestTask(questId, taskId, direction) {
 
       return {
         ...old,
-        routines,
-        quests: updatedRoutine
+              quests: updatedRoutine
           ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
           : old.quests,
       };
@@ -503,8 +499,7 @@ function moveQuestTask(questId, taskId, direction) {
 
       return {
         ...old,
-        routines,
-        quests: updatedRoutine
+              quests: updatedRoutine
           ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
           : old.quests,
       };
@@ -760,8 +755,7 @@ function restoreQuest(questId) {
 
         const nextData = runDailyMaintenance({
           ...old,
-          routines,
-        });
+                });
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
         localStorage.setItem(LAST_TICK_KEY, todayString());
@@ -894,22 +888,16 @@ function restoreQuest(questId) {
           hideCompleted={hideCompleted}
           setHideCompleted={setHideCompleted}
           quests={filteredQuests}
-          routines={filteredRoutines}
           activeQuestId={data.activeQuestId}
           dueBadge={dueBadge}
           createQuest={createQuest}
-          createRoutine={createRoutine}
           exportJson={exportJson}
           importJsonFile={importJsonFile}
           exportQuestFile={exportQuestFile}
           importQuestFile={importQuestFile}
           hasActiveQuest={Boolean(activeQuest)}
-          exportRoutineFile={exportRoutineFile}
-          importRoutineFile={importRoutineFile}
-          hasSelectedRoutine={Boolean(selectedRoutineForExport)}
           resetToDefaults={resetToDefaults}
           selectQuest={(quest) => setSelection({ type: "quest", id: quest.id })}
-          selectRoutine={(routine) => setSelection({ type: "routine", id: routine.id })}
         />
 
         <div
@@ -1018,22 +1006,16 @@ function LibraryPanel({
   hideCompleted,
   setHideCompleted,
   quests,
-  routines,
   activeQuestId,
   dueBadge,
   createQuest,
-  createRoutine,
   exportJson,
   importJsonFile,
   exportQuestFile,
   importQuestFile,
   hasActiveQuest,
-  exportRoutineFile,
-  importRoutineFile,
-  hasSelectedRoutine,
   resetToDefaults,
   selectQuest,
-  selectRoutine,
 }) {
   const tabs = [
     {
@@ -1057,22 +1039,6 @@ function LibraryPanel({
       ),
     },
     {
-      id: PANEL_IDS.ROUTINE_PANEL,
-      title: "Routines",
-      content: (
-        <RoutineManagementTab
-          search={search}
-          setSearch={setSearch}
-          tagFilter={tagFilter}
-          setTagFilter={setTagFilter}
-          allTags={allTags}
-          routines={routines}
-          createRoutine={createRoutine}
-          selectRoutine={selectRoutine}
-        />
-      ),
-    },
-    {
       id: PANEL_IDS.EXPORT_PANEL,
       title: "Save/Load",
       content: (
@@ -1082,9 +1048,6 @@ function LibraryPanel({
           exportQuestFile={exportQuestFile}
           importQuestFile={importQuestFile}
           hasActiveQuest={hasActiveQuest}
-          exportRoutineFile={exportRoutineFile}
-          importRoutineFile={importRoutineFile}
-          hasSelectedRoutine={hasSelectedRoutine}
           resetToDefaults={resetToDefaults}
         />
       ),

@@ -8,7 +8,6 @@ export const DOCK_IDS = Object.freeze({
 
 export const PANEL_IDS = Object.freeze({
   QUEST_BOARD: "questBoard",
-  ROUTINE_PANEL: "routinePanel",
   EXPORT_PANEL: "exportPanel",
   FOCUS_PANEL: "focusPanel",
   INSPECTOR_PANEL: "inspectorPanel",
@@ -20,11 +19,6 @@ export const PANEL_DEFINITIONS = Object.freeze({
   [PANEL_IDS.QUEST_BOARD]: Object.freeze({
     id: PANEL_IDS.QUEST_BOARD,
     title: "Quest Board",
-    defaultDock: DOCK_IDS.TOP_LEFT,
-  }),
-  [PANEL_IDS.ROUTINE_PANEL]: Object.freeze({
-    id: PANEL_IDS.ROUTINE_PANEL,
-    title: "Routines",
     defaultDock: DOCK_IDS.TOP_LEFT,
   }),
   [PANEL_IDS.EXPORT_PANEL]: Object.freeze({
@@ -57,7 +51,6 @@ export const PANEL_DEFINITIONS = Object.freeze({
 export const DEFAULT_DOCK_LAYOUT = Object.freeze({
   [DOCK_IDS.TOP_LEFT]: Object.freeze([
     PANEL_IDS.QUEST_BOARD,
-    PANEL_IDS.ROUTINE_PANEL,
     PANEL_IDS.EXPORT_PANEL,
   ]),
   [DOCK_IDS.BOTTOM_LEFT]: Object.freeze([]),
