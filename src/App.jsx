@@ -2517,30 +2517,6 @@ function DarkStyles() {
         text-align: center;
         white-space: nowrap;
       }
-      .recommended-task-row {
-        margin-top: 0.5rem;
-        min-height: 3rem;
-        padding-right: 8.5rem;
-      }
-      .recommended-task-text {
-        min-width: 0;
-        text-align: left;
-      }
-      .recommended-action-button {
-        position: absolute;
-        top: 0.75rem;
-        right: 0.75rem;
-        min-width: 7.5rem;
-      }
-      .focus-recommend-panel {
-        position: relative;
-        border: 1px solid rgb(64 64 64);
-        background: rgb(10 10 10);
-        padding: 0.9rem;
-      
-      
-        padding-right: 9.5rem;
-      }
       .focus-board {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));

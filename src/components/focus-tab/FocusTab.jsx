@@ -47,43 +47,6 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
         clearBranchFocus={clearBranchFocus}
       />
 
-      {focusBoard.available.some((row) => isQuestCompletionRow(row)) || isQuestComplete(quest) ? (
-        <div className="complete-quest-celebration">
-          <button
-            onClick={() => {
-              const completionRow = focusBoard.available.find((row) => isQuestCompletionRow(row));
-              if (completionRow) toggleTask(completionRow);
-            }}
-            className={isQuestComplete(quest) ? "recommended-complete-quest-button recommended-complete-quest-button-done" : "recommended-complete-quest-button"}
-            disabled={isQuestComplete(quest)}
-          >
-            <span className="complete-quest-icon">◆</span>
-            <span className="complete-quest-label">{isQuestComplete(quest) ? "Quest completed" : "Complete quest"}</span>
-            <span className="complete-quest-icon">◆</span>
-          </button>
-        </div>
-      ) : (
-        <section className="mt-5 focus-recommend-panel">
-          <h3 className="text-lg font-bold">Recommended</h3>
-          {focusBoard.recommended ? (
-            <div className="recommended-task-row">
-              <div className="recommended-task-text">
-                <FocusPathLinks row={focusBoard.recommended} selectTask={selectTask} />
-                {focusBoard.recommended.task.description && (
-                  <div className="mt-1 text-sm text-neutral-400">{focusBoard.recommended.task.description}</div>
-                )}
-              </div>
-              <button onClick={() => toggleTask(focusBoard.recommended)} className="primary-button recommended-action-button">
-                {getKanbanActionState(focusBoard.recommended.task) === "progress" ? <Play size={16} /> : <CheckCircle2 size={16} />}
-                {getKanbanActionState(focusBoard.recommended.task) === "progress" ? "Progress" : "Complete"}
-              </button>
-            </div>
-          ) : (
-            <div className="mt-2 text-sm text-neutral-500">No available task. This quest may be complete.</div>
-          )}
-        </section>
-      )}
-
       <div className="branch-progress-line">
         <div className="branch-progress-label">
           <span>Progress</span>
@@ -133,6 +96,7 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
     </main>
   );
 }
+
 
 function getFocusDisplayNode(quest, focusPathInfo) {
   if (!quest) return null;
