@@ -26,10 +26,8 @@ import {
   DayMaskEditor,
 } from "./inspectorShared";
 
-export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBranchTaskId = null, setData, routines, setSelection, makeFocus, completeQuest, restoreQuest, deleteQuest }) {
+export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = false, activeBranchTaskId = null, setData, makeFocus, completeQuest, restoreQuest, deleteQuest }) {
   function updateQuest(patch) {
-    if (quest.locked) return;
-
     setData((old) => ({
       ...old,
       quests: old.quests.map((item) => (item.id === quest.id ? { ...item, ...patch } : item)),
@@ -38,7 +36,9 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
 
   const complete = isQuestComplete(quest);
   const hasCompletionStamp = Boolean(quest.completedAt);
-  const sourceRoutine = (routines || []).find((routine) => routine.id === quest.routineId);
+  const scheduleType = getQuestScheduleType(quest);
+  const eventManaged = scheduleType === "event";
+  const questEnabled = quest.status !== "inactive";
 
   return (
     <div className="space-y-4">
@@ -58,24 +58,24 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
 
       <InspectorProgressBar progress={getQuestProgress(quest)} label="Quest progress" />
 
-      {quest.locked && (
-        <div className="locked-notice">
-          This is a read-only instance generated from a routine.
-          {sourceRoutine && (
-            <button className="wiki-link-button ml-1" onClick={() => setSelection({ type: "routine", id: sourceRoutine.id })}>
-              Edit source routine
-            </button>
-          )}
-        </div>
-      )}
+      <label className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+        <input
+          type="checkbox"
+          checked={questEnabled}
+          disabled={eventManaged}
+          onChange={(event) => updateQuest({ status: event.target.checked ? "active" : "inactive" })}
+        />
+        Enabled
+        {eventManaged && <span className="text-xs text-neutral-500">Event quests enable automatically on their event date.</span>}
+      </label>
 
-      <FormText label="Title" value={quest.title} onChange={(value) => updateQuest({ title: value })} disabled={quest.locked} />
-      <FormTextarea label="Description" value={quest.description} onChange={(value) => updateQuest({ description: value })} disabled={quest.locked} />
-      <TagEditor tags={quest.tags || []} allTags={allTags} onChange={(tags) => updateQuest({ tags })} disabled={quest.locked} />
+      <FormText label="Title" value={quest.title} onChange={(value) => updateQuest({ title: value })} />
+      <FormTextarea label="Description" value={quest.description} onChange={(value) => updateQuest({ description: value })} />
+      <TagEditor tags={quest.tags || []} allTags={allTags} onChange={(tags) => updateQuest({ tags })} />
 
       <div className="grid grid-cols-2 gap-3">
-        <SelectField label="Difficulty" value={quest.difficulty} options={DIFFICULTIES} onChange={(value) => updateQuest({ difficulty: value })} disabled={quest.locked} />
-        <SelectField label="Rule" value={quest.rootTask?.mode || "all"} options={MODES} onChange={(value) => updateQuest({ rootTask: { ...quest.rootTask, mode: value } })} disabled={quest.locked} />
+        <SelectField label="Difficulty" value={quest.difficulty} options={DIFFICULTIES} onChange={(value) => updateQuest({ difficulty: value })} />
+        <SelectField label="Rule" value={quest.rootTask?.mode || "all"} options={MODES} onChange={(value) => updateQuest({ rootTask: { ...quest.rootTask, mode: value } })} />
       </div>
 
       <QuestScheduleGroup quest={quest} updateQuest={updateQuest} />
@@ -83,9 +83,8 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
       <div className="danger-zone">
         <button
           onClick={deleteQuest}
-          disabled={quest.locked}
-          className="danger-button w-full disabled:opacity-40 disabled:cursor-not-allowed"
-          title={quest.locked ? "Routine-generated quests cannot be deleted from the quest inspector." : "Delete quest"}
+          className="danger-button w-full"
+          title="Delete quest"
         >
           <Trash2 size={16} /> Delete quest
         </button>
@@ -147,7 +146,7 @@ function QuestScheduleGroup({ quest, updateQuest }) {
   const [open, setOpen] = useState(false);
   const scheduleType = getQuestScheduleType(quest);
   const schedule = getQuestSchedule(quest);
-  const disabled = Boolean(quest.locked);
+  const disabled = false;
 
   function updateScheduleType(nextScheduleType) {
     updateQuest(getSchedulePatch(quest, nextScheduleType));

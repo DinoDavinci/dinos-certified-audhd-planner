@@ -80,6 +80,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("All");
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [showDisabled, setShowDisabled] = useState(false);
   const [expanded, setExpanded] = useState({});
   const [rightSplit, setRightSplit] = useState(62);
   const [leftPanelWidth, setLeftPanelWidth] = useState(360);
@@ -172,7 +173,8 @@ export default function App() {
         return (
           text.includes(search.toLowerCase()) &&
           (tagFilter === "All" || (quest.tags || []).includes(tagFilter)) &&
-          (!hideCompleted || !isQuestComplete(quest))
+          (!hideCompleted || !isQuestComplete(quest)) &&
+          (showDisabled || quest.status !== "inactive")
         );
       })
       .sort((a, b) => {
@@ -180,7 +182,7 @@ export default function App() {
         if (completeCompare !== 0) return completeCompare;
         return (a.deadline || "9999-99-99").localeCompare(b.deadline || "9999-99-99") || a.title.localeCompare(b.title);
       });
-  }, [quests, search, tagFilter, hideCompleted]);
+  }, [quests, search, tagFilter, hideCompleted, showDisabled]);
 
   function createQuest() {
     const quest = makeQuest({ title: "New Quest" });
@@ -654,6 +656,8 @@ async function importJsonFile(file) {
           allTags={allTags}
           hideCompleted={hideCompleted}
           setHideCompleted={setHideCompleted}
+          showDisabled={showDisabled}
+          setShowDisabled={setShowDisabled}
           quests={filteredQuests}
           activeQuestId={data.activeQuestId}
           dueBadge={dueBadge}
@@ -767,6 +771,8 @@ function LibraryPanel({
   allTags,
   hideCompleted,
   setHideCompleted,
+  showDisabled,
+  setShowDisabled,
   quests,
   activeQuestId,
   dueBadge,
@@ -792,6 +798,8 @@ function LibraryPanel({
           allTags={allTags}
           hideCompleted={hideCompleted}
           setHideCompleted={setHideCompleted}
+          showDisabled={showDisabled}
+          setShowDisabled={setShowDisabled}
           quests={quests}
           activeQuestId={activeQuestId}
           dueBadge={dueBadge}
@@ -1811,6 +1819,9 @@ function DarkStyles() {
       .quest-type-cooldown-tree {
         border-color: rgb(126 34 206);
       }
+      .quest-type-event-tree {
+        border-color: rgb(37 99 235);
+      }
       .tree-mode-pill {
         display: inline-flex;
         border-radius: 0.35rem;
@@ -2054,6 +2065,9 @@ function DarkStyles() {
       .tree-root-quest-type-cooldown {
         border-color: rgb(126 34 206);
       }
+      .tree-root-quest-type-event {
+        border-color: rgb(37 99 235);
+      }
       .tree-root-root-quest-type-regular {
         border-width: 2px;
       }
@@ -2061,6 +2075,9 @@ function DarkStyles() {
         border-width: 2px;
       }
       .tree-root-root-quest-type-cooldown {
+        border-width: 2px;
+      }
+      .tree-root-root-quest-type-event {
         border-width: 2px;
       }
       .tree-root-quest,
@@ -2071,7 +2088,9 @@ function DarkStyles() {
       .tree-root-quest-type-cooldown,
       .tree-root-root-quest-type-regular,
       .tree-root-root-quest-type-routine,
-      .tree-root-root-quest-type-cooldown {
+      .tree-root-root-quest-type-cooldown,
+      .tree-root-quest-type-event,
+      .tree-root-root-quest-type-event {
         border-color: transparent;
         border-width: 1px;
       }
@@ -2878,6 +2897,9 @@ function DarkStyles() {
       }
       .quest-type-cooldown {
         border-color: rgb(126 34 206);
+      }
+      .quest-type-event {
+        border-color: rgb(37 99 235);
       }
       .library-card-complete {
         border-color: rgb(64 64 64);

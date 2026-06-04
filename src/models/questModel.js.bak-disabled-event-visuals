@@ -180,13 +180,8 @@ export function isQuestComplete(quest) {
 }
 
 
-export function isQuestInactive(quest) {
-  return quest?.status === "inactive";
-}
-
-
 export function isQuestReadyToComplete(quest) {
-  if (!quest || isQuestInactive(quest) || isQuestComplete(quest)) return false;
+  if (!quest || isQuestComplete(quest)) return false;
   const rootTask = getQuestRootTask(quest);
   const tasks = rootTask.children || [];
   if (tasks.length === 0) return true;

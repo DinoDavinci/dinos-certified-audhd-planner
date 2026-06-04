@@ -55,6 +55,7 @@ import {
   getQuestRootTask,
   getQuestChildTasks,
   isQuestComplete,
+  isQuestInactive,
   isQuestReadyToComplete,
   getQuestProgress,
   nextTasksForQuest,
@@ -129,6 +130,7 @@ export {
   normalizeQuestSchedule,
   getQuestScheduleSummary,
   isQuestComplete,
+  isQuestInactive,
   isQuestReadyToComplete,
   getQuestProgress,
   nextTasksForQuest,
@@ -297,6 +299,10 @@ function applyQuestSchedule(quest, today) {
   const scheduleType = getScheduleTypeForMaintenance(quest);
   const schedule = getScheduleForMaintenance(quest);
 
+  if (scheduleType !== "event" && quest?.status === "inactive") {
+    return quest;
+  }
+
   if (scheduleType === "cooldown") {
     if (!isQuestComplete(quest) || !quest.completedAt) return quest;
 
@@ -405,14 +411,16 @@ export function treeModeLabel(treeContext) {
 
 export function questTypeClass(quest) {
   if (!quest) return "";
+  if (quest.scheduleType === "event") return "quest-type-event";
   if (quest.scheduleType === "routine") return "quest-type-routine";
-  if (quest.cooldownEnabled) return "quest-type-cooldown";
+  if (quest.scheduleType === "cooldown" || quest.cooldownEnabled) return "quest-type-cooldown";
   return "quest-type-regular";
 }
 
 export function questTypeLabel(quest) {
   if (!quest) return "Quest";
+  if (quest.scheduleType === "event") return "Event";
   if (quest.scheduleType === "routine") return "Routine";
-  if (quest.cooldownEnabled) return "Cooldown";
+  if (quest.scheduleType === "cooldown" || quest.cooldownEnabled) return "Cooldown";
   return "Quest";
 }
