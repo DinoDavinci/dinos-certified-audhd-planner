@@ -540,17 +540,27 @@ function restoreQuest(questId) {
     }));
   }
 
-  function exportJson() {
-    const date = todayString();
-    downloadJsonFile(makeAllDataExport(data), `quest-planner-${date}.json`);
+  async function exportJson() {
+    try {
+      const date = todayString();
+      await downloadJsonFile(makeAllDataExport(data), `quest-planner-${date}.json`);
+    } catch (error) {
+      console.error("Could not export planner data.", error);
+      window.alert("Could not export planner data.");
+    }
   }
 
-  function exportQuestFile(quest = activeQuest) {
+  async function exportQuestFile(quest = activeQuest) {
     if (!quest) return;
 
-    const date = todayString();
-    const filename = `${slugifyFilename(quest.title)}-${date}.quest.json`;
-    downloadJsonFile(makeQuestFileExport(quest), filename);
+    try {
+      const date = todayString();
+      const filename = `${slugifyFilename(quest.title)}-${date}.quest.json`;
+      await downloadJsonFile(makeQuestFileExport(quest), filename);
+    } catch (error) {
+      console.error("Could not export quest file.", error);
+      window.alert("Could not export quest file.");
+    }
   }
 
   async function importQuestFile(file) {
