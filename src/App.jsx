@@ -7,6 +7,7 @@ import {
   resetTaskSubtree,
   makeTask,
   makeQuest,
+  makeQuestFolder,
   isTaskComplete,
   hasCountTarget,
   getCountProgress,
@@ -91,6 +92,8 @@ export default function App() {
   const [tagFilter, setTagFilter] = useState("All");
   const [hideCompleted, setHideCompleted] = useState(false);
   const [showDisabled, setShowDisabled] = useState(false);
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
+  const [expandedFolders, setExpandedFolders] = useState({});
   const [expanded, setExpanded] = useState({});
   const [rightSplit, setRightSplit] = useState(62);
   const [leftPanelWidth, setLeftPanelWidth] = useState(360);
@@ -237,10 +240,125 @@ export default function App() {
       });
   }, [quests, search, tagFilter, hideCompleted, showDisabled]);
 
-  function createQuest() {
-    const quest = makeQuest({ title: "New Quest" });
+  function createQuest(folderId = selectedFolderId) {
+    const quest = {
+      ...makeQuest({ title: "New Quest" }),
+      folderId: folderId || null,
+    };
+
     setData((old) => ({ ...old, quests: [quest, ...old.quests] }));
     setSelection({ type: "quest", id: quest.id });
+  }
+
+  function createQuestFolder(parentId = selectedFolderId) {
+    const title = window.prompt("Folder name:", "New Folder");
+    if (!title || !title.trim()) return;
+
+    const folder = makeQuestFolder({
+      title: title.trim(),
+      parentId: parentId || null,
+    });
+
+    setData((old) => ({
+      ...old,
+      folders: [...(old.folders || []), folder],
+    }));
+
+    setSelectedFolderId(folder.id);
+    if (parentId) setExpandedFolders((old) => ({ ...old, [parentId]: true }));
+  }
+
+  function renameQuestFolder(folderId) {
+    const folder = (data.folders || []).find((item) => item.id === folderId);
+    if (!folder) return;
+
+    const title = window.prompt("Rename folder:", folder.title || "Untitled Folder");
+    if (!title || !title.trim()) return;
+
+    setData((old) => ({
+      ...old,
+      folders: (old.folders || []).map((item) =>
+        item.id === folderId
+          ? { ...item, title: title.trim(), updatedAt: new Date().toISOString() }
+          : item
+      ),
+    }));
+  }
+
+  function deleteQuestFolder(folderId) {
+    const folders = data.folders || [];
+    const hasChildren = folders.some((folder) => folder.parentId === folderId);
+    const hasQuests = (data.quests || []).some((quest) => quest.folderId === folderId);
+
+    if (hasChildren || hasQuests) {
+      window.alert("This folder is not empty. Move or remove its contents first.");
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this empty folder?");
+    if (!confirmed) return;
+
+    setData((old) => ({
+      ...old,
+      folders: (old.folders || []).filter((folder) => folder.id !== folderId),
+    }));
+
+    if (selectedFolderId === folderId) setSelectedFolderId(null);
+  }
+
+  function moveQuestToFolder(questId, folderId) {
+    setData((old) => ({
+      ...old,
+      quests: (old.quests || []).map((quest) =>
+        quest.id === questId
+          ? { ...quest, folderId: folderId || null }
+          : quest
+      ),
+    }));
+  }
+
+  function isFolderDescendant(folderId, possibleAncestorId, folders = data.folders || []) {
+    let current = folders.find((folder) => folder.id === folderId) || null;
+    const guard = new Set();
+
+    while (current) {
+      if (current.parentId === possibleAncestorId) return true;
+      if (!current.parentId || guard.has(current.parentId)) return false;
+
+      guard.add(current.parentId);
+      current = folders.find((folder) => folder.id === current.parentId) || null;
+    }
+
+    return false;
+  }
+
+  function moveQuestFolderToFolder(folderId, parentId) {
+    if (!folderId) return;
+
+    const nextParentId = parentId || null;
+
+    if (folderId === nextParentId) {
+      window.alert("A folder cannot be moved into itself.");
+      return;
+    }
+
+    if (nextParentId && isFolderDescendant(nextParentId, folderId)) {
+      window.alert("A folder cannot be moved into one of its own child folders.");
+      return;
+    }
+
+    setData((old) => ({
+      ...old,
+      folders: (old.folders || []).map((folder) =>
+        folder.id === folderId
+          ? { ...folder, parentId: nextParentId, updatedAt: new Date().toISOString() }
+          : folder
+      ),
+    }));
+
+    if (nextParentId) {
+      setExpandedFolders((old) => ({ ...old, [nextParentId]: true }));
+    }
   }
 
 
@@ -576,9 +694,14 @@ function restoreQuest(questId) {
 
       setData((old) => {
         const existing = (old.quests || []).some((quest) => quest.id === importedQuest.id);
+        const questForFolder = {
+          ...importedQuest,
+          folderId: selectedFolderId || importedQuest.folderId || null,
+        };
+
         const quests = existing
-          ? old.quests.map((quest) => (quest.id === importedQuest.id ? importedQuest : quest))
-          : [importedQuest, ...(old.quests || [])];
+          ? old.quests.map((quest) => (quest.id === importedQuest.id ? questForFolder : quest))
+          : [questForFolder, ...(old.quests || [])];
 
         const nextData = {
           ...old,
@@ -597,6 +720,8 @@ function restoreQuest(questId) {
       setHistoryIndex(0);
       setFocusHistory([{ questId: importedQuest.id, branchTaskId: null }]);
       setFocusHistoryIndex(0);
+      setSelectedFolderId(selectedFolderId || null);
+      setExpandedFolders((old) => selectedFolderId ? { ...old, [selectedFolderId]: true } : old);
       setExpanded({});
       setExpandedKanbanCards({});
     } catch (error) {
@@ -621,6 +746,8 @@ async function importJsonFile(file) {
       setHistoryIndex(0);
       setFocusHistory([{ questId: importedFocusQuestId, branchTaskId: imported.activeBranchTaskId || null }]);
       setFocusHistoryIndex(0);
+      setSelectedFolderId(null);
+      setExpandedFolders({});
       setExpanded({});
       setExpandedKanbanCards({});
       localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
@@ -647,6 +774,8 @@ async function importJsonFile(file) {
     setHistoryIndex(0);
     setFocusHistory([{ questId: resetFocusQuestId, branchTaskId: null }]);
     setFocusHistoryIndex(0);
+    setSelectedFolderId(null);
+    setExpandedFolders({});
     setExpanded({});
     setExpandedKanbanCards({});
   }
@@ -730,9 +859,19 @@ async function importJsonFile(file) {
           showDisabled={showDisabled}
           setShowDisabled={setShowDisabled}
           quests={filteredQuests}
+          folders={data.folders || []}
           activeQuestId={data.activeQuestId}
+          selectedFolderId={selectedFolderId}
+          setSelectedFolderId={setSelectedFolderId}
+          expandedFolders={expandedFolders}
+          setExpandedFolders={setExpandedFolders}
           dueBadge={dueBadge}
           createQuest={createQuest}
+          createQuestFolder={createQuestFolder}
+          renameQuestFolder={renameQuestFolder}
+          deleteQuestFolder={deleteQuestFolder}
+          moveQuestToFolder={moveQuestToFolder}
+          moveQuestFolderToFolder={moveQuestFolderToFolder}
           exportJson={exportJson}
           importJsonFile={importJsonFile}
           exportQuestFile={exportQuestFile}
@@ -850,9 +989,19 @@ function LibraryPanel({
   showDisabled,
   setShowDisabled,
   quests,
+  folders,
   activeQuestId,
+  selectedFolderId,
+  setSelectedFolderId,
+  expandedFolders,
+  setExpandedFolders,
   dueBadge,
   createQuest,
+  createQuestFolder,
+  renameQuestFolder,
+  deleteQuestFolder,
+  moveQuestToFolder,
+  moveQuestFolderToFolder,
   exportJson,
   importJsonFile,
   exportQuestFile,
@@ -877,9 +1026,19 @@ function LibraryPanel({
           showDisabled={showDisabled}
           setShowDisabled={setShowDisabled}
           quests={quests}
+          folders={folders}
           activeQuestId={activeQuestId}
+          selectedFolderId={selectedFolderId}
+          setSelectedFolderId={setSelectedFolderId}
+          expandedFolders={expandedFolders}
+          setExpandedFolders={setExpandedFolders}
           dueBadge={dueBadge}
           createQuest={createQuest}
+          createQuestFolder={createQuestFolder}
+          renameQuestFolder={renameQuestFolder}
+          deleteQuestFolder={deleteQuestFolder}
+          moveQuestToFolder={moveQuestToFolder}
+          moveQuestFolderToFolder={moveQuestFolderToFolder}
           selectQuest={selectQuest}
         />
       ),
@@ -1339,6 +1498,122 @@ function DarkStyles() {
         padding: 4px;
         padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
         scrollbar-gutter: stable;
+      }
+      .quest-directory-toolbar-row {
+        display: flex;
+        gap: 0.4rem;
+      }
+      .quest-directory-toolbar-row > button {
+        flex: 1 1 0;
+      }
+      .quest-directory-tree {
+        display: grid;
+        align-content: start;
+        gap: 0.2rem;
+        width: 100%;
+        min-width: 0;
+      }
+      .quest-directory-section {
+        display: grid;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+      .quest-directory-folder {
+        display: grid;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+      .quest-directory-folder-row {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-height: 1.55rem;
+        border-radius: 0.25rem;
+        border: 1px solid transparent;
+        background: rgba(23, 23, 23, 0.65);
+        padding: 0.12rem 0.25rem;
+      }
+      .quest-directory-folder-row:hover {
+        border-color: rgb(64 64 64);
+        background: rgb(38 38 38);
+      }
+      .quest-directory-folder-selected {
+        border-color: rgba(255, 255, 255, 0.72);
+        background: rgba(59, 130, 246, 0.18);
+      }
+      .quest-directory-folder-main {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        text-align: left;
+      }
+      .quest-directory-folder-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.86rem;
+        font-weight: 800;
+        color: rgb(229 229 229);
+      }
+      .quest-directory-folder-count {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: rgb(64 64 64);
+        padding: 0.04rem 0.35rem;
+        font-size: 0.68rem;
+        font-weight: 850;
+        color: rgb(212 212 212);
+      }
+      .quest-directory-folder-actions {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
+      }
+      .quest-directory-folder-move-select {
+        max-width: 5.5rem;
+        border-radius: 0.25rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.08rem 0.25rem;
+        font-size: 0.68rem;
+        font-weight: 750;
+        color: rgb(212 212 212);
+      }
+      .quest-directory-children {
+        display: grid;
+        gap: 0.2rem;
+        margin-left: 1.15rem;
+        padding-left: 0.45rem;
+        border-left: 1px solid rgb(82 82 82);
+      }
+      .quest-directory-inbox-row {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        min-height: 1.55rem;
+        border-radius: 0.25rem;
+        border: 1px solid transparent;
+        background: rgba(23, 23, 23, 0.65);
+        padding: 0.12rem 0.25rem;
+      }
+      .quest-directory-inbox-row:hover {
+        border-color: rgb(64 64 64);
+        background: rgb(38 38 38);
+      }
+      .quest-directory-empty {
+        border-radius: 0.25rem;
+        border: 1px dashed rgb(64 64 64);
+        background: rgba(10, 10, 10, 0.45);
+        padding: 0.45rem;
+        font-size: 0.78rem;
+        color: rgb(140 140 140);
+      }
+      .quest-directory-quest-card {
+        width: 100%;
       }
       .quest-board-list {
         display: grid;

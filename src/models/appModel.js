@@ -151,9 +151,66 @@ export const DIFFICULTIES = ["Tiny", "Easy", "Medium", "Hard", "Deep Work"];
 export const MODES = ["all", "sequence"];
 export const COOLDOWN_UNITS = ["days", "weeks", "months", "years"];
 
+
+export function makeQuestFolder({
+  id = newId("folder"),
+  title = "New Folder",
+  parentId = null,
+  createdAt = new Date().toISOString(),
+  updatedAt = "",
+} = {}) {
+  return {
+    id,
+    title,
+    parentId: parentId || null,
+    createdAt,
+    updatedAt,
+  };
+}
+
+export function normalizeQuestFolders(rawFolders = []) {
+  const folders = Array.isArray(rawFolders)
+    ? rawFolders
+        .filter((folder) => folder && typeof folder === "object")
+        .map((folder) =>
+          makeQuestFolder({
+            ...folder,
+            id: folder.id || newId("folder"),
+            title: folder.title || "Untitled Folder",
+            parentId: folder.parentId || null,
+            createdAt: folder.createdAt || new Date().toISOString(),
+            updatedAt: folder.updatedAt || "",
+          })
+        )
+    : [];
+
+  const seen = new Set();
+  return folders.filter((folder) => {
+    if (!folder.id || seen.has(folder.id)) return false;
+    seen.add(folder.id);
+    return true;
+  });
+}
+
+export function isFolderDescendant(folders, folderId, possibleAncestorId) {
+  let current = folders.find((folder) => folder.id === folderId) || null;
+  const guard = new Set();
+
+  while (current) {
+    if (current.parentId === possibleAncestorId) return true;
+    if (!current.parentId || guard.has(current.parentId)) return false;
+
+    guard.add(current.parentId);
+    current = folders.find((folder) => folder.id === current.parentId) || null;
+  }
+
+  return false;
+}
+
 export const seedData = {
   activeQuestId: "quest_programming_sample",
   activeBranchTaskId: null,
+  folders: [],
   quests: [
     makeQuest({
       id: "quest_programming_sample",
@@ -246,10 +303,14 @@ export const seedData = {
 export function normalizeData(parsed) {
   if (!parsed || typeof parsed !== "object") return seedData;
 
+  const folders = normalizeQuestFolders(parsed.folders || []);
+  const folderIds = new Set(folders.map((folder) => folder.id));
+
   const quests = Array.isArray(parsed.quests)
     ? parsed.quests.map((quest) => {
         const normalizedChildren = normalizeTasks(quest.rootTask?.children || quest.tasks || []);
-        return makeQuest({
+        const requestedFolderId = quest.folderId || null;
+        const normalizedQuest = makeQuest({
           ...quest,
           completedAt: quest.completedAt || "",
           openedAt: quest.openedAt || "",
@@ -263,12 +324,18 @@ export function normalizeData(parsed) {
             children: normalizedChildren,
           },
         });
+
+        return {
+          ...normalizedQuest,
+          folderId: requestedFolderId && folderIds.has(requestedFolderId) ? requestedFolderId : null,
+        };
       })
     : [];
 
   return {
     activeQuestId: parsed.activeQuestId || quests[0]?.id || null,
     activeBranchTaskId: parsed.activeBranchTaskId || null,
+    folders,
     quests,
   };
 }
