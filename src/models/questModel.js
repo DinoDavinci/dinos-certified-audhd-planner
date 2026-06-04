@@ -138,6 +138,7 @@ export function makeQuest(overrides = {}) {
     locked: false,
     rootTask,
     createdAt: new Date().toISOString(),
+    updatedAt: "",
     ...rest,
     scheduleType: normalizedSchedule.scheduleType,
     schedule: normalizedSchedule.schedule,

@@ -12,6 +12,7 @@ import {
   isQuestComplete,
   isQuestReadyToComplete,
   getQuestProgress,
+  todayString,
 } from "../../models/appModel";
 
 import {
@@ -32,6 +33,14 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
       ...old,
       quests: old.quests.map((item) => (item.id === quest.id ? { ...item, ...patch } : item)),
     }));
+  }
+
+  function updateQuestEnabled(enabled) {
+    updateQuest({
+      status: enabled ? "active" : "inactive",
+      updatedAt: new Date().toISOString(),
+      enabledChangedAt: todayString(),
+    });
   }
 
   const complete = isQuestComplete(quest);
@@ -63,7 +72,7 @@ export default function QuestInspector({ quest, allTags, isFocus, isQuestRoot = 
           type="checkbox"
           checked={questEnabled}
           disabled={eventManaged}
-          onChange={(event) => updateQuest({ status: event.target.checked ? "active" : "inactive" })}
+          onChange={(event) => updateQuestEnabled(event.target.checked)}
         />
         Enabled
         {eventManaged && <span className="text-xs text-neutral-500">Event quests enable automatically on their event date.</span>}
