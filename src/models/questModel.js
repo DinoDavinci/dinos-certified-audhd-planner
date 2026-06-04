@@ -1,7 +1,6 @@
-import { newId, todayString, isRoutineActiveOnDate } from "../utils/dateUtils";
+import { newId, todayString } from "../utils/dateUtils";
 
 import {
-  cloneTasks,
   makeTask,
   isTaskComplete,
   areTaskChildrenComplete,
@@ -136,8 +135,6 @@ export function makeQuest(overrides = {}) {
     cooldownEnabled,
     cooldownAmount: normalizedSchedule.schedule.cooldownAmount,
     cooldownUnit: normalizedSchedule.schedule.cooldownUnit,
-    sourceType: "manual",
-    routineId: null,
     locked: false,
     rootTask,
     createdAt: new Date().toISOString(),
@@ -162,99 +159,6 @@ export function openQuestAttempt(quest, date = todayString(), patch = {}) {
     rootTask: resetTaskSubtree(rootTask),
     ...patch,
   };
-}
-
-
-export function getRoutineQuestTemplate(routine) {
-  const template = routine?.questTemplate || {};
-  const root = template.rootTask || {};
-
-  return {
-    title: template.title ?? routine?.title ?? "",
-    description: template.description ?? routine?.description ?? "",
-    tags: template.tags ?? routine?.tags ?? [],
-    difficulty: template.difficulty ?? routine?.difficulty ?? "Tiny",
-    rootTask: makeQuestRootTask({
-      ...root,
-      mode: root.mode || routine?.mode || "sequence",
-      children: root.children || routine?.taskTemplate || [],
-    }),
-  };
-}
-
-export function createQuestFromRoutine(routine, dueDate) {
-  const template = getRoutineQuestTemplate(routine);
-
-  return makeQuest({
-    title: template.title,
-    description: template.description,
-    tags: template.tags,
-    difficulty: template.difficulty,
-    deadline: dueDate,
-    sourceType: "routine",
-    routineId: routine.id,
-    locked: true,
-    rootTask: makeQuestRootTask({
-      ...template.rootTask,
-      id: newId("root"),
-      completed: false,
-      countProgress: 0,
-      children: cloneTasks(template.rootTask.children || []),
-    }),
-  });
-}
-
-
-export function syncGeneratedQuestWithRoutine(quest, routine) {
-  const template = getRoutineQuestTemplate(routine);
-  const existingRoot = getQuestRootTask(quest);
-  const existingChildren = existingRoot.children || [];
-  const templateChildren = template.rootTask.children || [];
-
-  return makeQuest({
-    ...quest,
-    title: template.title,
-    description: template.description,
-    tags: template.tags,
-    difficulty: template.difficulty,
-    locked: true,
-    rootTask: makeQuestRootTask({
-      ...existingRoot,
-      mode: template.rootTask.mode || existingRoot.mode || "sequence",
-      children: existingChildren.length > 0 ? existingChildren : cloneTasks(templateChildren),
-    }),
-  });
-}
-
-export function reconcileTodayQuestForRoutine(quests, routine) {
-  const today = todayString();
-  const shouldExist = routine.active && isRoutineActiveOnDate(routine, today);
-
-  const existing = (quests || []).find(
-    (quest) => quest.sourceType === "routine" && quest.routineId === routine.id && quest.deadline === today
-  );
-
-  if (shouldExist) {
-    if (existing) {
-      return quests.map((quest) =>
-        quest.id === existing.id && !isQuestComplete(quest)
-          ? syncGeneratedQuestWithRoutine(quest, routine)
-          : quest
-      );
-    }
-
-    return [createQuestFromRoutine(routine, today), ...(quests || [])];
-  }
-
-  return (quests || []).filter((quest) => {
-    const isTodaysInstance =
-      quest.sourceType === "routine" &&
-      quest.routineId === routine.id &&
-      quest.deadline === today;
-
-    // Keep completed generated quests as a record; remove only the live/incomplete instance.
-    return !(isTodaysInstance && !isQuestComplete(quest));
-  });
 }
 
 
