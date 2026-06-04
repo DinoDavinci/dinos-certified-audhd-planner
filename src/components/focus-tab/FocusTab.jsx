@@ -447,7 +447,7 @@ function FocusColumn({
 
               {hasDescription && expanded && (
                 <div className="focus-card-body">
-                  {row.task.description}
+                  <RichDescription text={row.task.description} />
                 </div>
               )}
             </div>
