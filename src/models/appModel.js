@@ -332,33 +332,86 @@ export function normalizeData(parsed) {
 }
 
 
-export function runDailyMaintenance(data) {
-  const today = todayString();
 
-  let quests = (data.quests || []).map((quest) => {
-    if (
-      quest.sourceType !== "routine" &&
-      quest.cooldownEnabled &&
-      isQuestComplete(quest) &&
-      quest.completedAt
-    ) {
-      const resetDate = addCooldown(quest.completedAt, quest.cooldownAmount, quest.cooldownUnit);
-      if (resetDate <= today) {
-        return openQuestAttempt(quest, today);
-      }
+function getScheduleTypeForMaintenance(quest) {
+  const fallback = quest?.cooldownEnabled ? "cooldown" : "none";
+  const value = quest?.scheduleType || fallback;
+  return ["none", "cooldown", "routine", "event"].includes(value) ? value : fallback;
+}
+
+function getScheduleForMaintenance(quest) {
+  const raw = quest?.schedule && typeof quest.schedule === "object" ? quest.schedule : {};
+
+  return {
+    dayMask: raw.dayMask ?? quest?.dayMask ?? 0,
+    eventDate: raw.eventDate || quest?.eventDate || "",
+    cooldownAmount: Math.max(1, Number(raw.cooldownAmount ?? quest?.cooldownAmount ?? 6)),
+    cooldownUnit: raw.cooldownUnit || quest?.cooldownUnit || "months",
+  };
+}
+
+function isQuestRoutineScheduledToday(quest, today) {
+  const schedule = getScheduleForMaintenance(quest);
+  return Boolean((schedule.dayMask || 0) & weekdayBit(today));
+}
+
+function applyQuestSchedule(quest, today) {
+  const scheduleType = getScheduleTypeForMaintenance(quest);
+  const schedule = getScheduleForMaintenance(quest);
+
+  if (scheduleType === "cooldown") {
+    if (!isQuestComplete(quest) || !quest.completedAt) return quest;
+
+    const resetDate = addCooldown(quest.completedAt, schedule.cooldownAmount, schedule.cooldownUnit);
+
+    if (resetDate <= today) {
+      return openQuestAttempt(quest, today, { deadline: "" });
+    }
+
+    if (quest.deadline !== resetDate) {
+      return { ...quest, deadline: resetDate };
     }
 
     return quest;
-  }).filter((quest) => {
-    const missedGeneratedQuest = quest.sourceType === "routine" && !isQuestComplete(quest) && quest.deadline && quest.deadline < today;
-    return !missedGeneratedQuest;
-  });
-
-  const routines = data.routines || [];
-
-  for (const routine of routines) {
-    quests = reconcileTodayQuestForRoutine(quests, routine);
   }
+
+  if (scheduleType === "routine") {
+    if (!isQuestRoutineScheduledToday(quest, today)) return quest;
+    if (quest.openedAt === today) return quest;
+
+    return openQuestAttempt(quest, today, { deadline: today });
+  }
+
+  if (scheduleType === "event") {
+    if (!schedule.eventDate) return quest;
+
+    if (today < schedule.eventDate) {
+      return {
+        ...quest,
+        status: "inactive",
+        deadline: schedule.eventDate,
+      };
+    }
+
+    if (!quest.openedAt || quest.status === "inactive") {
+      return openQuestAttempt(quest, today, { deadline: schedule.eventDate });
+    }
+
+    if (quest.deadline !== schedule.eventDate) {
+      return { ...quest, deadline: schedule.eventDate };
+    }
+
+    return quest;
+  }
+
+  return quest;
+}
+
+export function runDailyMaintenance(data) {
+  const today = todayString();
+
+  const quests = (data.quests || []).map((quest) => applyQuestSchedule(quest, today));
+  const routines = data.routines || [];
 
   return { ...data, quests, routines };
 }
