@@ -407,8 +407,8 @@ function applyQuestSchedule(quest, today) {
   return quest;
 }
 
-export function runDailyMaintenance(data) {
-  const today = todayString();
+export function runDailyMaintenance(data, dateOverride = "") {
+  const today = dateOverride || todayString();
 
   const quests = (data.quests || []).map((quest) => applyQuestSchedule(quest, today));
   const routines = data.routines || [];

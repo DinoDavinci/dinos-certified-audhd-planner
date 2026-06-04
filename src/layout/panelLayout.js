@@ -12,6 +12,7 @@ export const PANEL_IDS = Object.freeze({
   EXPORT_PANEL: "exportPanel",
   FOCUS_PANEL: "focusPanel",
   INSPECTOR_PANEL: "inspectorPanel",
+  DEBUG_PANEL: "debugPanel",
   TREE_VIEW_PANEL: "treeViewPanel",
 });
 
@@ -41,6 +42,11 @@ export const PANEL_DEFINITIONS = Object.freeze({
     title: "Inspector",
     defaultDock: DOCK_IDS.TOP_RIGHT,
   }),
+  [PANEL_IDS.DEBUG_PANEL]: Object.freeze({
+    id: PANEL_IDS.DEBUG_PANEL,
+    title: "Debug",
+    defaultDock: DOCK_IDS.TOP_RIGHT,
+  }),
   [PANEL_IDS.TREE_VIEW_PANEL]: Object.freeze({
     id: PANEL_IDS.TREE_VIEW_PANEL,
     title: "Tree View",
@@ -56,7 +62,10 @@ export const DEFAULT_DOCK_LAYOUT = Object.freeze({
   ]),
   [DOCK_IDS.BOTTOM_LEFT]: Object.freeze([]),
   [DOCK_IDS.CENTER]: Object.freeze([PANEL_IDS.FOCUS_PANEL]),
-  [DOCK_IDS.TOP_RIGHT]: Object.freeze([PANEL_IDS.INSPECTOR_PANEL]),
+  [DOCK_IDS.TOP_RIGHT]: Object.freeze([
+    PANEL_IDS.INSPECTOR_PANEL,
+    PANEL_IDS.DEBUG_PANEL,
+  ]),
   [DOCK_IDS.BOTTOM_RIGHT]: Object.freeze([PANEL_IDS.TREE_VIEW_PANEL]),
 });
 

@@ -48,6 +48,7 @@ import {
 import QuestBoardTab from "./components/quest-board/QuestBoardTab";
 import RoutineManagementTab from "./components/routine-management/RoutineManagementTab";
 import ExportOptionsTab from "./components/export-options/ExportOptionsTab";
+import DebugTab from "./components/debug/DebugTab";
 import FocusTab from "./components/focus-tab/FocusTab";
 import TreeViewTab from "./components/tree-view/TreeViewTab";
 import InspectorTab from "./components/inspector/InspectorTab";
@@ -89,6 +90,19 @@ export default function App() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(360);
   const [rightPanelWidth, setRightPanelWidth] = useState(430);
   const [expandedKanbanCards, setExpandedKanbanCards] = useState({});
+  const [debugDateOverrideEnabled, setDebugDateOverrideEnabled] = useState(false);
+  const [debugDateOverrideDate, setDebugDateOverrideDate] = useState(todayString());
+
+  function getAppDate() {
+    return debugDateOverrideEnabled && debugDateOverrideDate
+      ? debugDateOverrideDate
+      : todayString();
+  }
+
+  function runMaintenanceForDate(date = getAppDate()) {
+    setData((old) => runDailyMaintenance(old, date));
+    localStorage.setItem(LAST_TICK_KEY, date);
+  }
 
   const quests = data.quests || [];
   const routines = data.routines || [];
@@ -138,17 +152,21 @@ export default function App() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const today = todayString();
+      const today = getAppDate();
       const lastTick = localStorage.getItem(LAST_TICK_KEY);
 
       if (lastTick !== today) {
-        setData((old) => runDailyMaintenance(old));
+        setData((old) => runDailyMaintenance(old, today));
         localStorage.setItem(LAST_TICK_KEY, today);
       }
     }, 60000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [debugDateOverrideEnabled, debugDateOverrideDate]);
+
+  useEffect(() => {
+    runMaintenanceForDate();
+  }, [debugDateOverrideEnabled, debugDateOverrideDate]);
 
   const allTags = useMemo(() => {
     const set = new Set(DEFAULT_TAGS);
@@ -517,7 +535,7 @@ function toggleTask(questId, taskId) {
           return {
             ...quest,
             status: completed ? "completed" : "active",
-            completedAt: completed ? todayString() : "",
+            completedAt: completed ? getAppDate() : "",
             rootTask: {
               ...rootTask,
               completed,
@@ -636,7 +654,7 @@ function completeQuest(questId) {
         return {
           ...quest,
           status: "completed",
-          completedAt: todayString(),
+          completedAt: getAppDate(),
           rootTask: {
             ...quest.rootTask,
             completed: true,
@@ -800,12 +818,11 @@ function restoreQuest(questId) {
   }
 
   function runMaintenanceNow() {
-    setData((old) => runDailyMaintenance(old));
-    localStorage.setItem(LAST_TICK_KEY, todayString());
+    runMaintenanceForDate();
   }
 
   function dueBadge(item) {
-    const today = todayString();
+    const today = getAppDate();
     if (!item?.deadline) return null;
     if (item.deadline < today) return <span className="badge bg-red-950 text-red-200">Overdue</span>;
     if (item.deadline === today) return <span className="badge bg-amber-950 text-amber-200">Today</span>;
@@ -976,6 +993,11 @@ function restoreQuest(questId) {
           moveRoutineTaskToLocation={moveRoutineTaskToLocation}
           toggleTask={toggleTask}
           runMaintenanceNow={runMaintenanceNow}
+          debugDateOverrideEnabled={debugDateOverrideEnabled}
+          setDebugDateOverrideEnabled={setDebugDateOverrideEnabled}
+          debugDateOverrideDate={debugDateOverrideDate}
+          setDebugDateOverrideDate={setDebugDateOverrideDate}
+          currentAppDate={getAppDate()}
         />
       </div>
 
@@ -1103,12 +1125,17 @@ function CenterDock({ activePanelId, setActivePanelId, ...focusProps }) {
   );
 }
 
-function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorProps }) {
+function TopRightDock({ activePanelId, setActivePanelId, rightSplit, inspectorProps, debugProps }) {
   const tabs = [
     {
       id: PANEL_IDS.INSPECTOR_PANEL,
       title: "Inspector",
       content: <InspectorTab {...inspectorProps} embedded />,
+    },
+    {
+      id: PANEL_IDS.DEBUG_PANEL,
+      title: "Debug",
+      content: <DebugTab {...debugProps} />,
     },
   ];
 
@@ -1175,6 +1202,12 @@ function RightPanel(props) {
     moveQuestTaskToLocation,
     moveRoutineTaskToLocation,
     toggleTask,
+    runMaintenanceNow,
+    debugDateOverrideEnabled,
+    setDebugDateOverrideEnabled,
+    debugDateOverrideDate,
+    setDebugDateOverrideDate,
+    currentAppDate,
   } = props;
 
   const treeContext = getTreeContext(selection, data, activeQuest);
@@ -1215,6 +1248,14 @@ function RightPanel(props) {
         setActivePanelId={setTopRightTab}
         rightSplit={rightSplit}
         inspectorProps={props}
+        debugProps={{
+          debugDateOverrideEnabled,
+          setDebugDateOverrideEnabled,
+          debugDateOverrideDate,
+          setDebugDateOverrideDate,
+          currentAppDate,
+          runMaintenanceNow,
+        }}
       />
 
       <div
