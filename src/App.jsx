@@ -2314,12 +2314,62 @@ function DarkStyles() {
         font-weight: 900;
         color: rgb(245 245 245);
       }
-      .focus-description-text {
+      .focus-description-rich {
+        display: grid;
+        gap: 0.65rem;
         margin-top: 0.25rem;
+      }
+      .focus-description-text {
+        margin: 0;
         white-space: pre-wrap;
         font-size: 1rem;
         line-height: 1.5;
         color: rgb(212 212 212);
+      }
+      .description-code-panel {
+        overflow: hidden;
+        border: 1px solid rgb(64 64 64);
+        border-radius: 0.35rem;
+        background: rgb(10 10 10);
+      }
+      .description-code-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        border-bottom: 1px solid rgb(38 38 38);
+        background: rgb(23 23 23);
+        padding: 0.35rem 0.5rem;
+      }
+      .description-code-language {
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: rgb(163 163 163);
+      }
+      .description-code-copy {
+        border-radius: 0.28rem;
+        background: rgb(38 38 38);
+        padding: 0.15rem 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: rgb(229 229 229);
+      }
+      .description-code-copy:hover {
+        background: rgb(64 64 64);
+        color: white;
+      }
+      .description-code-pre {
+        margin: 0;
+        max-height: 28rem;
+        overflow: auto;
+        padding: 0.75rem;
+        white-space: pre;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        color: rgb(229 229 229);
+      }
+      .description-code-pre code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       }
       .focus-path-header {
         padding: 0.25rem 0 0;

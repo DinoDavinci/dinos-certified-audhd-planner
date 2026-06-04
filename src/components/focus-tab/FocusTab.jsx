@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Play,
   CheckCircle2,
@@ -197,6 +197,109 @@ function FocusRelations({ quest, focusPathInfo, setBranchFocus, clearBranchFocus
   );
 }
 
+
+function parseDescriptionBlocks(text) {
+  const blocks = [];
+  const pattern = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      blocks.push({ type: "text", text: text.slice(lastIndex, match.index) });
+    }
+
+    blocks.push({
+      type: "code",
+      language: (match[1] || "").trim(),
+      text: match[2] || "",
+    });
+
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    blocks.push({ type: "text", text: text.slice(lastIndex) });
+  }
+
+  return blocks.length > 0 ? blocks : [{ type: "text", text }];
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  try {
+    document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+function DescriptionCodeBlock({ code, language }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await copyTextToClipboard(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch (error) {
+      console.warn("Could not copy code block", error);
+    }
+  }
+
+  return (
+    <div className="description-code-panel">
+      <div className="description-code-toolbar">
+        <span className="description-code-language">{language || "Code"}</span>
+        <button type="button" className="description-code-copy" onClick={handleCopy}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="description-code-pre"><code>{code}</code></pre>
+    </div>
+  );
+}
+
+function RichDescription({ text }) {
+  const blocks = parseDescriptionBlocks(text);
+
+  return (
+    <div className="focus-description-rich">
+      {blocks.map((block, index) => {
+        if (block.type === "code") {
+          return (
+            <DescriptionCodeBlock
+              key={`code-${index}`}
+              code={block.text}
+              language={block.language}
+            />
+          );
+        }
+
+        if (block.text.trim() === "") return null;
+
+        return (
+          <p key={`text-${index}`} className="focus-description-text">
+            {block.text}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectTask, setBranchFocus, clearBranchFocus }) {
   const displayNode = getFocusDisplayNode(quest, focusPathInfo);
   const description = displayNode?.description || "";
@@ -238,7 +341,7 @@ function FocusDocumentHeader({ quest, focusPathInfo, selectQuest, selectTask, se
       {description.trim() !== "" && (
         <div className="focus-description-section">
           <h3 className="focus-description-title">Description</h3>
-          <p className="focus-description-text">{description}</p>
+          <RichDescription text={description} />
         </div>
       )}
     </div>
