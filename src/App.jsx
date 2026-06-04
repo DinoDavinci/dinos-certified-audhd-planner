@@ -82,6 +82,11 @@ export default function App() {
   const [selection, setSelectionRaw] = useState({ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null });
   const [history, setHistory] = useState([{ type: "quest", id: data.activeQuestId || data.quests[0]?.id || null }]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [focusHistory, setFocusHistory] = useState([{
+    questId: data.activeQuestId || data.quests[0]?.id || null,
+    branchTaskId: null,
+  }]);
+  const [focusHistoryIndex, setFocusHistoryIndex] = useState(0);
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("All");
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -138,6 +143,52 @@ export default function App() {
     const i = historyIndex + 1;
     setHistoryIndex(i);
     setSelectionRaw(history[i]);
+  }
+
+  function focusHistoryKey(item) {
+    return `${item?.questId || ""}:${item?.branchTaskId || ""}`;
+  }
+
+  function applyFocusTarget(target, options = {}) {
+    const nextTarget = {
+      questId: target.questId || null,
+      branchTaskId: target.branchTaskId || null,
+    };
+
+    setData((old) => ({
+      ...old,
+      activeQuestId: nextTarget.questId,
+      activeBranchTaskId: nextTarget.branchTaskId,
+    }));
+
+    if (options.record === false) return;
+
+    setFocusHistory((old) => {
+      const trimmed = old.slice(0, focusHistoryIndex + 1);
+      const last = trimmed[trimmed.length - 1];
+
+      if (focusHistoryKey(last) === focusHistoryKey(nextTarget)) return old;
+
+      const nextHistory = [...trimmed, nextTarget];
+      setFocusHistoryIndex(nextHistory.length - 1);
+      return nextHistory;
+    });
+  }
+
+  function goFocusBack() {
+    if (focusHistoryIndex <= 0) return;
+    const i = focusHistoryIndex - 1;
+    const target = focusHistory[i];
+    setFocusHistoryIndex(i);
+    applyFocusTarget(target, { record: false });
+  }
+
+  function goFocusForward() {
+    if (focusHistoryIndex >= focusHistory.length - 1) return;
+    const i = focusHistoryIndex + 1;
+    const target = focusHistory[i];
+    setFocusHistoryIndex(i);
+    applyFocusTarget(target, { record: false });
   }
 
   useEffect(() => {
@@ -440,15 +491,15 @@ function uncompleteTask(questId, taskId) {
   }
 
   function makeFocus(questId) {
-    setData((old) => ({ ...old, activeQuestId: questId, activeBranchTaskId: null }));
+    applyFocusTarget({ questId, branchTaskId: null });
   }
 
   function setBranchFocus(taskId) {
-    setData((old) => ({ ...old, activeBranchTaskId: taskId }));
+    applyFocusTarget({ questId: activeQuest?.id || data.activeQuestId || null, branchTaskId: taskId });
   }
 
   function clearBranchFocus() {
-    setData((old) => ({ ...old, activeBranchTaskId: null }));
+    applyFocusTarget({ questId: activeQuest?.id || data.activeQuestId || null, branchTaskId: null });
   }
 
   
@@ -534,6 +585,8 @@ function restoreQuest(questId) {
       setSelection({ type: "quest", id: importedQuest.id });
       setHistory([{ type: "quest", id: importedQuest.id }]);
       setHistoryIndex(0);
+      setFocusHistory([{ questId: importedQuest.id, branchTaskId: null }]);
+      setFocusHistoryIndex(0);
       setExpanded({});
       setExpandedKanbanCards({});
     } catch (error) {
@@ -552,9 +605,12 @@ async function importJsonFile(file) {
       const imported = runDailyMaintenance(normalizeData(rawData));
 
       setData(imported);
-      setSelection({ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null });
-      setHistory([{ type: "quest", id: imported.activeQuestId || imported.quests[0]?.id || null }]);
+      const importedFocusQuestId = imported.activeQuestId || imported.quests[0]?.id || null;
+      setSelection({ type: "quest", id: importedFocusQuestId });
+      setHistory([{ type: "quest", id: importedFocusQuestId }]);
       setHistoryIndex(0);
+      setFocusHistory([{ questId: importedFocusQuestId, branchTaskId: imported.activeBranchTaskId || null }]);
+      setFocusHistoryIndex(0);
       setExpanded({});
       setExpandedKanbanCards({});
       localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
@@ -575,9 +631,12 @@ async function importJsonFile(file) {
     localStorage.setItem(LAST_TICK_KEY, todayString());
 
     setData(resetData);
-    setSelection({ type: "quest", id: resetData.activeQuestId || resetData.quests[0]?.id || null });
-    setHistory([{ type: "quest", id: resetData.activeQuestId || resetData.quests[0]?.id || null }]);
+    const resetFocusQuestId = resetData.activeQuestId || resetData.quests[0]?.id || null;
+    setSelection({ type: "quest", id: resetFocusQuestId });
+    setHistory([{ type: "quest", id: resetFocusQuestId }]);
     setHistoryIndex(0);
+    setFocusHistory([{ questId: resetFocusQuestId, branchTaskId: null }]);
+    setFocusHistoryIndex(0);
     setExpanded({});
     setExpandedKanbanCards({});
   }
@@ -688,6 +747,10 @@ async function importJsonFile(file) {
           quest={activeQuest}
           focusBoard={focusBoard}
           focusPathInfo={focusPathInfo}
+          goFocusBack={goFocusBack}
+          goFocusForward={goFocusForward}
+          canFocusGoBack={focusHistoryIndex > 0}
+          canFocusGoForward={focusHistoryIndex < focusHistory.length - 1}
           setBranchFocus={setBranchFocus}
           clearBranchFocus={clearBranchFocus}
           selectQuest={(quest) => {
@@ -1185,6 +1248,39 @@ function DarkStyles() {
         padding: 4px;
         padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
         scrollbar-gutter: stable;
+      }
+      .focus-main-margin {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+        padding: 0;
+      }
+      .focus-main-vbox {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        overflow: hidden;
+      }
+      .focus-toolbar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-height: 1.7rem;
+        padding: 0;
+      }
+      .focus-toolbar-section,
+      .focus-toolbar-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        min-width: 0;
       }
       .focus-contents-margin {
         padding-left: 32px;

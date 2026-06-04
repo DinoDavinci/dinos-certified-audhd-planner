@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ArrowLeft,
+  ArrowRight,
   X,
 } from "lucide-react";
 
@@ -20,7 +22,7 @@ function isQuestCompletionRow(row) {
   return row?.kind === "questCompletion" || row?.kind === "rootTask";
 }
 
-export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFocus, clearBranchFocus, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
+export default function FocusTab({ quest, focusBoard, focusPathInfo, goFocusBack, goFocusForward, canFocusGoBack = false, canFocusGoForward = false, setBranchFocus, clearBranchFocus, selectQuest, selectTask, toggleTask, uncompleteTask, expandedKanbanCards, setExpandedKanbanCards }) {
   const [showUpcomingStacks, setShowUpcomingStacks] = useState(true);
   if (!quest) {
     return (
@@ -36,9 +38,18 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
 
   return (
     <main className="focus-tab-root">
-      <div className="scene-contents-panel focus-contents-panel">
-        <div className="scene-contents-margin focus-contents-margin">
-          <div className="focus-panel-content focus-scene-content">
+      <div className="focus-main-margin">
+        <div className="focus-main-vbox">
+          <FocusToolbar
+            goFocusBack={goFocusBack}
+            goFocusForward={goFocusForward}
+            canFocusGoBack={canFocusGoBack}
+            canFocusGoForward={canFocusGoForward}
+          />
+
+          <div className="scene-contents-panel focus-contents-panel">
+            <div className="scene-contents-margin focus-contents-margin">
+              <div className="focus-panel-content focus-scene-content">
       <FocusDocumentHeader
         quest={quest}
         focusPathInfo={focusPathInfo}
@@ -105,6 +116,8 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
           summary={`${focusBoard.completedCount} / ${focusBoard.totalCount}`}
         />
       </section>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -112,6 +125,37 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, setBranchFo
   );
 }
 
+
+function FocusToolbar({ goFocusBack, goFocusForward, canFocusGoBack = false, canFocusGoForward = false }) {
+  return (
+    <div className="focus-toolbar">
+      <div className="focus-toolbar-section">
+        <span className="inspector-selection-badge">Focus</span>
+      </div>
+
+      <div className="focus-toolbar-actions">
+        <button
+          type="button"
+          onClick={goFocusBack}
+          disabled={!canFocusGoBack}
+          className="title-icon-button disabled:opacity-30"
+          title="Back"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={goFocusForward}
+          disabled={!canFocusGoForward}
+          className="title-icon-button disabled:opacity-30"
+          title="Forward"
+        >
+          <ArrowRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function getFocusDisplayNode(quest, focusPathInfo) {
   if (!quest) return null;
