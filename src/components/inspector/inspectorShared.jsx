@@ -156,9 +156,6 @@ export function ChildrenSummary({ task, ancestry, setSelection }) {
               if (owner?.type === "quest" && setSelection) {
                 setSelection({ type: "task", questId: owner.id, id: child.id });
               }
-              if (owner?.type === "routine" && setSelection) {
-                setSelection({ type: "routineTask", routineId: owner.id, id: child.id });
-              }
             }}
           >
             {child.title || "Untitled"}
@@ -181,9 +178,7 @@ export function AncestryPath({ ancestry, setSelection }) {
             className="ancestry-button"
             onClick={() => {
               if (item.type === "quest") setSelection({ type: "quest", id: item.id });
-              if (item.type === "routine") setSelection({ type: "routine", id: item.id });
               if (item.type === "task") setSelection({ type: "task", questId: item.questId, id: item.id });
-              if (item.type === "routineTask") setSelection({ type: "routineTask", routineId: item.routineId, id: item.id });
             }}
           >
             {item.title || "Untitled"}

@@ -65,7 +65,6 @@ export default function QuestBoardTab({
                 <div className="mt-3 flex flex-wrap gap-2">
                   {isQuestComplete(quest) && <span className="pill-complete">Completed</span>}
                   {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
-                  {quest.sourceType === "routine" && <span className="pill-blue">Routine</span>}
                 </div>
               </button>
             ))}

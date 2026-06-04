@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 
 import {
-  reconcileTodayQuestForRoutine,
   findTask,
   findTaskPath,
   getTaskAncestry,
@@ -13,7 +12,6 @@ import {
 } from "../../models/appModel";
 
 import QuestInspector from "./QuestInspector";
-import RoutineInspector from "./RoutineInspector";
 import TaskInspector from "./TaskInspector";
 import {
   QuestChildrenSummary,
@@ -53,18 +51,14 @@ export default function InspectorTab(props) {
 function getSelectionType(selection) {
   const type = selection?.type || "none";
   if (type === "quest") return "Quest";
-  if (type === "routine") return "Routine";
   if (type === "task") return "Task";
-  if (type === "routineTask") return "Template Task";
   return "Nothing";
 }
 
 function getInspectorAccentClass(selection) {
   const type = selection?.type || "none";
   if (type === "quest") return "inspector-title-quest";
-  if (type === "routine") return "inspector-title-routine";
   if (type === "task") return "inspector-title-task";
-  if (type === "routineTask") return "inspector-title-routineTask";
   return "";
 }
 
@@ -200,18 +194,6 @@ function InspectorRelations({ selection, data, setSelection }) {
     );
   }
 
-  if (selection.type === "routineTask" && selected?.task) {
-    const ancestry = getTaskAncestry(selection, data) || [];
-    return (
-      <div className="inspector-relations-strip">
-        <div className="wiki-meta-block">
-          <AncestryPath ancestry={ancestry} setSelection={setSelection} />
-          <ChildrenSummary task={selected.task} ancestry={ancestry} setSelection={setSelection} />
-        </div>
-      </div>
-    );
-  }
-
   return null;
 }
 function Inspector({
@@ -232,13 +214,9 @@ function Inspector({
   completeQuest,
   restoreQuest,
   createQuestTask,
-  createRoutineTask,
   deleteQuest,
-  deleteRoutine,
   deleteQuestTask,
-  deleteRoutineTask,
   toggleTask,
-  runMaintenanceNow,
 }) {
   const selected = resolveSelection(selection, data);
   return (
@@ -251,22 +229,11 @@ function Inspector({
           isQuestRoot={selected.quest.id === activeQuestId}
           activeBranchTaskId={activeBranchTaskId}
           setData={setData}
-          routines={data.routines || []}
           setSelection={setSelection}
           makeFocus={() => makeFocus(selected.quest.id)}
           completeQuest={() => completeQuest(selected.quest.id)}
           restoreQuest={() => restoreQuest(selected.quest.id)}
           deleteQuest={() => deleteQuest(selected.quest.id)}
-        />
-      )}
-
-      {selection.type === "routine" && selected?.routine && (
-        <RoutineInspector
-          routine={selected.routine}
-          allTags={allTags}
-          setData={setData}
-          deleteRoutine={() => deleteRoutine(selected.routine.id)}
-          runMaintenanceNow={runMaintenanceNow}
         />
       )}
 
@@ -298,49 +265,6 @@ function Inspector({
         />
       )}
 
-      {selection.type === "routineTask" && selected?.routine && selected?.task && (
-        <TaskInspector
-          task={selected.task}
-          parent={selected.parent}
-          ownerTitle={selected.routine.title}
-          ancestry={getTaskAncestry(selection, data)}
-          setSelection={setSelection}
-          locked={false}
-          updateTask={(updater) => {
-            setData((old) => {
-              let updatedRoutine = null;
-              const routines = old.routines.map((routine) => {
-                if (routine.id !== selected.routine.id) return routine;
-                const questTemplate = routine.questTemplate || {};
-                const rootTask = questTemplate.rootTask || {};
-                updatedRoutine = {
-                  ...routine,
-                  questTemplate: {
-                    ...questTemplate,
-                    rootTask: {
-                      ...rootTask,
-                      completed: false,
-                      children: updateQuestTree(rootTask.children || [], selection.id, updater),
-                    },
-                  },
-                };
-                return updatedRoutine;
-              });
-
-              return {
-                ...old,
-                routines,
-                quests: updatedRoutine
-                  ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
-                  : old.quests,
-              };
-            });
-          }}
-          deleteTask={() => deleteRoutineTask(selected.routine.id, selected.task.id)}
-          template
-        />
-      )}
-
       {(!selected || selection.type === "none") && (
         <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 text-neutral-400">
           Select an item from the library or focus tree.
@@ -358,20 +282,10 @@ function resolveSelection(selection, data) {
     return { quest: data.quests.find((quest) => quest.id === selection.id) };
   }
 
-  if (selection.type === "routine") {
-    return { routine: data.routines.find((routine) => routine.id === selection.id) };
-  }
-
   if (selection.type === "task") {
     const quest = data.quests.find((item) => item.id === selection.questId);
     const found = quest ? findTask(quest.rootTask ? [quest.rootTask] : [], selection.id) : null;
     return { quest, task: found?.task, parent: found?.parent };
-  }
-
-  if (selection.type === "routineTask") {
-    const routine = data.routines.find((item) => item.id === selection.routineId);
-    const found = routine ? findTask(routine.questTemplate?.rootTask?.children || [], selection.id) : null;
-    return { routine, task: found?.task, parent: found?.parent };
   }
 
   return null;
@@ -379,9 +293,7 @@ function resolveSelection(selection, data) {
 
 function inspectorTitle(selection, selected) {
   if (selection.type === "quest" && selected?.quest) return `Quest: ${selected.quest.title || "Untitled"}`;
-  if (selection.type === "routine" && selected?.routine) return `Routine: ${selected.routine.title || "Untitled"}`;
   if (selection.type === "task" && selected?.task) return `Task: ${selected.task.title || "Untitled"}`;
-  if (selection.type === "routineTask" && selected?.task) return `Template Task: ${selected.task.title || "Untitled"}`;
   return "Nothing selected";
 }
 

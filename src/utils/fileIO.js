@@ -62,15 +62,6 @@ export function makeQuestFileExport(quest) {
   };
 }
 
-export function makeRoutineFileExport(routine) {
-  return {
-    app: "quest-planner",
-    type: "routine-template",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    routine,
-  };
-}
 
 export function rawDataFromPlannerPayload(payload) {
   return payload?.data && typeof payload.data === "object" ? payload.data : payload;
@@ -80,6 +71,3 @@ export function rawQuestFromQuestPayload(payload) {
   return payload?.quest && typeof payload.quest === "object" ? payload.quest : payload;
 }
 
-export function rawRoutineFromRoutinePayload(payload) {
-  return payload?.routine && typeof payload.routine === "object" ? payload.routine : payload;
-}

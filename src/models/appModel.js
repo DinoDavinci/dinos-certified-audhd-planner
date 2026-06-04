@@ -4,7 +4,6 @@ import {
   newId,
   todayString,
   weekdayBit,
-  isRoutineActiveOnDate,
   formatDayMask,
   addDays,
   addMonths,
@@ -16,9 +15,6 @@ import {
   completeTasks,
   resetTaskSubtree,
   makeTask,
-  makeRoutine,
-  makeRoutineQuestTemplate,
-  getRoutineTemplateTasks,
   cloneTasks,
   isTaskComplete,
   hasCountTarget,
@@ -58,9 +54,6 @@ import {
   makeQuestRootTask,
   getQuestRootTask,
   getQuestChildTasks,
-  createQuestFromRoutine,
-  syncGeneratedQuestWithRoutine,
-  reconcileTodayQuestForRoutine,
   isQuestComplete,
   isQuestReadyToComplete,
   getQuestProgress,
@@ -79,7 +72,6 @@ export {
   newId,
   todayString,
   weekdayBit,
-  isRoutineActiveOnDate,
   formatDayMask,
   addDays,
   addMonths,
@@ -91,9 +83,6 @@ export {
   completeTasks,
   resetTaskSubtree,
   makeTask,
-  makeRoutine,
-  makeRoutineQuestTemplate,
-  getRoutineTemplateTasks,
   cloneTasks,
   isTaskComplete,
   hasCountTarget,
@@ -139,9 +128,6 @@ export {
   normalizeScheduleType,
   normalizeQuestSchedule,
   getQuestScheduleSummary,
-  createQuestFromRoutine,
-  syncGeneratedQuestWithRoutine,
-  reconcileTodayQuestForRoutine,
   isQuestComplete,
   isQuestReadyToComplete,
   getQuestProgress,
@@ -251,25 +237,6 @@ export const seedData = {
       ],
     }),
   ],
-  routines: [
-    makeRoutine({
-      id: "routine_simple_workout",
-      title: "Simple Workout",
-      description: "A simple starter workout routine.\n\nUse Count Target for sets or rounds.\n\nGeneral rules:\n- Warm up first\n- Move smoothly\n- Stop before sharp pain\n- Rest as needed\n- Leave a few reps in reserve",
-      tags: ["Health", "Routine"],
-      difficulty: "Medium",
-      dayMask: EVERY_DAY_MASK,
-      mode: "sequence",
-      active: true,
-      taskTemplate: [
-        makeTask({ id: "routine_workout_warmup", title: "Warmup", description: "Do a few easy movements to feel warm.\n\nExamples:\n- Arm circles\n- Hip circles\n- Bodyweight squats\n- Easy marching in place" }),
-        makeTask({ id: "routine_workout_pushups", title: "Pushups", description: "Do controlled pushups or incline pushups.\n\nForm notes:\n- Keep the body straight\n- Lower under control\n- Stop before grinding reps", countTarget: 3 }),
-        makeTask({ id: "routine_workout_squats", title: "Squats", description: "Use bodyweight, a dumbbell, or a bag.\n\nForm notes:\n- Sit the hips down and back\n- Keep knees controlled\n- Stand smoothly", countTarget: 3 }),
-        makeTask({ id: "routine_workout_rows", title: "Rows", description: "Use a dumbbell, band, or bag.\n\nForm notes:\n- Pull toward the ribs or hip\n- Do not yank with momentum\n- Lower under control", countTarget: 3 }),
-        makeTask({ id: "routine_workout_carry", title: "Carry", description: "Carry a bag or weight for a short walk.\n\nForm notes:\n- Stand tall\n- Keep breathing steady\n- Do not rush", countTarget: 2 }),
-      ],
-    }),
-  ],
 };
 
 export function normalizeData(parsed) {
@@ -280,7 +247,6 @@ export function normalizeData(parsed) {
         const normalizedChildren = normalizeTasks(quest.rootTask?.children || quest.tasks || []);
         return makeQuest({
           ...quest,
-          locked: quest.locked ?? quest.sourceType === "routine",
           completedAt: quest.completedAt || "",
           openedAt: quest.openedAt || "",
           cooldownEnabled: quest.cooldownEnabled || false,
@@ -296,38 +262,10 @@ export function normalizeData(parsed) {
       })
     : [];
 
-  const routines = Array.isArray(parsed.routines)
-    ? parsed.routines.map((routine) => {
-        const template = routine.questTemplate || {};
-        const templateRoot = template.rootTask || {};
-        const templateChildren = normalizeTasks(templateRoot.children || routine.taskTemplate || []);
-
-        return makeRoutine({
-          ...routine,
-          mode: templateRoot.mode || routine.mode || "sequence",
-          dayMask: routine.dayMask ?? EVERY_DAY_MASK,
-          questTemplate: {
-            ...template,
-            title: template.title ?? routine.title ?? "",
-            description: template.description ?? routine.description ?? "",
-            tags: template.tags ?? routine.tags ?? ["Life"],
-            difficulty: template.difficulty ?? routine.difficulty ?? "Tiny",
-            rootTask: {
-              ...templateRoot,
-              mode: templateRoot.mode || routine.mode || "sequence",
-              completed: false,
-              children: templateChildren,
-            },
-          },
-        });
-      })
-    : [];
-
   return {
     activeQuestId: parsed.activeQuestId || quests[0]?.id || null,
     activeBranchTaskId: parsed.activeBranchTaskId || null,
     quests,
-    routines,
   };
 }
 
@@ -411,18 +349,14 @@ export function runDailyMaintenance(data, dateOverride = "") {
   const today = dateOverride || todayString();
 
   const quests = (data.quests || []).map((quest) => applyQuestSchedule(quest, today));
-  const routines = data.routines || [];
-
-  return { ...data, quests, routines };
+  return { ...data, quests };
 }
 
 
 export function selectionKey(selection) {
   if (!selection) return "none";
   if (selection.type === "quest") return `quest:${selection.id}`;
-  if (selection.type === "routine") return `routine:${selection.id}`;
   if (selection.type === "task") return `task:${selection.questId}:${selection.id}`;
-  if (selection.type === "routineTask") return `routineTask:${selection.routineId}:${selection.id}`;
   return "none";
 }
 
@@ -433,28 +367,10 @@ export function isTreeTaskSelected(selection, treeContext, task) {
     return selection.questId === treeContext.quest?.id && selection.id === task.id;
   }
 
-  if (treeContext.type === "routine" && selection.type === "routineTask") {
-    return selection.routineId === treeContext.routine?.id && selection.id === task.id;
-  }
-
   return false;
 }
 
 export function getTreeContext(selection, data, activeQuest) {
-  if (selection?.type === "routine") {
-    const routine = data.routines.find((item) => item.id === selection.id);
-    if (routine) {
-      return { type: "routine", routine, title: `Routine Template: ${routine.title}` };
-    }
-  }
-
-  if (selection?.type === "routineTask") {
-    const routine = data.routines.find((item) => item.id === selection.routineId);
-    if (routine) {
-      return { type: "routine", routine, title: `Routine Template: ${routine.title}` };
-    }
-  }
-
   if (selection?.type === "quest") {
     const quest = data.quests.find((item) => item.id === selection.id);
     if (quest) {
@@ -477,13 +393,11 @@ export function getTreeContext(selection, data, activeQuest) {
 }
 
 export function treeModeClass(treeContext) {
-  if (treeContext.type === "routine") return "tree-panel routine-tree";
   if (treeContext.type === "quest" || treeContext.type === "focus") return "tree-panel quest-type-regular-tree";
   return "tree-panel";
 }
 
 export function treeModeLabel(treeContext) {
-  if (treeContext.type === "routine") return "Routine template";
   if (treeContext.type === "quest") return "Selected quest";
   if (treeContext.type === "focus") return "Current focus";
   return "No tree";
@@ -491,14 +405,14 @@ export function treeModeLabel(treeContext) {
 
 export function questTypeClass(quest) {
   if (!quest) return "";
-  if (quest.sourceType === "routine") return "quest-type-routine";
+  if (quest.scheduleType === "routine") return "quest-type-routine";
   if (quest.cooldownEnabled) return "quest-type-cooldown";
   return "quest-type-regular";
 }
 
 export function questTypeLabel(quest) {
   if (!quest) return "Quest";
-  if (quest.sourceType === "routine") return "Routine";
+  if (quest.scheduleType === "routine") return "Routine";
   if (quest.cooldownEnabled) return "Cooldown";
   return "Quest";
 }

@@ -7,8 +7,6 @@ import {
   resetTaskSubtree,
   makeTask,
   makeQuest,
-  makeRoutine,
-  reconcileTodayQuestForRoutine,
   isTaskComplete,
   hasCountTarget,
   getCountProgress,
@@ -37,10 +35,8 @@ import {
   downloadJsonFile,
   makeAllDataExport,
   makeQuestFileExport,
-  makeRoutineFileExport,
   rawDataFromPlannerPayload,
   rawQuestFromQuestPayload,
-  rawRoutineFromRoutinePayload,
   readJsonFile,
   slugifyFilename,
 } from "./utils/fileIO";
@@ -104,11 +100,7 @@ export default function App() {
   }
 
   const quests = data.quests || [];
-  const routines = data.routines || [];
   const activeQuest = quests.find((quest) => quest.id === data.activeQuestId) || quests[0] || null;
-  const selectedRoutineForExport = selection.type === "routine"
-    ? routines.find((routine) => routine.id === selection.id) || null
-    : null;
   const focusPathInfo = getFocusPathInfo(activeQuest, data.activeBranchTaskId);
   const actionable = nextTasksInList(focusPathInfo.root?.tasks || [], focusPathInfo.root?.mode || "all");
   const focusBoard = addQuestCompletionCard(
@@ -170,9 +162,8 @@ export default function App() {
   const allTags = useMemo(() => {
     const set = new Set(DEFAULT_TAGS);
     quests.forEach((quest) => (quest.tags || []).forEach((tag) => set.add(tag)));
-    routines.forEach((routine) => (routine.tags || []).forEach((tag) => set.add(tag)));
     return Array.from(set).sort();
-  }, [quests, routines]);
+  }, [quests]);
 
   const filteredQuests = useMemo(() => {
     return quests
@@ -191,28 +182,13 @@ export default function App() {
       });
   }, [quests, search, tagFilter, hideCompleted]);
 
-  const filteredRoutines = useMemo(() => {
-    return routines
-      .filter((routine) => {
-        const text = `${routine.title} ${routine.description} ${(routine.tags || []).join(" ")}`.toLowerCase();
-        return text.includes(search.toLowerCase()) && (tagFilter === "All" || (routine.tags || []).includes(tagFilter));
-      })
-      .sort((a, b) => a.title.localeCompare(b.title));
-  }, [routines, search, tagFilter]);
-
   function createQuest() {
     const quest = makeQuest({ title: "New Quest" });
     setData((old) => ({ ...old, quests: [quest, ...old.quests] }));
     setSelection({ type: "quest", id: quest.id });
   }
 
-  function createRoutine() {
-    const routine = makeRoutine({ title: "New Routine" });
-    setData((old) => ({ ...old, routines: [routine, ...old.routines] }));
-    setSelection({ type: "routine", id: routine.id });
-  }
 
-  
 function createQuestTask(questId, parentId = null) {
     const task = makeTask({ title: "New Task" });
 
@@ -240,44 +216,8 @@ function createQuestTask(questId, parentId = null) {
     setSelection({ type: "task", questId, id: task.id });
   }
 
-  function createRoutineTask(routineId, parentId = null) {
-    const task = makeTask({ title: "New Task" });
 
-    setData((old) => {
-      let updatedRoutine = null;
-      const routines = old.routines.map((routine) => {
-        if (routine.id !== routineId) return routine;
-        const questTemplate = routine.questTemplate || {};
-        const rootTask = questTemplate.rootTask || {};
-        updatedRoutine = {
-          ...routine,
-          questTemplate: {
-            ...questTemplate,
-            rootTask: {
-              ...rootTask,
-              completed: false,
-              children: addTaskToTree(rootTask.children || [], parentId, task),
-            },
-          },
-        };
-        return updatedRoutine;
-      });
-
-      return {
-        ...old,
-              quests: updatedRoutine
-          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
-          : old.quests,
-      };
-    });
-
-    const routineRootId = routines.find((routine) => routine.id === routineId)?.questTemplate?.rootTask?.id || null;
-    const expandedId = parentId || routineRootId;
-    if (expandedId) setExpanded((old) => ({ ...old, [expandedId]: true }));
-    setSelection({ type: "routineTask", routineId, id: task.id });
-  }
-
-  function deleteQuest(questId) {
+function deleteQuest(questId) {
     setData((old) => {
       const quests = old.quests.filter((quest) => quest.id !== questId);
       return {
@@ -291,17 +231,7 @@ function createQuestTask(questId, parentId = null) {
     setSelection({ type: "none" });
   }
 
-  function deleteRoutine(routineId) {
-    setData((old) => ({
-      ...old,
-      quests: old.quests.filter((quest) => quest.routineId !== routineId),
-      routines: old.routines.filter((routine) => routine.id !== routineId),
-    }));
 
-    setSelection({ type: "none" });
-  }
-
-  
 function deleteQuestTask(questId, taskId) {
     setData((old) => ({
       ...old,
@@ -324,39 +254,7 @@ function deleteQuestTask(questId, taskId) {
     setSelection({ type: "quest", id: questId });
   }
 
-  function deleteRoutineTask(routineId, taskId) {
-    setData((old) => {
-      let updatedRoutine = null;
-      const routines = old.routines.map((routine) => {
-        if (routine.id !== routineId) return routine;
-        const questTemplate = routine.questTemplate || {};
-        const rootTask = questTemplate.rootTask || {};
-        updatedRoutine = {
-          ...routine,
-          questTemplate: {
-            ...questTemplate,
-            rootTask: {
-              ...rootTask,
-              completed: false,
-              children: deleteTaskFromTree(rootTask.children || [], taskId),
-            },
-          },
-        };
-        return updatedRoutine;
-      });
 
-      return {
-        ...old,
-              quests: updatedRoutine
-          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
-          : old.quests,
-      };
-    });
-
-    setSelection({ type: "routine", id: routineId });
-  }
-
-  
 function moveQuestTask(questId, taskId, direction) {
     setData((old) => ({
       ...old,
@@ -374,36 +272,8 @@ function moveQuestTask(questId, taskId, direction) {
     }));
   }
 
-  function moveRoutineTask(routineId, taskId, direction) {
-    setData((old) => {
-      let updatedRoutine = null;
-      const routines = old.routines.map((routine) => {
-        if (routine.id !== routineId) return routine;
-        const questTemplate = routine.questTemplate || {};
-        const rootTask = questTemplate.rootTask || {};
-        updatedRoutine = {
-          ...routine,
-          questTemplate: {
-            ...questTemplate,
-            rootTask: {
-              ...rootTask,
-              children: moveTaskInTree(rootTask.children || [], taskId, direction),
-            },
-          },
-        };
-        return updatedRoutine;
-      });
 
-      return {
-        ...old,
-              quests: updatedRoutine
-          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
-          : old.quests,
-      };
-    });
-  }
-
-  function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement) {
+function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement) {
     if (!questId || !sourceTaskId || !targetTaskId) return;
 
     setData((old) => ({
@@ -452,68 +322,7 @@ function moveQuestTask(questId, taskId, direction) {
     setSelection({ type: "task", questId, id: sourceTaskId });
   }
 
-  function moveRoutineTaskToLocation(routineId, sourceTaskId, targetTaskId, placement) {
-    if (!routineId || !sourceTaskId || !targetTaskId) return;
 
-    setData((old) => {
-      let updatedRoutine = null;
-
-      const routines = old.routines.map((routine) => {
-        if (routine.id !== routineId) return routine;
-
-        const questTemplate = routine.questTemplate || {};
-        const rootTask = questTemplate.rootTask || {};
-        const moveResult = moveTaskToTreeLocation(
-          rootTask.children || [],
-          sourceTaskId,
-          targetTaskId,
-          placement,
-          { rootId: rootTask.id }
-        );
-
-        if (!moveResult.moved) {
-          console.warn("[Tree rearrange] routine move rejected during mutation", {
-            routineId,
-            sourceTaskId,
-            targetTaskId,
-            placement,
-            reason: moveResult.reason,
-          });
-          return routine;
-        }
-
-        updatedRoutine = {
-          ...routine,
-          questTemplate: {
-            ...questTemplate,
-            rootTask: {
-              ...rootTask,
-              completed: false,
-              children: moveResult.tasks,
-            },
-          },
-        };
-
-        return updatedRoutine;
-      });
-
-      return {
-        ...old,
-              quests: updatedRoutine
-          ? reconcileTodayQuestForRoutine(old.quests, updatedRoutine)
-          : old.quests,
-      };
-    });
-
-    if (placement === "inside" || placement === "first-child") {
-      setExpanded((old) => ({ ...old, [targetTaskId]: true }));
-    }
-
-    setSelection({ type: "routineTask", routineId, id: sourceTaskId });
-  }
-
-
-  
 function toggleTask(questId, taskId) {
     setData((old) => ({
       ...old,
@@ -728,51 +537,9 @@ function restoreQuest(questId) {
     }
   }
 
-  function exportRoutineFile(routine = selectedRoutineForExport) {
-    if (!routine) return;
 
-    const date = todayString();
-    const filename = `${slugifyFilename(routine.title, "routine")}-${date}.routine.json`;
-    downloadJsonFile(makeRoutineFileExport(routine), filename);
-  }
 
-  async function importRoutineFile(file) {
-    if (!file) return;
-
-    try {
-      const parsed = await readJsonFile(file);
-      const rawRoutine = rawRoutineFromRoutinePayload(parsed);
-      const normalized = normalizeData({ quests: [], routines: [rawRoutine] });
-      const importedRoutine = normalized.routines[0];
-
-      if (!importedRoutine) throw new Error("No routine found in file.");
-
-      setData((old) => {
-        const existing = (old.routines || []).some((routine) => routine.id === importedRoutine.id);
-        const routines = existing
-          ? old.routines.map((routine) => (routine.id === importedRoutine.id ? importedRoutine : routine))
-          : [importedRoutine, ...(old.routines || [])];
-
-        const nextData = runDailyMaintenance({
-          ...old,
-                });
-
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-        localStorage.setItem(LAST_TICK_KEY, todayString());
-        return nextData;
-      });
-
-      setSelection({ type: "routine", id: importedRoutine.id });
-      setHistory([{ type: "routine", id: importedRoutine.id }]);
-      setHistoryIndex(0);
-      setExpanded({});
-      setExpandedKanbanCards({});
-    } catch (error) {
-      window.alert("Could not load that routine file. It may not be a valid routine template export.");
-    }
-  }
-
-  async function importJsonFile(file) {
+async function importJsonFile(file) {
     if (!file) return;
 
     try {
@@ -794,7 +561,7 @@ function restoreQuest(questId) {
   }
 
   function resetToDefaults() {
-    const confirmed = window.confirm("Reset all quests and routines to the default state? This clears the saved app data in this browser.");
+    const confirmed = window.confirm("Reset all quests to the default state? This clears the saved app data in this browser.");
     if (!confirmed) return;
 
     const resetData = runDailyMaintenance(normalizeData(seedData));
@@ -970,15 +737,10 @@ function restoreQuest(questId) {
           completeQuest={completeQuest}
           restoreQuest={restoreQuest}
           createQuestTask={createQuestTask}
-          createRoutineTask={createRoutineTask}
           deleteQuest={deleteQuest}
-          deleteRoutine={deleteRoutine}
           deleteQuestTask={deleteQuestTask}
-          deleteRoutineTask={deleteRoutineTask}
           moveQuestTask={moveQuestTask}
-          moveRoutineTask={moveRoutineTask}
           moveQuestTaskToLocation={moveQuestTaskToLocation}
-          moveRoutineTaskToLocation={moveRoutineTaskToLocation}
           toggleTask={toggleTask}
           runMaintenanceNow={runMaintenanceNow}
           debugDateOverrideEnabled={debugDateOverrideEnabled}
@@ -1157,13 +919,9 @@ function RightPanel(props) {
     setRightSplit,
     setSelection,
     createQuestTask,
-    createRoutineTask,
     deleteQuestTask,
-    deleteRoutineTask,
     moveQuestTask,
-    moveRoutineTask,
     moveQuestTaskToLocation,
-    moveRoutineTaskToLocation,
     toggleTask,
     runMaintenanceNow,
     debugDateOverrideEnabled,
@@ -1239,14 +997,10 @@ function RightPanel(props) {
           setExpanded,
           setSelection,
           createQuestTask,
-          createRoutineTask,
-          deleteQuestTask,
-          deleteRoutineTask,
-          moveQuestTask,
-          moveRoutineTask,
-          moveQuestTaskToLocation,
-          moveRoutineTaskToLocation,
-          toggleTask,
+                deleteQuestTask,
+                moveQuestTask,
+                moveQuestTaskToLocation,
+                toggleTask,
         }}
       />
     </aside>
@@ -1487,43 +1241,6 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
       }
-      .routine-management-root {
-        flex: 1 1 auto;
-        width: 100%;
-        min-width: 0;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        overflow: hidden;
-      }
-      .routine-toolbar {
-        flex: 0 0 auto;
-        display: grid;
-        gap: 0.75rem;
-        min-width: 0;
-      }
-      .routine-contents-panel {
-        flex: 1 1 auto;
-        min-width: 0;
-        min-height: 0;
-        overflow: hidden;
-      }
-      .routine-contents-margin {
-        display: block;
-        overflow-y: auto;
-        overflow-x: hidden;
-        padding: 4px;
-        padding-right: calc(4px + ${SCENE_SCROLL_GUTTER});
-        scrollbar-gutter: stable;
-      }
-      .routine-list {
-        display: grid;
-        align-content: start;
-        gap: 0.75rem;
-        width: 100%;
-        min-width: 0;
-      }
       .export-options-root {
         flex: 1 1 auto;
         width: 100%;
@@ -1751,14 +1468,6 @@ function DarkStyles() {
         background: rgb(30 58 138);
         border-bottom-color: rgb(30 64 175);
       }
-      .inspector-title-routine {
-        background: rgb(120 53 15);
-        border-bottom-color: rgb(217 119 6);
-      }
-      .inspector-title-routineTask {
-        background: rgb(120 53 15);
-        border-bottom-color: rgb(217 119 6);
-      }
       .inspector-toolbar {
         position: sticky;
         top: 0;
@@ -1797,12 +1506,6 @@ function DarkStyles() {
         border-color: rgb(30 64 175);
         background: rgb(30 58 138);
         color: rgb(191 219 254);
-      }
-      .inspector-selection-badge.inspector-title-routine,
-      .inspector-selection-badge.inspector-title-routineTask {
-        border-color: rgb(217 119 6);
-        background: rgb(120 53 15);
-        color: rgb(254 215 170);
       }
       .inspector-mode-content {
         display: grid;
@@ -2099,9 +1802,6 @@ function DarkStyles() {
       .quest-tree {
         border-color: rgb(21 128 61);
               }
-      .routine-tree {
-        border-color: rgb(217 119 6);
-      }
       .quest-type-regular-tree {
         border-color: rgb(21 128 61);
       }
@@ -2342,9 +2042,6 @@ function DarkStyles() {
       .tree-root-quest {
         border-color: rgb(21 128 61);
       }
-      .tree-root-routine {
-        border-color: rgb(217 119 6);
-      }
       .tree-root-focus {
         border-color: rgb(30 64 175);
       }
@@ -2486,20 +2183,6 @@ function DarkStyles() {
       .selection-task .selection-type-label {
         background: rgb(30 58 138);
         color: rgb(191 219 254);
-      }
-      .selection-routine {
-        border-color: rgb(126 34 206);
-      }
-      .selection-routine .selection-type-label {
-        background: rgb(88 28 135);
-        color: rgb(233 213 255);
-      }
-      .selection-routineTask {
-        border-color: rgb(147 51 234);
-      }
-      .selection-routineTask .selection-type-label {
-        background: rgb(107 33 168);
-        color: rgb(243 232 255);
       }
       .focus-tab-root {
         flex: 1 1 auto;
