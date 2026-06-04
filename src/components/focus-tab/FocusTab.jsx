@@ -403,6 +403,12 @@ function ExecutionStackLayer({ stack, layer, depth, selectTask, toggleTask, unco
         </div>
 
         <div className="execution-stack-layer-meta">
+          {isActionLayer && hasCountTarget(task) && (
+            <span className="execution-stack-count-badge" title="Count progress">
+              {progressLabel}
+            </span>
+          )}
+
           {isActionLayer && (
             <button
               type="button"

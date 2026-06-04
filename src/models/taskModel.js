@@ -419,7 +419,7 @@ function makeExecutionStack(task, options = {}) {
   let status = "available";
   if (complete) {
     status = "completed";
-  } else if (ready && !isUpcoming) {
+  } else if (ready && !isUpcoming && isSelfStack) {
     status = "available";
   } else if (started && !isUpcoming) {
     status = "inProgress";

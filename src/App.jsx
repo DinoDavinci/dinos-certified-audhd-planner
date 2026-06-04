@@ -2611,6 +2611,16 @@ function DarkStyles() {
         font-size: 0.72rem;
         font-weight: 850;
       }
+      .execution-stack-count-badge {
+        border-radius: 999px;
+        border: 1px solid rgb(64 64 64);
+        background: rgb(23 23 23);
+        padding: 0.08rem 0.4rem;
+        color: rgb(163 163 163);
+        white-space: nowrap;
+        font-size: 0.72rem;
+        font-weight: 850;
+      }
       .execution-stack-progress-pill,
       .execution-stack-done-pill,
       .execution-stack-upcoming-pill {
