@@ -1236,6 +1236,8 @@ function DarkStyles() {
   const SCENE_SCROLL_BUFFER = "32px";
   const SCENE_SCROLL_GUTTER = "4px";
   const TREE_BRANCH_LINE_COLOR = "rgb(120 120 120)";
+  const QUEST_DIRECTORY_ROW_STATE_BACKGROUND = "rgba(59, 130, 246, 0.18)";
+  const QUEST_DIRECTORY_ROW_SELECTED_BORDER = "rgba(255, 255, 255, 0.82)";
 
   // Tab scene layout contract:
   // 1. TabContainer owns the tab bar, active tab color, content area panel, and 4px content padding.
@@ -1569,13 +1571,10 @@ function DarkStyles() {
         background: rgba(23, 23, 23, 0.65);
         padding: 0.12rem 0.25rem;
       }
-      .quest-directory-folder-row:hover {
-        border-color: rgb(64 64 64);
-        background: rgb(38 38 38);
-      }
-      .quest-directory-folder-selected {
-        border-color: rgba(255, 255, 255, 0.72);
-        background: rgba(59, 130, 246, 0.18);
+      .quest-directory-item.quest-directory-folder-selected,
+      .quest-directory-item.quest-directory-quest-selected {
+        border-color: ${QUEST_DIRECTORY_ROW_SELECTED_BORDER};
+        background: ${QUEST_DIRECTORY_ROW_STATE_BACKGROUND};
       }
       .quest-directory-folder-main {
         flex: 1 1 auto;
@@ -1673,10 +1672,6 @@ function DarkStyles() {
         background: rgba(23, 23, 23, 0.65);
         padding: 0.12rem 0.25rem;
       }
-      .quest-directory-inbox-row:hover {
-        border-color: rgb(64 64 64);
-        background: rgb(38 38 38);
-      }
 
       .quest-directory-quest-card {
         width: 100%;
@@ -1693,8 +1688,13 @@ function DarkStyles() {
         transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
       }
       .quest-directory-normal .quest-directory-item:hover {
-        border-color: rgb(82 82 82);
-        background: rgb(38 38 38);
+        background: ${QUEST_DIRECTORY_ROW_STATE_BACKGROUND};
+      }
+
+      .quest-directory-normal .quest-directory-item.quest-directory-folder-selected:hover,
+      .quest-directory-normal .quest-directory-item.quest-directory-quest-selected:hover {
+        border-color: ${QUEST_DIRECTORY_ROW_SELECTED_BORDER};
+        background: ${QUEST_DIRECTORY_ROW_STATE_BACKGROUND};
       }
       .quest-directory-folder-item {
         min-height: 1.65rem;
@@ -1722,10 +1722,6 @@ function DarkStyles() {
           + var(--quest-directory-row-gap)
           + 0px
         );
-      }
-      .quest-directory-quest-selected {
-        border-color: rgb(212 212 212);
-        background: rgb(38 38 38);
       }
       .quest-directory-quest-muted {
         opacity: 0.68;
