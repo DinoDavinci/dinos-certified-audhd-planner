@@ -1510,7 +1510,7 @@ function DarkStyles() {
         position: relative;
         display: grid;
         align-content: start;
-        gap: 0.2rem;
+        gap: 2px;
         width: 100%;
         min-width: 0;
       }
@@ -1556,12 +1556,12 @@ function DarkStyles() {
       }
       .quest-directory-section {
         display: grid;
-        gap: 0.2rem;
+        gap: 2px;
         min-width: 0;
       }
       .quest-directory-folder {
         display: grid;
-        gap: 0.2rem;
+        gap: 2px;
         min-width: 0;
       }
       .quest-directory-row-wrap {
@@ -1647,7 +1647,7 @@ function DarkStyles() {
         --quest-directory-row-gutter: 1.05rem;
         --quest-directory-row-gap: 0.25rem;
         display: grid;
-        gap: 0.2rem;
+        gap: 2px;
         margin-left: 0.65rem;
         padding-left: 0.25rem;
         border-left: none;
@@ -1680,7 +1680,7 @@ function DarkStyles() {
         content: "";
         position: absolute;
         left: var(--quest-directory-branch-left);
-        top: -0.2rem;
+        top: -2px;
         bottom: calc(100% - var(--branch-center) - 1px);
         width: 2px;
         background: var(--quest-directory-branch-color);
@@ -1688,7 +1688,7 @@ function DarkStyles() {
         pointer-events: none;
       }
       .quest-directory-children > .quest-directory-branch-node:not(:last-child)::after {
-        bottom: -0.2rem;
+        bottom: -2px;
       }
       .quest-directory-children > .quest-directory-branch-node:not(:last-child)::marker {
         display: none;
@@ -1775,7 +1775,7 @@ function DarkStyles() {
         min-width: 0;
       }
       .quest-directory-subtree-end-drop-zone {
-        min-height: 0.75rem;
+        min-height: 2px;
         width: 100%;
       }
       .quest-directory-quest-main {
@@ -2013,7 +2013,7 @@ function DarkStyles() {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 0.2rem;
+        gap: 2px;
       }
       .ancestry-path::before {
         content: "Path:";
@@ -3354,7 +3354,7 @@ function DarkStyles() {
         min-width: 0;
         flex-wrap: wrap;
         align-items: center;
-        gap: 0.2rem;
+        gap: 2px;
         font-size: 0.82rem;
         font-weight: 650;
       }
@@ -3451,7 +3451,7 @@ function DarkStyles() {
         display: flex;
         flex: 0 0 1.7rem;
         flex-direction: column;
-        gap: 0.2rem;
+        gap: 2px;
       }
       .counter-stepper button {
         flex: 1 1 0;

@@ -450,7 +450,7 @@ function QuestFolderNode({
         </div>
       )}
 
-      {open && (
+      {open && isLastSibling && (
         <div
           className="quest-directory-subtree-end-drop-zone"
           data-directory-subtree-end-for={folder.id}
