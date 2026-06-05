@@ -493,3 +493,48 @@ export function questTypeLabel(quest) {
   if (quest.scheduleType === "cooldown" || quest.cooldownEnabled) return "Cooldown";
   return "Quest";
 }
+
+
+export function renameQuestFolderInList(folders = [], folderId, title) {
+  return (folders || []).map((folder) =>
+    folder.id === folderId
+      ? { ...folder, title, updatedAt: new Date().toISOString() }
+      : folder
+  );
+}
+
+export function deleteQuestFolderFromList(folders = [], folderId) {
+  return (folders || []).filter((folder) => folder.id !== folderId);
+}
+
+export function moveQuestToFolderInList(quests = [], questId, folderId) {
+  return (quests || []).map((quest) =>
+    quest.id === questId
+      ? { ...quest, folderId: folderId || null }
+      : quest
+  );
+}
+
+export function isFolderDescendantInList(folders = [], folderId, possibleAncestorId) {
+  let current = (folders || []).find((folder) => folder.id === folderId) || null;
+  const guard = new Set();
+
+  while (current) {
+    if (current.parentId === possibleAncestorId) return true;
+    if (!current.parentId || guard.has(current.parentId)) return false;
+
+    guard.add(current.parentId);
+    current = (folders || []).find((folder) => folder.id === current.parentId) || null;
+  }
+
+  return false;
+}
+
+export function moveQuestFolderToFolderInList(folders = [], folderId, parentId) {
+  return (folders || []).map((folder) =>
+    folder.id === folderId
+      ? { ...folder, parentId: parentId || null, updatedAt: new Date().toISOString() }
+      : folder
+  );
+}
+

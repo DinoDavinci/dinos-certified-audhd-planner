@@ -31,6 +31,11 @@ import {
   runDailyMaintenance,
   selectionKey,
   getTreeContext,
+  renameQuestFolderInList,
+  deleteQuestFolderFromList,
+  moveQuestToFolderInList,
+  isFolderDescendantInList,
+  moveQuestFolderToFolderInList,
 } from "./models/appModel";
 
 import {
@@ -277,11 +282,7 @@ export default function App() {
 
     setData((old) => ({
       ...old,
-      folders: (old.folders || []).map((item) =>
-        item.id === folderId
-          ? { ...item, title: title.trim(), updatedAt: new Date().toISOString() }
-          : item
-      ),
+      folders: renameQuestFolderInList(old.folders || [], folderId, title.trim()),
     }));
   }
 
@@ -300,7 +301,7 @@ export default function App() {
 
     setData((old) => ({
       ...old,
-      folders: (old.folders || []).filter((folder) => folder.id !== folderId),
+      folders: deleteQuestFolderFromList(old.folders || [], folderId),
     }));
 
     if (selectedFolderId === folderId) setSelectedFolderId(null);
@@ -309,27 +310,8 @@ export default function App() {
   function moveQuestToFolder(questId, folderId) {
     setData((old) => ({
       ...old,
-      quests: (old.quests || []).map((quest) =>
-        quest.id === questId
-          ? { ...quest, folderId: folderId || null }
-          : quest
-      ),
+      quests: moveQuestToFolderInList(old.quests || [], questId, folderId),
     }));
-  }
-
-  function isFolderDescendant(folderId, possibleAncestorId, folders = data.folders || []) {
-    let current = folders.find((folder) => folder.id === folderId) || null;
-    const guard = new Set();
-
-    while (current) {
-      if (current.parentId === possibleAncestorId) return true;
-      if (!current.parentId || guard.has(current.parentId)) return false;
-
-      guard.add(current.parentId);
-      current = folders.find((folder) => folder.id === current.parentId) || null;
-    }
-
-    return false;
   }
 
   function moveQuestFolderToFolder(folderId, parentId) {
@@ -342,18 +324,14 @@ export default function App() {
       return;
     }
 
-    if (nextParentId && isFolderDescendant(nextParentId, folderId)) {
+    if (nextParentId && isFolderDescendantInList(data.folders || [], nextParentId, folderId)) {
       window.alert("A folder cannot be moved into one of its own child folders.");
       return;
     }
 
     setData((old) => ({
       ...old,
-      folders: (old.folders || []).map((folder) =>
-        folder.id === folderId
-          ? { ...folder, parentId: nextParentId, updatedAt: new Date().toISOString() }
-          : folder
-      ),
+      folders: moveQuestFolderToFolderInList(old.folders || [], folderId, nextParentId),
     }));
 
     if (nextParentId) {
@@ -1506,6 +1484,21 @@ function DarkStyles() {
       .quest-directory-toolbar-row > button {
         flex: 1 1 0;
       }
+      .quest-directory-create-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        border-radius: 0.35rem;
+        background: rgb(229 229 229);
+        padding: 0.32rem 0.5rem;
+        font-size: 0.78rem;
+        font-weight: 800;
+        color: rgb(23 23 23);
+      }
+      .quest-directory-create-button:hover {
+        background: white;
+      }
       .quest-directory-tree {
         position: relative;
         display: grid;
@@ -1514,21 +1507,7 @@ function DarkStyles() {
         width: 100%;
         min-width: 0;
       }
-      .quest-directory-mode-row {
-        display: flex;
-        justify-content: flex-start;
-      }
-      .quest-directory-mode-pill {
-        display: inline-flex;
-        align-items: center;
-        border-radius: 0.3rem;
-        border: 1px solid rgba(96, 165, 250, 0.6);
-        background: rgba(30, 64, 175, 0.35);
-        padding: 0.16rem 0.45rem;
-        font-size: 0.72rem;
-        font-weight: 850;
-        color: rgb(191 219 254);
-      }
+
       .quest-directory-rearrange .quest-directory-item {
         cursor: default;
       }
@@ -1630,16 +1609,7 @@ function DarkStyles() {
         align-items: center;
         gap: 0.15rem;
       }
-      .quest-directory-folder-move-select {
-        max-width: 5.5rem;
-        border-radius: 0.25rem;
-        border: 1px solid rgb(64 64 64);
-        background: rgb(23 23 23);
-        padding: 0.08rem 0.25rem;
-        font-size: 0.68rem;
-        font-weight: 750;
-        color: rgb(212 212 212);
-      }
+
       .quest-directory-children {
         --quest-directory-branch-color: ${TREE_BRANCH_LINE_COLOR};
         --quest-directory-branch-left: -4px;
@@ -1707,14 +1677,7 @@ function DarkStyles() {
         border-color: rgb(64 64 64);
         background: rgb(38 38 38);
       }
-      .quest-directory-empty {
-        border-radius: 0.25rem;
-        border: 1px dashed rgb(64 64 64);
-        background: rgba(10, 10, 10, 0.45);
-        padding: 0.45rem;
-        font-size: 0.78rem;
-        color: rgb(140 140 140);
-      }
+
       .quest-directory-quest-card {
         width: 100%;
         position: relative;

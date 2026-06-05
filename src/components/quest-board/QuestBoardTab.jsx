@@ -40,37 +40,6 @@ function countFolderContents(folders, quests, folderId) {
   return childFolders.length + directQuests.length;
 }
 
-function isFolderDescendant(folders, folderId, possibleAncestorId) {
-  let current = (folders || []).find((folder) => folder.id === folderId) || null;
-  const guard = new Set();
-
-  while (current) {
-    if (current.parentId === possibleAncestorId) return true;
-    if (!current.parentId || guard.has(current.parentId)) return false;
-
-    guard.add(current.parentId);
-    current = (folders || []).find((folder) => folder.id === current.parentId) || null;
-  }
-
-  return false;
-}
-
-function getFolderDepth(folders, folderId) {
-  let depth = 0;
-  let current = (folders || []).find((folder) => folder.id === folderId) || null;
-  const guard = new Set();
-
-  while (current?.parentId) {
-    if (guard.has(current.parentId)) break;
-    guard.add(current.parentId);
-
-    depth += 1;
-    current = (folders || []).find((folder) => folder.id === current.parentId) || null;
-  }
-
-  return depth;
-}
-
 const DIRECTORY_DRAG_HOLD_MS = 180;
 const FORCE_DIRECTORY_REARRANGE_MODE = false;
 
@@ -218,7 +187,6 @@ export default function QuestBoardTab({
       dragStateRef.current = pendingPress;
       setInteractionMode("rearrange");
       setDragState(pendingPress);
-      console.log("[Directory rearrange] drag start", pendingPress);
     }, DIRECTORY_DRAG_HOLD_MS);
   }
 
@@ -250,20 +218,9 @@ export default function QuestBoardTab({
 
     const moveTarget = resolveDirectoryMoveTarget(releaseTarget);
 
-    console.log("[Directory rearrange] drag release", {
-      source: activeDrag,
-      target: releaseTarget,
-      moveTarget,
-    });
-
     if (moveTarget.ok) {
       applyDirectoryMove(activeDrag, moveTarget);
     } else {
-      console.warn("[Directory rearrange] move rejected", {
-        source: activeDrag,
-        target: releaseTarget,
-        moveTarget,
-      });
     }
 
     activeDrag.select?.();
@@ -343,9 +300,7 @@ export default function QuestBoardTab({
     pendingPressRef.current = null;
 
     if (activeDrag) {
-      console.log("[Directory rearrange] drag cancel", activeDrag);
     } else if (pendingPress) {
-      console.log("[Directory rearrange] press cancel", pendingPress);
     }
 
     dragStateRef.current = null;
@@ -388,14 +343,8 @@ export default function QuestBoardTab({
         </div>
 
         <div className="quest-directory-toolbar-row">
-          <button onClick={() => createQuest(selectedFolderId)} className="primary-button"><Plus size={18} /> Quest</button>
-          <button onClick={() => createQuestFolder(selectedFolderId)} className="title-secondary-button"><Plus size={16} /> Folder</button>
-        </div>
-
-        <div className="quest-directory-mode-row">
-          <span className="quest-directory-mode-pill">
-            {isRearrangeMode ? "Directory Rearrange" : "Directory Normal"}
-          </span>
+          <button onClick={() => createQuest(selectedFolderId)} className="quest-directory-create-button"><Plus size={16} /> Quest</button>
+          <button onClick={() => createQuestFolder(selectedFolderId)} className="quest-directory-create-button"><Plus size={16} /> Folder</button>
         </div>
       </div>
 
@@ -466,7 +415,7 @@ function InboxSection({
         onPointerDown={(event) => beginDirectoryPress?.(event, {
           kind: "root",
           id: "root",
-          title: "Inbox",
+          title: "root",
           selectDirectory: () => setSelectedFolderId(null),
           select: () => setSelectedFolderId(null),
         })}
@@ -475,19 +424,15 @@ function InboxSection({
           type="button"
           className="quest-directory-folder-main"
           onClick={() => setSelectedFolderId(null)}
-          title="Select Inbox"
+          title="Select root"
         >
           <FolderOpen size={16} />
-          <span className="quest-directory-folder-title">Inbox</span>
+          <span className="quest-directory-folder-title">root</span>
           <span className="quest-directory-folder-count">{count}</span>
         </button>
       </div>
 
       <div className="quest-directory-children">
-        {rootFolders.length === 0 && inboxQuests.length === 0 && (
-          <div className="quest-directory-empty">No quests or folders in Inbox.</div>
-        )}
-
         {rootFolders.map((folder, index) => (
           <QuestFolderNode
             key={folder.id}
@@ -663,10 +608,6 @@ function QuestFolderNode({
               depth={depth + 1}
             />
           ))}
-
-          {directQuests.length === 0 && childFolders.length === 0 && (
-            <div className="quest-directory-empty">Empty folder.</div>
-          )}
 
           {directQuests.map((quest) => (
             <QuestDirectoryCard
