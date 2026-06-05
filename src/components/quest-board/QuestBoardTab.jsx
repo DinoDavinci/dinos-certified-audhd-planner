@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -86,6 +86,9 @@ function getFolderMoveOptions(folders, movingFolderId) {
     });
 }
 
+const DIRECTORY_DRAG_HOLD_MS = 180;
+const FORCE_DIRECTORY_REARRANGE_MODE = true;
+
 export default function QuestBoardTab({
   search,
   setSearch,
@@ -112,8 +115,35 @@ export default function QuestBoardTab({
   moveQuestFolderToFolder,
   selectQuest,
 }) {
+  const [interactionMode, setInteractionMode] = useState(
+    FORCE_DIRECTORY_REARRANGE_MODE ? "rearrange" : "normal"
+  );
+  const isRearrangeMode = interactionMode === "rearrange";
+  const interactionClassName = isRearrangeMode
+    ? "quest-directory-rearrange"
+    : "quest-directory-normal";
+  const [dropIndicator, setDropIndicator] = useState(null);
+  const directoryContentRef = useRef(null);
+
+  function updateDirectoryDropIndicator(event, id, forcedZone = null) {
+    if (!isRearrangeMode || !id) return;
+
+    const nextIndicator = getDirectoryDropIndicator(
+      event,
+      directoryContentRef.current,
+      id,
+      forcedZone
+    );
+
+    setDropIndicator(nextIndicator);
+  }
+
+  function clearDirectoryDropIndicator() {
+    setDropIndicator(null);
+  }
+
   return (
-    <div className="tab-scene-margin library-scene quest-board-root">
+    <div className={`tab-scene-margin library-scene quest-board-root ${interactionClassName}`}>
       <div className="quest-board-toolbar">
         <div className="space-y-2">
           <div className="relative">
@@ -141,11 +171,22 @@ export default function QuestBoardTab({
           <button onClick={() => createQuest(selectedFolderId)} className="primary-button"><Plus size={18} /> Quest</button>
           <button onClick={() => createQuestFolder(selectedFolderId)} className="title-secondary-button"><Plus size={16} /> Folder</button>
         </div>
+
+        <div className="quest-directory-mode-row">
+          <span className="quest-directory-mode-pill">
+            {isRearrangeMode ? "Directory Rearrange" : "Directory Normal"}
+          </span>
+        </div>
       </div>
 
       <div className="scene-contents-panel quest-board-contents-panel">
         <div className="scene-contents-margin quest-board-contents-margin">
-          <div className="quest-directory-tree quest-directory-normal">
+          <div
+            className="quest-directory-tree quest-directory-normal"
+            ref={directoryContentRef}
+            onMouseLeave={clearDirectoryDropIndicator}
+          >
+            {dropIndicator && <DirectoryDropIndicator indicator={dropIndicator} />}
             <InboxSection
               quests={quests}
               folders={folders}
@@ -160,6 +201,7 @@ export default function QuestBoardTab({
               deleteQuestFolder={deleteQuestFolder}
               moveQuestToFolder={moveQuestToFolder}
               moveQuestFolderToFolder={moveQuestFolderToFolder}
+              updateDropIndicator={updateDirectoryDropIndicator}
             />
           </div>
         </div>
@@ -182,6 +224,7 @@ function InboxSection({
   deleteQuestFolder,
   moveQuestToFolder,
   moveQuestFolderToFolder,
+  updateDropIndicator,
 }) {
   const rootFolders = getDirectFolderChildren(folders, null);
   const inboxQuests = getDirectFolderQuests(quests, null);
@@ -189,7 +232,13 @@ function InboxSection({
 
   return (
     <div className="quest-directory-section">
-      <div className={`quest-directory-item quest-directory-folder-item quest-directory-root-item quest-directory-inbox-row ${selectedFolderId == null ? "quest-directory-folder-selected" : ""}`}>
+      <div
+        className={`quest-directory-item quest-directory-folder-item quest-directory-root-item quest-directory-inbox-row ${selectedFolderId == null ? "quest-directory-folder-selected" : ""}`}
+        data-directory-row-id="root"
+        data-directory-row-kind="root"
+        data-directory-can-contain="true"
+        onMouseMove={(event) => updateDropIndicator?.(event, "root")}
+      >
         <button
           type="button"
           className="quest-directory-folder-main"
@@ -224,6 +273,7 @@ function InboxSection({
             deleteQuestFolder={deleteQuestFolder}
             moveQuestToFolder={moveQuestToFolder}
             moveQuestFolderToFolder={moveQuestFolderToFolder}
+            updateDropIndicator={updateDropIndicator}
             depth={0}
           />
         ))}
@@ -237,6 +287,7 @@ function InboxSection({
             selectQuest={selectQuest}
             moveQuestToFolder={moveQuestToFolder}
             folders={folders}
+            updateDropIndicator={updateDropIndicator}
           />
         ))}
       </div>
@@ -259,6 +310,7 @@ function QuestFolderNode({
   deleteQuestFolder,
   moveQuestToFolder,
   moveQuestFolderToFolder,
+  updateDropIndicator,
   depth = 0,
 }) {
   const open = expandedFolders[folder.id] ?? true;
@@ -283,7 +335,13 @@ function QuestFolderNode({
           </button>
         </div>
 
-        <div className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${selectedFolderId === folder.id ? "quest-directory-folder-selected" : ""}`}>
+        <div
+          className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${selectedFolderId === folder.id ? "quest-directory-folder-selected" : ""}`}
+          data-directory-row-id={folder.id}
+          data-directory-row-kind="folder"
+          data-directory-can-contain="true"
+          onMouseMove={(event) => updateDropIndicator?.(event, folder.id)}
+        >
           <button
             type="button"
             className="quest-directory-folder-main"
@@ -357,6 +415,7 @@ function QuestFolderNode({
               deleteQuestFolder={deleteQuestFolder}
               moveQuestToFolder={moveQuestToFolder}
               moveQuestFolderToFolder={moveQuestFolderToFolder}
+              updateDropIndicator={updateDropIndicator}
               depth={depth + 1}
             />
           ))}
@@ -374,6 +433,7 @@ function QuestFolderNode({
               selectQuest={selectQuest}
               moveQuestToFolder={moveQuestToFolder}
               folders={folders}
+              updateDropIndicator={updateDropIndicator}
             />
           ))}
         </div>
@@ -382,7 +442,93 @@ function QuestFolderNode({
   );
 }
 
-function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQuestToFolder, folders }) {
+
+function getDirectoryDropZoneFromElement(event, rowElement) {
+  const rect = rowElement.getBoundingClientRect();
+  const y = event.clientY - rect.top;
+  const ratio = rect.height > 0 ? y / rect.height : 0.5;
+
+  if (ratio < 0.25) return "before";
+  if (ratio > 0.75) return "after";
+  return "inside";
+}
+
+function getDirectoryDropIndicator(event, directoryContentElement, id, forcedZone = null) {
+  if (!directoryContentElement || !id) return null;
+
+  const rowElement = event.currentTarget?.closest?.("[data-directory-row-id]");
+  if (!rowElement || !directoryContentElement.contains(rowElement)) return null;
+
+  const contentRect = directoryContentElement.getBoundingClientRect();
+  const rowElements = Array.from(directoryContentElement.querySelectorAll("[data-directory-row-id]"));
+  const targetRow = rowElements.find((element) => element.dataset.directoryRowId === id) || rowElement;
+  const rowRect = targetRow.getBoundingClientRect();
+  const canContain = targetRow.dataset.directoryCanContain === "true";
+  let zone = forcedZone || getDirectoryDropZoneFromElement(event, targetRow);
+
+  if (zone === "inside" && !canContain) {
+    zone = "after";
+  }
+
+  if (zone === "inside") {
+    return {
+      id,
+      zone,
+      type: "inside",
+      top: rowRect.top - contentRect.top,
+      left: rowRect.left - contentRect.left,
+      width: rowRect.width,
+      height: rowRect.height,
+    };
+  }
+
+  const rowIndex = rowElements.indexOf(targetRow);
+  const previousRow = rowIndex > 0 ? rowElements[rowIndex - 1] : null;
+  const nextRow = rowIndex >= 0 && rowIndex < rowElements.length - 1 ? rowElements[rowIndex + 1] : null;
+
+  let boundaryY = zone === "before" ? rowRect.top : rowRect.bottom;
+
+  if (zone === "before" && previousRow) {
+    const previousRect = previousRow.getBoundingClientRect();
+    boundaryY = (previousRect.bottom + rowRect.top) / 2;
+  }
+
+  if (zone === "after" && nextRow) {
+    const nextRect = nextRow.getBoundingClientRect();
+    boundaryY = (rowRect.bottom + nextRect.top) / 2;
+  }
+
+  return {
+    id,
+    zone,
+    type: "boundary",
+    top: boundaryY - contentRect.top,
+    left: rowRect.left - contentRect.left,
+    width: rowRect.width,
+  };
+}
+
+function DirectoryDropIndicator({ indicator }) {
+  if (!indicator) return null;
+
+  const style = {
+    top: `${indicator.top}px`,
+    left: `${indicator.left}px`,
+    width: `${indicator.width}px`,
+  };
+
+  if (indicator.type === "inside") {
+    style.height = `${indicator.height}px`;
+  }
+
+  const className = indicator.type === "inside"
+    ? "quest-directory-drop-overlay quest-directory-drop-overlay-inside"
+    : "quest-directory-drop-overlay quest-directory-drop-overlay-boundary";
+
+  return <div className={className} style={style} />;
+}
+
+function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQuestToFolder, folders, updateDropIndicator }) {
   const progress = getQuestProgress(quest);
   const complete = isQuestComplete(quest);
   const inactive = isQuestInactive(quest);
@@ -392,6 +538,10 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
       <button
         type="button"
         onClick={() => selectQuest(quest)}
+        onMouseMove={(event) => updateDropIndicator?.(event, quest.id)}
+        data-directory-row-id={quest.id}
+        data-directory-row-kind="quest"
+        data-directory-can-contain="false"
         className={`quest-directory-item quest-directory-quest-item ${questTypeClass(quest)} ${complete || inactive ? "quest-directory-quest-muted" : ""} ${quest.id === activeQuestId ? "quest-directory-quest-selected" : ""}`}
       >
         <div className="quest-directory-quest-header">

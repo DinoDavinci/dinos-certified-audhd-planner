@@ -1507,11 +1507,48 @@ function DarkStyles() {
         flex: 1 1 0;
       }
       .quest-directory-tree {
+        position: relative;
         display: grid;
         align-content: start;
         gap: 0.2rem;
         width: 100%;
         min-width: 0;
+      }
+      .quest-directory-mode-row {
+        display: flex;
+        justify-content: flex-start;
+      }
+      .quest-directory-mode-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 0.3rem;
+        border: 1px solid rgba(96, 165, 250, 0.6);
+        background: rgba(30, 64, 175, 0.35);
+        padding: 0.16rem 0.45rem;
+        font-size: 0.72rem;
+        font-weight: 850;
+        color: rgb(191 219 254);
+      }
+      .quest-directory-rearrange .quest-directory-item {
+        cursor: default;
+      }
+      .quest-directory-drop-overlay {
+        position: absolute;
+        pointer-events: none;
+        z-index: 20;
+      }
+      .quest-directory-drop-overlay-boundary {
+        height: 2px;
+        border-radius: 999px;
+        background: rgba(96, 165, 250, 0.9);
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45);
+        transform: translateY(-1px);
+      }
+      .quest-directory-drop-overlay-inside {
+        border-radius: 0.25rem;
+        border: 2px solid rgba(96, 165, 250, 0.85);
+        background: transparent;
+        box-shadow: none;
       }
       .quest-directory-section {
         display: grid;
