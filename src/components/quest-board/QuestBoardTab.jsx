@@ -408,11 +408,7 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
             <div className="quest-directory-quest-progress-fill" style={{ width: `${progress}%` }} />
           </div>
 
-          <div className="quest-directory-quest-meta-row">
-            {complete && <span className="pill-complete">Completed</span>}
-            {inactive && <span className="pill">Disabled</span>}
-            {(quest.tags || []).map((tag) => <span key={tag} className="pill">{tag}</span>)}
-          </div>
+
         </div>
       </button>
 
