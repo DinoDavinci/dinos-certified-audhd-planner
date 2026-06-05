@@ -1532,6 +1532,10 @@ function DarkStyles() {
       .quest-directory-rearrange .quest-directory-item {
         cursor: default;
       }
+
+      .quest-directory-rearrange .quest-directory-item:hover {
+        box-shadow: none !important;
+      }
       .quest-directory-drop-overlay {
         position: absolute;
         pointer-events: none;
@@ -1725,7 +1729,7 @@ function DarkStyles() {
         border: 1px solid transparent;
         transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
       }
-      .quest-directory-item:hover {
+      .quest-directory-normal .quest-directory-item:hover {
         border-color: rgb(82 82 82);
         background: rgb(38 38 38);
       }
@@ -1769,6 +1773,10 @@ function DarkStyles() {
         justify-content: space-between;
         gap: 0.25rem;
         min-width: 0;
+      }
+      .quest-directory-subtree-end-drop-zone {
+        min-height: 0.75rem;
+        width: 100%;
       }
       .quest-directory-quest-main {
         flex: 1 1 auto;

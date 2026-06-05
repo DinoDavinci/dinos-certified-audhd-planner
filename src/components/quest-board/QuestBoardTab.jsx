@@ -128,12 +128,16 @@ export default function QuestBoardTab({
   function updateDirectoryDropIndicator(event, id, forcedZone = null) {
     if (!isRearrangeMode || !id) return;
 
-    const nextIndicator = getDirectoryDropIndicator(
-      event,
-      directoryContentRef.current,
-      id,
-      forcedZone
-    );
+    const nextIndicator =
+      getDirectoryDropIndicatorFromPoint(event, directoryContentRef.current) ||
+      getDirectoryDropIndicator(
+        event,
+        directoryContentRef.current,
+        id,
+        forcedZone
+      );
+
+    if (!nextIndicator) return;
 
     setDropIndicator(nextIndicator);
   }
@@ -182,7 +186,7 @@ export default function QuestBoardTab({
       <div className="scene-contents-panel quest-board-contents-panel">
         <div className="scene-contents-margin quest-board-contents-margin">
           <div
-            className="quest-directory-tree quest-directory-normal"
+            className={`quest-directory-tree ${interactionClassName}`}
             ref={directoryContentRef}
             onMouseLeave={clearDirectoryDropIndicator}
           >
@@ -236,6 +240,7 @@ function InboxSection({
         className={`quest-directory-item quest-directory-folder-item quest-directory-root-item quest-directory-inbox-row ${selectedFolderId == null ? "quest-directory-folder-selected" : ""}`}
         data-directory-row-id="root"
         data-directory-row-kind="root"
+        data-directory-parent-id=""
         data-directory-can-contain="true"
         onMouseMove={(event) => updateDropIndicator?.(event, "root")}
       >
@@ -256,10 +261,11 @@ function InboxSection({
           <div className="quest-directory-empty">No quests or folders in Inbox.</div>
         )}
 
-        {rootFolders.map((folder) => (
+        {rootFolders.map((folder, index) => (
           <QuestFolderNode
             key={folder.id}
             folder={folder}
+            isLastSibling={index === rootFolders.length - 1 && inboxQuests.length === 0}
             folders={folders}
             quests={quests}
             activeQuestId={activeQuestId}
@@ -297,6 +303,7 @@ function InboxSection({
 
 function QuestFolderNode({
   folder,
+  isLastSibling = false,
   folders,
   quests,
   activeQuestId,
@@ -339,7 +346,10 @@ function QuestFolderNode({
           className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${selectedFolderId === folder.id ? "quest-directory-folder-selected" : ""}`}
           data-directory-row-id={folder.id}
           data-directory-row-kind="folder"
+          data-directory-parent-id={folder.parentId || "root"}
           data-directory-can-contain="true"
+          data-directory-open={open ? "true" : "false"}
+          data-directory-has-children={(childFolders.length > 0 || directQuests.length > 0) ? "true" : "false"}
           onMouseMove={(event) => updateDropIndicator?.(event, folder.id)}
         >
           <button
@@ -398,10 +408,11 @@ function QuestFolderNode({
 
       {open && (
         <div className="quest-directory-children">
-          {childFolders.map((child) => (
+          {childFolders.map((child, index) => (
             <QuestFolderNode
               key={child.id}
               folder={child}
+              isLastSibling={index === childFolders.length - 1 && directQuests.length === 0}
               folders={folders}
               quests={quests}
               activeQuestId={activeQuestId}
@@ -438,6 +449,15 @@ function QuestFolderNode({
           ))}
         </div>
       )}
+
+      {open && (
+        <div
+          className="quest-directory-subtree-end-drop-zone"
+          data-directory-subtree-end-for={folder.id}
+          onMouseMove={(event) => updateDropIndicator?.(event, folder.id, "subtree-after")}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }
@@ -454,17 +474,64 @@ function getDirectoryDropZoneFromElement(event, rowElement) {
 }
 
 function getDirectoryDropIndicator(event, directoryContentElement, id, forcedZone = null) {
-  if (!directoryContentElement || !id) return null;
-
   const rowElement = event.currentTarget?.closest?.("[data-directory-row-id]");
+  return getDirectoryDropIndicatorForElement(event, directoryContentElement, rowElement, id, forcedZone);
+}
+
+function getDirectoryDropIndicatorFromPoint(event, directoryContentElement) {
+  if (!directoryContentElement) return null;
+
+  const hitElement = document.elementFromPoint(event.clientX, event.clientY);
+  if (!hitElement || !directoryContentElement.contains(hitElement)) return null;
+
+  const subtreeEndElement = hitElement.closest?.(".quest-directory-subtree-end-drop-zone");
+  if (subtreeEndElement && directoryContentElement.contains(subtreeEndElement)) {
+    const id = subtreeEndElement.dataset.directorySubtreeEndFor;
+    return getDirectoryDropIndicatorForElement(
+      event,
+      directoryContentElement,
+      subtreeEndElement,
+      id,
+      "subtree-after"
+    );
+  }
+
+  const rowElement = hitElement.closest?.("[data-directory-row-id]");
   if (!rowElement || !directoryContentElement.contains(rowElement)) return null;
+
+  return getDirectoryDropIndicatorForElement(
+    event,
+    directoryContentElement,
+    rowElement,
+    rowElement.dataset.directoryRowId
+  );
+}
+
+function getDirectoryDropIndicatorForElement(event, directoryContentElement, rowElement, id, forcedZone = null) {
+  if (!directoryContentElement || !rowElement || !id) return null;
 
   const contentRect = directoryContentElement.getBoundingClientRect();
   const rowElements = Array.from(directoryContentElement.querySelectorAll("[data-directory-row-id]"));
-  const targetRow = rowElements.find((element) => element.dataset.directoryRowId === id) || rowElement;
+  const sourceRow = findDirectoryRowById(rowElements, id);
+  const targetRow = sourceRow || rowElement;
   const rowRect = targetRow.getBoundingClientRect();
+
+  if (forcedZone === "subtree-after") {
+    const colliderRect = rowElement.getBoundingClientRect();
+
+    return {
+      id,
+      zone: "after",
+      type: "boundary",
+      top: colliderRect.top + colliderRect.height / 2 - contentRect.top,
+      left: rowRect.left - contentRect.left,
+      width: rowRect.width,
+      placement: "subtree-after",
+    };
+  }
+
+  let zone = forcedZone || getDirectoryDropZoneFromElement(event, rowElement);
   const canContain = targetRow.dataset.directoryCanContain === "true";
-  let zone = forcedZone || getDirectoryDropZoneFromElement(event, targetRow);
 
   if (zone === "inside" && !canContain) {
     zone = "after";
@@ -479,33 +546,52 @@ function getDirectoryDropIndicator(event, directoryContentElement, id, forcedZon
       left: rowRect.left - contentRect.left,
       width: rowRect.width,
       height: rowRect.height,
+      placement: "inside",
     };
   }
 
   const rowIndex = rowElements.indexOf(targetRow);
   const previousRow = rowIndex > 0 ? rowElements[rowIndex - 1] : null;
   const nextRow = rowIndex >= 0 && rowIndex < rowElements.length - 1 ? rowElements[rowIndex + 1] : null;
+  const isExpandedContainer =
+    targetRow.dataset.directoryCanContain === "true" &&
+    targetRow.dataset.directoryOpen === "true" &&
+    targetRow.dataset.directoryHasChildren === "true";
 
   let boundaryY = zone === "before" ? rowRect.top : rowRect.bottom;
+  let boundaryRow = targetRow;
+  let placement = zone;
 
   if (zone === "before" && previousRow) {
     const previousRect = previousRow.getBoundingClientRect();
     boundaryY = (previousRect.bottom + rowRect.top) / 2;
   }
 
-  if (zone === "after" && nextRow) {
+  if (zone === "after" && isExpandedContainer && nextRow) {
+    const nextRect = nextRow.getBoundingClientRect();
+    boundaryY = (rowRect.bottom + nextRect.top) / 2;
+    boundaryRow = nextRow;
+    placement = "first-child";
+  } else if (zone === "after" && nextRow) {
     const nextRect = nextRow.getBoundingClientRect();
     boundaryY = (rowRect.bottom + nextRect.top) / 2;
   }
+
+  const boundaryRect = boundaryRow.getBoundingClientRect();
 
   return {
     id,
     zone,
     type: "boundary",
     top: boundaryY - contentRect.top,
-    left: rowRect.left - contentRect.left,
-    width: rowRect.width,
+    left: boundaryRect.left - contentRect.left,
+    width: boundaryRect.width,
+    placement,
   };
+}
+
+function findDirectoryRowById(rowElements, id) {
+  return rowElements.find((rowElement) => rowElement.dataset.directoryRowId === id) || null;
 }
 
 function DirectoryDropIndicator({ indicator }) {
@@ -541,6 +627,7 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
         onMouseMove={(event) => updateDropIndicator?.(event, quest.id)}
         data-directory-row-id={quest.id}
         data-directory-row-kind="quest"
+        data-directory-parent-id={quest.folderId || "root"}
         data-directory-can-contain="false"
         className={`quest-directory-item quest-directory-quest-item ${questTypeClass(quest)} ${complete || inactive ? "quest-directory-quest-muted" : ""} ${quest.id === activeQuestId ? "quest-directory-quest-selected" : ""}`}
       >
