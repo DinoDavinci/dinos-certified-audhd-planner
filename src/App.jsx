@@ -1675,6 +1675,13 @@ function DarkStyles() {
       .quest-directory-quest-card {
         width: 100%;
         position: relative;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+      .quest-directory-quest-gutter {
+        flex: 0 0 1.05rem;
+        min-height: 1.65rem;
       }
       .quest-directory-item {
         width: 100%;
@@ -1697,18 +1704,20 @@ function DarkStyles() {
         margin-top: 0.15rem;
       }
       .quest-directory-quest-item {
+        position: relative;
+        flex: 1 1 auto;
         display: flex;
-        align-items: stretch;
-        gap: 0.55rem;
-        min-height: 4.2rem;
-        margin-left: 14px;
-        width: calc(100% - 14px);
+        align-items: center;
+        gap: 0.25rem;
+        min-width: 0;
+        min-height: 1.65rem;
+        overflow: hidden;
         background: rgba(23, 23, 23, 0.82);
-        padding: 0.55rem 0.6rem;
+        padding: 0.12rem 0.25rem 0.3rem;
         text-align: left;
       }
       .quest-directory-quest-branch-node::before {
-        width: calc(var(--quest-directory-elbow-width) + 14px);
+        width: calc(var(--quest-directory-elbow-width) + 1.05rem + 0.25rem);
       }
       .quest-directory-quest-selected {
         border-color: rgb(212 212 212);
@@ -1717,42 +1726,38 @@ function DarkStyles() {
       .quest-directory-quest-muted {
         opacity: 0.68;
       }
-      .quest-directory-quest-icon {
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: flex-start;
-        justify-content: center;
-        width: 1.4rem;
-        padding-top: 0.1rem;
-        color: rgb(212 212 212);
-      }
-      .quest-directory-quest-body {
+      .quest-directory-quest-main {
         flex: 1 1 auto;
         min-width: 0;
-        display: grid;
-        align-content: start;
-        gap: 0.35rem;
-      }
-      .quest-directory-quest-title-row {
         display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 0.5rem;
-        min-width: 0;
+        align-items: center;
+        gap: 0.35rem;
+        text-align: left;
+        color: rgb(212 212 212);
+      }
+      .quest-directory-quest-actions {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
       }
       .quest-directory-quest-title {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 0.9rem;
-        font-weight: 850;
+        font-size: 0.86rem;
+        font-weight: 800;
         color: rgb(229 229 229);
       }
       .quest-directory-quest-progress-track {
-        height: 0.42rem;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 0.18rem;
         overflow: hidden;
-        border-radius: 999px;
+        border-radius: 0 0 0.3rem 0.3rem;
         background: rgb(38 38 38);
       }
       .quest-directory-quest-progress-fill {

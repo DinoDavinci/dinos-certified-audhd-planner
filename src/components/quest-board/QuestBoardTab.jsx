@@ -389,30 +389,27 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
 
   return (
     <div className="quest-directory-quest-card quest-directory-branch-node quest-directory-quest-branch-node">
+      <div className="quest-directory-quest-gutter" aria-hidden="true" />
+
       <button
         type="button"
         onClick={() => selectQuest(quest)}
         className={`quest-directory-item quest-directory-quest-item ${questTypeClass(quest)} ${complete || inactive ? "quest-directory-quest-muted" : ""} ${quest.id === activeQuestId ? "quest-directory-quest-selected" : ""}`}
       >
-        <div className="quest-directory-quest-icon">
-          <FileText size={18} />
+        <div className="quest-directory-quest-main">
+          <FileText size={16} />
+          <span className="quest-directory-quest-title">{quest.title || "Untitled Quest"}</span>
         </div>
 
-        <div className="quest-directory-quest-body">
-          <div className="quest-directory-quest-title-row">
-            <div className="quest-directory-quest-title">{quest.title || "Untitled Quest"}</div>
-            {dueBadge(quest)}
-          </div>
+        <div className="quest-directory-quest-actions">
+          {dueBadge(quest)}
+        </div>
 
-          <div className="quest-directory-quest-progress-track">
-            <div className="quest-directory-quest-progress-fill" style={{ width: `${progress}%` }} />
-          </div>
-
-
+        <div className="quest-directory-quest-progress-track">
+          <div className="quest-directory-quest-progress-fill" style={{ width: `${progress}%` }} />
         </div>
       </button>
-
-
     </div>
   );
 }
+
