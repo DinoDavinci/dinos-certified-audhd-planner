@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -71,23 +71,8 @@ function getFolderDepth(folders, folderId) {
   return depth;
 }
 
-function getFolderMoveOptions(folders, movingFolderId) {
-  return (folders || [])
-    .filter((folder) => folder.id !== movingFolderId)
-    .filter((folder) => !isFolderDescendant(folders, folder.id, movingFolderId))
-    .sort((a, b) => (a.title || "").localeCompare(b.title || ""))
-    .map((folder) => {
-      const depth = getFolderDepth(folders, folder.id);
-      const prefix = depth > 0 ? `${"— ".repeat(depth)}` : "";
-      return {
-        id: folder.id,
-        label: `${prefix}${folder.title || "Untitled Folder"}`,
-      };
-    });
-}
-
 const DIRECTORY_DRAG_HOLD_MS = 180;
-const FORCE_DIRECTORY_REARRANGE_MODE = true;
+const FORCE_DIRECTORY_REARRANGE_MODE = false;
 
 export default function QuestBoardTab({
   search,
@@ -123,10 +108,65 @@ export default function QuestBoardTab({
     ? "quest-directory-rearrange"
     : "quest-directory-normal";
   const [dropIndicator, setDropIndicator] = useState(null);
+  const [dragState, setDragState] = useState(null);
+  const [directorySelection, setDirectorySelection] = useState(null);
   const directoryContentRef = useRef(null);
+  const dragStateRef = useRef(null);
+  const pendingPressRef = useRef(null);
+  const dragHoldTimerRef = useRef(null);
+  const dropIndicatorRef = useRef(null);
+
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
+
+  useEffect(() => {
+    dropIndicatorRef.current = dropIndicator;
+  }, [dropIndicator]);
+
+  useEffect(() => {
+    function handleWindowPointerMove(event) {
+      const activeDrag = dragStateRef.current;
+      if (!activeDrag) return;
+      if (activeDrag.pointerId !== event.pointerId) return;
+
+      const nextIndicator = getDirectoryDropIndicatorFromPoint(event, directoryContentRef.current);
+      dropIndicatorRef.current = nextIndicator;
+      setDropIndicator(nextIndicator);
+    }
+
+    function handleWindowPointerUp(event) {
+      const activeDrag = dragStateRef.current;
+      const pendingPress = pendingPressRef.current;
+      const pointerId = activeDrag?.pointerId ?? pendingPress?.pointerId;
+
+      if (pointerId == null || pointerId !== event.pointerId) return;
+      finishDirectoryPress(event);
+    }
+
+    function handleWindowPointerCancel(event) {
+      const activeDrag = dragStateRef.current;
+      const pendingPress = pendingPressRef.current;
+      const pointerId = activeDrag?.pointerId ?? pendingPress?.pointerId;
+
+      if (pointerId == null || pointerId !== event.pointerId) return;
+      cancelDirectoryPress();
+    }
+
+    window.addEventListener("pointermove", handleWindowPointerMove);
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerCancel);
+
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel);
+    };
+  }, []);
 
   function updateDirectoryDropIndicator(event, id, forcedZone = null) {
     if (!isRearrangeMode || !id) return;
+    if (!dragStateRef.current) return;
 
     const nextIndicator =
       getDirectoryDropIndicatorFromPoint(event, directoryContentRef.current) ||
@@ -139,11 +179,187 @@ export default function QuestBoardTab({
 
     if (!nextIndicator) return;
 
+    dropIndicatorRef.current = nextIndicator;
     setDropIndicator(nextIndicator);
   }
 
   function clearDirectoryDropIndicator() {
+    if (dragStateRef.current) return;
+
+    dropIndicatorRef.current = null;
     setDropIndicator(null);
+  }
+
+  function beginDirectoryPress(event, source) {
+    if (!source?.id || !source?.kind) return;
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    clearDirectoryDragHoldTimer();
+
+    const nextPendingPress = {
+      ...source,
+      pointerId: event.pointerId,
+      startedAtClientX: event.clientX,
+      startedAtClientY: event.clientY,
+    };
+
+    setDirectorySelection({ kind: source.kind, id: source.id });
+    source.selectDirectory?.();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    pendingPressRef.current = nextPendingPress;
+
+    dragHoldTimerRef.current = window.setTimeout(() => {
+      const pendingPress = pendingPressRef.current;
+      if (!pendingPress || pendingPress.pointerId !== event.pointerId) return;
+
+      dragStateRef.current = pendingPress;
+      setInteractionMode("rearrange");
+      setDragState(pendingPress);
+      console.log("[Directory rearrange] drag start", pendingPress);
+    }, DIRECTORY_DRAG_HOLD_MS);
+  }
+
+  function finishDirectoryPress(event) {
+    const pendingPress = pendingPressRef.current;
+    const activeDrag = dragStateRef.current;
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearDirectoryDragHoldTimer();
+
+    if (activeDrag) {
+      finishDirectoryDrag(event, activeDrag);
+      return;
+    }
+
+    if (pendingPress) {
+      pendingPress.select?.();
+      pendingPressRef.current = null;
+    }
+  }
+
+  function finishDirectoryDrag(event, activeDrag = dragStateRef.current) {
+    if (!activeDrag) return;
+
+    const releaseTarget =
+      getDirectoryDropIndicatorFromPoint(event, directoryContentRef.current) ||
+      dropIndicatorRef.current;
+
+    const moveTarget = resolveDirectoryMoveTarget(releaseTarget);
+
+    console.log("[Directory rearrange] drag release", {
+      source: activeDrag,
+      target: releaseTarget,
+      moveTarget,
+    });
+
+    if (moveTarget.ok) {
+      applyDirectoryMove(activeDrag, moveTarget);
+    } else {
+      console.warn("[Directory rearrange] move rejected", {
+        source: activeDrag,
+        target: releaseTarget,
+        moveTarget,
+      });
+    }
+
+    activeDrag.select?.();
+
+    pendingPressRef.current = null;
+    dragStateRef.current = null;
+    setDragState(null);
+    setInteractionMode(FORCE_DIRECTORY_REARRANGE_MODE ? "rearrange" : "normal");
+    dropIndicatorRef.current = null;
+    setDropIndicator(null);
+  }
+
+  function resolveDirectoryMoveTarget(releaseTarget) {
+    if (!releaseTarget?.id) {
+      return { ok: false, reason: "missing-drop-target" };
+    }
+
+    const placement = releaseTarget.placement || releaseTarget.zone;
+
+    if (releaseTarget.targetKind === "root") {
+      return {
+        ok: true,
+        folderId: null,
+        placement,
+        reason: "target-root",
+      };
+    }
+
+    if (placement === "inside" || placement === "first-child") {
+      if (releaseTarget.targetKind !== "folder") {
+        return {
+          ok: false,
+          reason: "inside-target-is-not-folder",
+          placement,
+          targetKind: releaseTarget.targetKind,
+        };
+      }
+
+      return {
+        ok: true,
+        folderId: releaseTarget.id,
+        placement,
+        reason: "target-folder-inside",
+      };
+    }
+
+    return {
+      ok: true,
+      folderId: releaseTarget.targetParentId === "root" ? null : releaseTarget.targetParentId || null,
+      placement,
+      reason: "target-parent-folder",
+    };
+  }
+
+  function applyDirectoryMove(activeDrag, moveTarget) {
+    if (!activeDrag?.id || !moveTarget?.ok) return;
+    if (activeDrag.kind === "root") return;
+
+    if (activeDrag.kind === "quest") {
+      moveQuestToFolder?.(activeDrag.id, moveTarget.folderId || null);
+    }
+
+    if (activeDrag.kind === "folder") {
+      moveQuestFolderToFolder?.(activeDrag.id, moveTarget.folderId || null);
+    }
+
+    if (moveTarget.folderId) {
+      setExpandedFolders((old) => ({ ...old, [moveTarget.folderId]: true }));
+    }
+  }
+
+  function cancelDirectoryPress() {
+    const pendingPress = pendingPressRef.current;
+    const activeDrag = dragStateRef.current;
+
+    clearDirectoryDragHoldTimer();
+    pendingPressRef.current = null;
+
+    if (activeDrag) {
+      console.log("[Directory rearrange] drag cancel", activeDrag);
+    } else if (pendingPress) {
+      console.log("[Directory rearrange] press cancel", pendingPress);
+    }
+
+    dragStateRef.current = null;
+    setDragState(null);
+    setInteractionMode(FORCE_DIRECTORY_REARRANGE_MODE ? "rearrange" : "normal");
+    dropIndicatorRef.current = null;
+    setDropIndicator(null);
+  }
+
+  function clearDirectoryDragHoldTimer() {
+    if (!dragHoldTimerRef.current) return;
+
+    window.clearTimeout(dragHoldTimerRef.current);
+    dragHoldTimerRef.current = null;
   }
 
   return (
@@ -206,6 +422,8 @@ export default function QuestBoardTab({
               moveQuestToFolder={moveQuestToFolder}
               moveQuestFolderToFolder={moveQuestFolderToFolder}
               updateDropIndicator={updateDirectoryDropIndicator}
+              beginDirectoryPress={beginDirectoryPress}
+              directorySelection={directorySelection}
             />
           </div>
         </div>
@@ -229,6 +447,8 @@ function InboxSection({
   moveQuestToFolder,
   moveQuestFolderToFolder,
   updateDropIndicator,
+  beginDirectoryPress,
+  directorySelection,
 }) {
   const rootFolders = getDirectFolderChildren(folders, null);
   const inboxQuests = getDirectFolderQuests(quests, null);
@@ -237,12 +457,19 @@ function InboxSection({
   return (
     <div className="quest-directory-section">
       <div
-        className={`quest-directory-item quest-directory-folder-item quest-directory-root-item quest-directory-inbox-row ${selectedFolderId == null ? "quest-directory-folder-selected" : ""}`}
+        className={`quest-directory-item quest-directory-folder-item quest-directory-root-item quest-directory-inbox-row ${directorySelection?.kind === "root" || (!directorySelection && selectedFolderId == null) ? "quest-directory-folder-selected" : ""}`}
         data-directory-row-id="root"
         data-directory-row-kind="root"
         data-directory-parent-id=""
         data-directory-can-contain="true"
         onMouseMove={(event) => updateDropIndicator?.(event, "root")}
+        onPointerDown={(event) => beginDirectoryPress?.(event, {
+          kind: "root",
+          id: "root",
+          title: "Inbox",
+          selectDirectory: () => setSelectedFolderId(null),
+          select: () => setSelectedFolderId(null),
+        })}
       >
         <button
           type="button"
@@ -280,6 +507,8 @@ function InboxSection({
             moveQuestToFolder={moveQuestToFolder}
             moveQuestFolderToFolder={moveQuestFolderToFolder}
             updateDropIndicator={updateDropIndicator}
+            beginDirectoryPress={beginDirectoryPress}
+            directorySelection={directorySelection}
             depth={0}
           />
         ))}
@@ -294,6 +523,8 @@ function InboxSection({
             moveQuestToFolder={moveQuestToFolder}
             folders={folders}
             updateDropIndicator={updateDropIndicator}
+            beginDirectoryPress={beginDirectoryPress}
+            directorySelection={directorySelection}
           />
         ))}
       </div>
@@ -318,6 +549,8 @@ function QuestFolderNode({
   moveQuestToFolder,
   moveQuestFolderToFolder,
   updateDropIndicator,
+  beginDirectoryPress,
+  directorySelection,
   depth = 0,
 }) {
   const open = expandedFolders[folder.id] ?? true;
@@ -343,7 +576,7 @@ function QuestFolderNode({
         </div>
 
         <div
-          className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${selectedFolderId === folder.id ? "quest-directory-folder-selected" : ""}`}
+          className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${directorySelection?.kind === "folder" && directorySelection?.id === folder.id ? "quest-directory-folder-selected" : ""}`}
           data-directory-row-id={folder.id}
           data-directory-row-kind="folder"
           data-directory-parent-id={folder.parentId || "root"}
@@ -351,6 +584,13 @@ function QuestFolderNode({
           data-directory-open={open ? "true" : "false"}
           data-directory-has-children={(childFolders.length > 0 || directQuests.length > 0) ? "true" : "false"}
           onMouseMove={(event) => updateDropIndicator?.(event, folder.id)}
+          onPointerDown={(event) => beginDirectoryPress?.(event, {
+            kind: "folder",
+            id: folder.id,
+            title: folder.title || "Untitled Folder",
+            selectDirectory: () => setSelectedFolderId(folder.id),
+            select: () => setSelectedFolderId(folder.id),
+          })}
         >
           <button
             type="button"
@@ -364,24 +604,12 @@ function QuestFolderNode({
         </button>
 
         <div className="quest-directory-folder-actions">
-          <select
-            className="quest-directory-folder-move-select"
-            value={folder.parentId || ""}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => moveQuestFolderToFolder(folder.id, event.target.value || null)}
-            title="Move folder"
-          >
-            <option value="">Root</option>
-            {getFolderMoveOptions(folders, folder.id).map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-
           <button
             type="button"
             className="tree-icon-button"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+            }}
             onClick={(event) => {
               event.stopPropagation();
               renameQuestFolder(folder.id);
@@ -394,6 +622,9 @@ function QuestFolderNode({
           <button
             type="button"
             className="tree-icon-button danger-tree-button"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+            }}
             onClick={(event) => {
               event.stopPropagation();
               deleteQuestFolder(folder.id);
@@ -427,6 +658,8 @@ function QuestFolderNode({
               moveQuestToFolder={moveQuestToFolder}
               moveQuestFolderToFolder={moveQuestFolderToFolder}
               updateDropIndicator={updateDropIndicator}
+              beginDirectoryPress={beginDirectoryPress}
+              directorySelection={directorySelection}
               depth={depth + 1}
             />
           ))}
@@ -445,6 +678,8 @@ function QuestFolderNode({
               moveQuestToFolder={moveQuestToFolder}
               folders={folders}
               updateDropIndicator={updateDropIndicator}
+              beginDirectoryPress={beginDirectoryPress}
+              directorySelection={directorySelection}
             />
           ))}
         </div>
@@ -527,6 +762,8 @@ function getDirectoryDropIndicatorForElement(event, directoryContentElement, row
       left: rowRect.left - contentRect.left,
       width: rowRect.width,
       placement: "subtree-after",
+      targetKind: targetRow.dataset.directoryRowKind || "",
+      targetParentId: targetRow.dataset.directoryParentId || "",
     };
   }
 
@@ -547,6 +784,8 @@ function getDirectoryDropIndicatorForElement(event, directoryContentElement, row
       width: rowRect.width,
       height: rowRect.height,
       placement: "inside",
+      targetKind: targetRow.dataset.directoryRowKind || "",
+      targetParentId: targetRow.dataset.directoryParentId || "",
     };
   }
 
@@ -587,6 +826,8 @@ function getDirectoryDropIndicatorForElement(event, directoryContentElement, row
     left: boundaryRect.left - contentRect.left,
     width: boundaryRect.width,
     placement,
+    targetKind: targetRow.dataset.directoryRowKind || "",
+    targetParentId: targetRow.dataset.directoryParentId || "",
   };
 }
 
@@ -614,7 +855,7 @@ function DirectoryDropIndicator({ indicator }) {
   return <div className={className} style={style} />;
 }
 
-function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQuestToFolder, folders, updateDropIndicator }) {
+function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQuestToFolder, folders, updateDropIndicator, beginDirectoryPress, directorySelection }) {
   const progress = getQuestProgress(quest);
   const complete = isQuestComplete(quest);
   const inactive = isQuestInactive(quest);
@@ -625,11 +866,18 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
         type="button"
         onClick={() => selectQuest(quest)}
         onMouseMove={(event) => updateDropIndicator?.(event, quest.id)}
+        onPointerDown={(event) => beginDirectoryPress?.(event, {
+          kind: "quest",
+          id: quest.id,
+          title: quest.title || "Untitled Quest",
+          selectDirectory: () => {},
+          select: () => selectQuest(quest),
+        })}
         data-directory-row-id={quest.id}
         data-directory-row-kind="quest"
         data-directory-parent-id={quest.folderId || "root"}
         data-directory-can-contain="false"
-        className={`quest-directory-item quest-directory-quest-item ${questTypeClass(quest)} ${complete || inactive ? "quest-directory-quest-muted" : ""} ${quest.id === activeQuestId ? "quest-directory-quest-selected" : ""}`}
+        className={`quest-directory-item quest-directory-quest-item ${questTypeClass(quest)} ${complete || inactive ? "quest-directory-quest-muted" : ""} ${directorySelection?.kind === "quest" && directorySelection?.id === quest.id ? "quest-directory-quest-selected" : ""}`}
       >
         <div className="quest-directory-quest-header">
           <div className="quest-directory-quest-main">
