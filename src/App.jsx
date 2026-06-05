@@ -2411,7 +2411,7 @@ function DarkStyles() {
       }
       .tree-children-group {
         position: relative;
-        margin-left: 1.35rem;
+        margin-left: calc(1.35rem - 8px);
         padding-left: 0.55rem;
         display: grid;
         gap: 0.15rem;
@@ -2421,7 +2421,7 @@ function DarkStyles() {
       .tree-row-wrap.tree-node-child::after {
         content: "";
         position: absolute;
-        left: calc(-0.55rem - 12px);
+        left: calc(-0.55rem - 4px);
         top: -0.15rem;
         bottom: calc(50% - 1px);
         width: 2px;
@@ -2434,7 +2434,7 @@ function DarkStyles() {
       .tree-node-wrap:not(:last-child)::before {
         content: "";
         position: absolute;
-        left: calc(-0.55rem - 12px);
+        left: calc(-0.55rem - 4px);
         top: 0.78rem;
         bottom: -0.15rem;
         width: 2px;
@@ -2448,15 +2448,15 @@ function DarkStyles() {
       .tree-row-wrap.tree-node-child::before {
         content: "";
         position: absolute;
-        left: calc(-0.55rem - 12px);
+        left: calc(-0.55rem - 2px);
         top: 0.78rem;
-        width: calc(0.55rem + 12px);
+        width: calc(0.55rem + 0px);
         height: 2px;
         background: ${TREE_BRANCH_LINE_COLOR};
         opacity: 1;
       }
       .tree-row-wrap.tree-node-child.tree-row-leaf::before {
-        width: calc(1.9rem + 12px);
+        width: calc(1.9rem + 4px);
       }
       .tree-row {
         position: relative;
