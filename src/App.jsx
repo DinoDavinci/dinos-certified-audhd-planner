@@ -1601,7 +1601,7 @@ function DarkStyles() {
       }
       .quest-directory-children {
         --quest-directory-branch-color: ${TREE_BRANCH_LINE_COLOR};
-        --quest-directory-branch-left: -8px;
+        --quest-directory-branch-left: -4px;
         --quest-directory-elbow-width: 8px;
         --quest-directory-row-gutter: 1.05rem;
         --quest-directory-row-gap: 0.25rem;
@@ -1716,7 +1716,7 @@ function DarkStyles() {
           var(--quest-directory-elbow-width)
           + var(--quest-directory-row-gutter)
           + var(--quest-directory-row-gap)
-          + 4px
+          + 0px
         );
       }
       .quest-directory-quest-selected {
