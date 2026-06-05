@@ -1531,7 +1531,7 @@ function DarkStyles() {
         width: 100%;
       }
       .quest-directory-disclosure-gutter {
-        flex: 0 0 1.05rem;
+        flex: 0 0 var(--quest-directory-row-gutter);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -1603,6 +1603,8 @@ function DarkStyles() {
         --quest-directory-branch-color: ${TREE_BRANCH_LINE_COLOR};
         --quest-directory-branch-left: -8px;
         --quest-directory-elbow-width: 8px;
+        --quest-directory-row-gutter: 1.05rem;
+        --quest-directory-row-gap: 0.25rem;
         display: grid;
         gap: 0.2rem;
         margin-left: 0.65rem;
@@ -1620,7 +1622,7 @@ function DarkStyles() {
         --branch-center: 0.825rem;
       }
       .quest-directory-quest-branch-node {
-        --branch-center: 2.1rem;
+        --branch-center: 0.825rem;
       }
       .quest-directory-branch-node::before {
         content: "";
@@ -1676,12 +1678,8 @@ function DarkStyles() {
         width: 100%;
         position: relative;
         display: flex;
-        align-items: center;
-        gap: 0.25rem;
-      }
-      .quest-directory-quest-gutter {
-        flex: 0 0 1.05rem;
-        min-height: 1.65rem;
+        align-items: flex-start;
+        padding-left: calc(var(--quest-directory-row-gutter) + var(--quest-directory-row-gap) + 4px);
       }
       .quest-directory-item {
         width: 100%;
@@ -1704,20 +1702,22 @@ function DarkStyles() {
         margin-top: 0.15rem;
       }
       .quest-directory-quest-item {
-        position: relative;
         flex: 1 1 auto;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
+        display: grid;
+        gap: 0.22rem;
         min-width: 0;
-        min-height: 1.65rem;
-        overflow: hidden;
+        min-height: 2.15rem;
         background: rgba(23, 23, 23, 0.82);
-        padding: 0.12rem 0.25rem 0.3rem;
+        padding: 0.12rem 0.25rem 0.24rem;
         text-align: left;
       }
       .quest-directory-quest-branch-node::before {
-        width: calc(var(--quest-directory-elbow-width) + 1.05rem + 0.25rem);
+        width: calc(
+          var(--quest-directory-elbow-width)
+          + var(--quest-directory-row-gutter)
+          + var(--quest-directory-row-gap)
+          + 4px
+        );
       }
       .quest-directory-quest-selected {
         border-color: rgb(212 212 212);
@@ -1725,6 +1725,13 @@ function DarkStyles() {
       }
       .quest-directory-quest-muted {
         opacity: 0.68;
+      }
+      .quest-directory-quest-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.25rem;
+        min-width: 0;
       }
       .quest-directory-quest-main {
         flex: 1 1 auto;
@@ -1751,13 +1758,9 @@ function DarkStyles() {
         color: rgb(229 229 229);
       }
       .quest-directory-quest-progress-track {
-        position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 0.18rem;
+        height: 0.28rem;
         overflow: hidden;
-        border-radius: 0 0 0.3rem 0.3rem;
+        border-radius: 999px;
         background: rgb(38 38 38);
       }
       .quest-directory-quest-progress-fill {
