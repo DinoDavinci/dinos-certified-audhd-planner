@@ -1701,9 +1701,14 @@ function DarkStyles() {
         align-items: stretch;
         gap: 0.55rem;
         min-height: 4.2rem;
+        margin-left: 14px;
+        width: calc(100% - 14px);
         background: rgba(23, 23, 23, 0.82);
         padding: 0.55rem 0.6rem;
         text-align: left;
+      }
+      .quest-directory-quest-branch-node::before {
+        width: calc(var(--quest-directory-elbow-width) + 14px);
       }
       .quest-directory-quest-selected {
         border-color: rgb(212 212 212);
