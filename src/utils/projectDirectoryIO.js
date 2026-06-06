@@ -32,6 +32,15 @@ export async function chooseProjectRootDirectory() {
   return selected;
 }
 
+
+export async function createFolderInProject(projectRootPath, parentFolderId, folderName) {
+  return await invoke("create_quest_project_folder", {
+    projectRootPath,
+    parentRelativePath: parentFolderId || null,
+    folderName,
+  });
+}
+
 export async function createQuestFileInProject(projectRootPath, folderId, quest) {
   if (!projectRootPath) {
     throw new Error("Project root path is required.");

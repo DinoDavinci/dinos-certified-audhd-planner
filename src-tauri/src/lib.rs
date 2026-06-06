@@ -32,6 +32,74 @@ struct ProjectScanResult {
   errors: Vec<ProjectScanError>,
 }
 
+
+#[tauri::command]
+fn create_quest_project_folder(
+  project_root_path: String,
+  parent_relative_path: Option<String>,
+  folder_name: String,
+) -> Result<String, String> {
+  if project_root_path.trim().is_empty() {
+    return Err("Project root path is empty.".to_string());
+  }
+
+  let root = PathBuf::from(&project_root_path);
+
+  if !root.is_dir() {
+    return Err("Project root path is not a directory.".to_string());
+  }
+
+  let clean_folder_name = sanitize_file_name(&folder_name);
+
+  if clean_folder_name.is_empty() {
+    return Err("Folder name is empty.".to_string());
+  }
+
+  let canonical_root = root
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve project root: {error}"))?;
+
+  let mut parent_dir = root.clone();
+
+  if let Some(parent) = parent_relative_path {
+    let normalized_parent = normalize_relative_path(&parent);
+
+    if normalized_parent.components().next().is_some() {
+      parent_dir.push(normalized_parent);
+    }
+  }
+
+  if parent_dir.exists() && !parent_dir.is_dir() {
+    return Err("Parent path exists but is not a directory.".to_string());
+  }
+
+  fs::create_dir_all(&parent_dir)
+    .map_err(|error| format!("Could not create parent folder: {error}"))?;
+
+  let canonical_parent_dir = parent_dir
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve parent folder: {error}"))?;
+
+  if !canonical_parent_dir.starts_with(&canonical_root) {
+    return Err("Parent folder must be inside the project root.".to_string());
+  }
+
+  let target_dir = next_available_folder_path(&parent_dir, &clean_folder_name);
+
+  fs::create_dir(&target_dir)
+    .map_err(|error| format!("Could not create quest folder: {error}"))?;
+
+  let canonical_target_dir = target_dir
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve created folder: {error}"))?;
+
+  if !canonical_target_dir.starts_with(&canonical_root) {
+    return Err("Created folder must be inside the project root.".to_string());
+  }
+
+  Ok(relative_path_string(&root, &target_dir))
+}
+
 #[tauri::command]
 fn create_quest_project_file(
   project_root_path: String,
@@ -215,6 +283,25 @@ fn normalize_relative_path(path: &str) -> PathBuf {
   normalized
 }
 
+
+fn next_available_folder_path(parent_dir: &Path, preferred_folder_name: &str) -> PathBuf {
+  let mut candidate = parent_dir.join(preferred_folder_name);
+
+  if !candidate.exists() {
+    return candidate;
+  }
+
+  for index in 2..10_000 {
+    candidate = parent_dir.join(format!("{preferred_folder_name} {index}"));
+
+    if !candidate.exists() {
+      return candidate;
+    }
+  }
+
+  parent_dir.join(format!("{preferred_folder_name}-copy"))
+}
+
 fn next_available_file_path(target_dir: &Path, preferred_file_name: &str) -> PathBuf {
   let preferred = PathBuf::from(preferred_file_name);
   let stem = preferred
@@ -259,6 +346,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       scan_quest_project_files,
       create_quest_project_file,
+      create_quest_project_folder,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

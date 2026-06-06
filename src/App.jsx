@@ -50,6 +50,7 @@ import {
 
 import {
   chooseProjectRootDirectory,
+  createFolderInProject,
   createQuestFileInProject,
   getSavedProjectRootPath,
   scanQuestProjectDirectory,
@@ -282,12 +283,29 @@ export default function App() {
     setSelection({ type: "quest", id: quest.id });
   }
 
-  function createQuestFolder(parentId = selectedFolderId) {
+  async function createQuestFolder(parentId = selectedFolderId) {
     const title = window.prompt("Folder name:", "New Folder");
     if (!title || !title.trim()) return;
 
+    const cleanTitle = title.trim();
+
+    if (projectRootPath) {
+      try {
+        const createdFolderId = await createFolderInProject(projectRootPath, parentId || null, cleanTitle);
+        await loadQuestProjectFolder(projectRootPath);
+        setSelectedFolderId(createdFolderId || null);
+        if (parentId) setExpandedFolders((old) => ({ ...old, [parentId]: true }));
+        if (createdFolderId) setExpandedFolders((old) => ({ ...old, [createdFolderId]: true }));
+        return;
+      } catch (error) {
+        console.error("Could not create quest folder.", error);
+        window.alert("Could not create quest folder.");
+        return;
+      }
+    }
+
     const folder = makeQuestFolder({
-      title: title.trim(),
+      title: cleanTitle,
       parentId: parentId || null,
     });
 
