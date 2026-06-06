@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { CheckCircle2, RotateCcw } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Maximize2, RotateCcw } from "lucide-react";
 
 import {
   WEEKDAYS,
@@ -255,20 +255,287 @@ export function InputLabel({ text }) {
 }
 
 export function FormText({ label, value, onChange, disabled = false }) {
+  const externalValue = value || "";
+  const [draft, setDraft] = useState(externalValue);
+  const [editing, setEditing] = useState(false);
+  const skipCommitRef = useRef(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(externalValue);
+  }, [externalValue, editing]);
+
+  function commitDraft() {
+    const nextValue = String(draft || "");
+    if (nextValue !== externalValue) onChange(nextValue);
+  }
+
+  function handleFocus() {
+    skipCommitRef.current = false;
+    setEditing(true);
+    setDraft(externalValue);
+  }
+
+  function handleBlur() {
+    setEditing(false);
+
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false;
+      setDraft(externalValue);
+      return;
+    }
+
+    commitDraft();
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      skipCommitRef.current = true;
+      setDraft(externalValue);
+      event.currentTarget.blur();
+    }
+  }
+
   return (
     <div>
       <InputLabel text={label} />
-      <input className="field mt-1" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+      <input
+        className="field mt-1 inspector-line-edit"
+        value={draft}
+        onFocus={handleFocus}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        title="Enter or click away to apply. Escape cancels."
+      />
     </div>
   );
 }
 
 export function FormTextarea({ label, value, onChange, disabled = false }) {
+  const externalValue = value || "";
+  const [draft, setDraft] = useState(externalValue);
+  const [editing, setEditing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDraft, setModalDraft] = useState(externalValue);
+  const skipCommitRef = useRef(false);
+
+  useEffect(() => {
+    if (!editing && !modalOpen) setDraft(externalValue);
+    if (!modalOpen) setModalDraft(externalValue);
+  }, [externalValue, editing, modalOpen]);
+
+  function commitValue(nextValue = draft) {
+    const cleanValue = String(nextValue || "");
+    if (cleanValue !== externalValue) onChange(cleanValue);
+  }
+
+  function handleFocus() {
+    skipCommitRef.current = false;
+    setEditing(true);
+    setDraft(externalValue);
+  }
+
+  function handleBlur() {
+    if (modalOpen) return;
+
+    setEditing(false);
+
+    if (skipCommitRef.current) {
+      skipCommitRef.current = false;
+      setDraft(externalValue);
+      return;
+    }
+
+    commitValue();
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      skipCommitRef.current = true;
+      setDraft(externalValue);
+      event.currentTarget.blur();
+    }
+  }
+
+  function openModal() {
+    if (disabled) return;
+    setModalDraft(draft);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setModalDraft(externalValue);
+  }
+
+  function acceptModal() {
+    const nextValue = String(modalDraft || "");
+    setDraft(nextValue);
+    setEditing(false);
+    skipCommitRef.current = false;
+    setModalOpen(false);
+    commitValue(nextValue);
+  }
+
+  function handleModalKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeModal();
+    }
+  }
+
   return (
     <div>
+      <MultilineEditStyles />
       <InputLabel text={label} />
-      <textarea className="field mt-1 min-h-24" value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={disabled} />
+      <div className="inspector-multiline-edit mt-1">
+        <textarea
+          className="field inspector-multiline-edit-input"
+          value={draft}
+          onFocus={handleFocus}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          title="Click away to apply. Enter inserts a newline. Escape cancels."
+        />
+        <button
+          type="button"
+          className="inspector-multiline-expand-button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={openModal}
+          disabled={disabled}
+          title="Expand text editor"
+        >
+          <Maximize2 size={15} />
+        </button>
+      </div>
+
+      {modalOpen && (
+        <div className="inspector-multiline-modal-backdrop">
+          <div className="inspector-multiline-modal" role="dialog" aria-modal="true">
+            <div className="inspector-multiline-modal-title">Edit {label}</div>
+            <textarea
+              className="field inspector-multiline-modal-input"
+              value={modalDraft}
+              onChange={(event) => setModalDraft(event.target.value)}
+              onKeyDown={handleModalKeyDown}
+              autoFocus
+            />
+            <div className="inspector-multiline-modal-actions">
+              <button type="button" className="inspector-multiline-modal-cancel" onClick={closeModal}>
+                Cancel
+              </button>
+              <button type="button" className="inspector-multiline-modal-accept" onClick={acceptModal}>
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function MultilineEditStyles() {
+  return (
+    <style>{`
+      .inspector-line-edit {
+        min-height: 2.15rem;
+      }
+      .inspector-multiline-edit {
+        display: flex;
+        align-items: stretch;
+        min-width: 0;
+      }
+      .inspector-multiline-edit-input {
+        min-height: 6rem;
+        min-width: 0;
+        resize: vertical;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+      }
+      .inspector-multiline-expand-button {
+        flex: 0 0 2.15rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgb(64 64 64);
+        border-left: 0;
+        border-radius: 0 0.35rem 0.35rem 0;
+        background: rgb(38 38 38);
+        color: rgb(212 212 212);
+      }
+      .inspector-multiline-expand-button:hover:not(:disabled) {
+        background: rgb(64 64 64);
+        color: rgb(245 245 245);
+      }
+      .inspector-multiline-expand-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+      .inspector-multiline-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.62);
+      }
+      .inspector-multiline-modal {
+        width: min(56rem, calc(100vw - 2rem));
+        height: min(44rem, calc(100vh - 2rem));
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 0.75rem;
+        border-radius: 0.45rem;
+        border: 1px solid rgb(82 82 82);
+        background: rgb(23 23 23);
+        padding: 1rem;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+      }
+      .inspector-multiline-modal-title {
+        font-size: 1rem;
+        font-weight: 900;
+        color: rgb(245 245 245);
+      }
+      .inspector-multiline-modal-input {
+        min-height: 0;
+        height: 100%;
+        resize: none;
+      }
+      .inspector-multiline-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+      .inspector-multiline-modal-cancel,
+      .inspector-multiline-modal-accept {
+        border-radius: 0.35rem;
+        border: 1px solid rgb(64 64 64);
+        padding: 0.38rem 0.7rem;
+        font-size: 0.78rem;
+        font-weight: 850;
+      }
+      .inspector-multiline-modal-cancel {
+        background: rgb(38 38 38);
+        color: rgb(229 229 229);
+      }
+      .inspector-multiline-modal-accept {
+        background: rgb(229 229 229);
+        color: rgb(23 23 23);
+      }
+    `}</style>
   );
 }
 
