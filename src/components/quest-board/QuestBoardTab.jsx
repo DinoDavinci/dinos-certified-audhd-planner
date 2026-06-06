@@ -101,6 +101,7 @@ export default function QuestBoardTab({
   const [dropIndicator, setDropIndicator] = useState(null);
   const [dragState, setDragState] = useState(null);
   const [directorySelection, setDirectorySelection] = useState(null);
+  const [pendingOverwriteMove, setPendingOverwriteMove] = useState(null);
   const directoryContentRef = useRef(null);
   const dragStateRef = useRef(null);
   const pendingPressRef = useRef(null);
@@ -198,7 +199,8 @@ export default function QuestBoardTab({
     if (!source) {
       return {
         level: "idle",
-        text: "Move debug: no drag",
+        kind: "idle",
+        text: "not dragging",
         detail: "Hold a quest row, then hover a target.",
       };
     }
@@ -208,6 +210,7 @@ export default function QuestBoardTab({
     if (!moveTarget.ok) {
       return {
         level: "bad",
+        kind: "illegal",
         text: `Move debug: illegal (${moveTarget.reason || "unknown"})`,
         detail: `source=${source.kind}:${source.id || "(missing)"} target=${target?.id || "(none)"}`,
       };
@@ -216,6 +219,7 @@ export default function QuestBoardTab({
     if (source.kind === "folder") {
       return {
         level: "ok",
+        kind: "folder-move",
         text: "Move debug: folder move preview",
         detail: `source=${source.id} destinationFolder=${moveTarget.folderId || "root"} placement=${moveTarget.placement || ""}`,
       };
@@ -224,6 +228,7 @@ export default function QuestBoardTab({
     if (source.kind !== "quest") {
       return {
         level: "bad",
+        kind: "illegal-source",
         text: `Move debug: illegal source (${source.kind || "missing"})`,
         detail: `source=${source.id || "(missing)"}`,
       };
@@ -234,6 +239,7 @@ export default function QuestBoardTab({
     if (!quest) {
       return {
         level: "bad",
+        kind: "missing-source",
         text: "Move debug: source quest not found",
         detail: `source=${source.id || "(missing)"}`,
       };
@@ -248,6 +254,7 @@ export default function QuestBoardTab({
     if ((sourceFolder || null) === (destinationFolder || null)) {
       return {
         level: "bad",
+        kind: "same-folder",
         text: "Move debug: same folder / no-op",
         detail: `source=${sourcePath} destination=${destinationPath}`,
       };
@@ -261,15 +268,22 @@ export default function QuestBoardTab({
     if (collisionQuest) {
       return {
         level: "bad",
+        kind: "overwrite-risk",
         text: "Move debug: overwrite risk",
         detail: `source=${sourcePath} destination=${destinationPath} existing=${normalizeProjectRelativePath(collisionQuest.projectRelativePath || collisionQuest.id)}`,
+        sourcePath,
+        destinationPath,
+        existingPath: normalizeProjectRelativePath(collisionQuest.projectRelativePath || collisionQuest.id),
       };
     }
 
     return {
       level: "ok",
+      kind: "legal-quest-move",
       text: "Move debug: legal quest move",
       detail: `source=${sourcePath} destination=${destinationPath}`,
+      sourcePath,
+      destinationPath,
     };
   }
 
@@ -395,11 +409,35 @@ export default function QuestBoardTab({
 
     if (activeDrag.kind === "quest") {
       const preview = getMoveDebugPreview();
-      console.warn("[Directory rearrange] quest move disabled for debugging", {
+
+      console.warn("[Directory rearrange] quest move preview", {
         source: activeDrag,
         moveTarget,
         preview,
       });
+
+      if (preview.kind === "overwrite-risk") {
+        setPendingOverwriteMove({
+          sourceId: activeDrag.id,
+          folderId: moveTarget.folderId || null,
+          sourcePath: preview.sourcePath || "",
+          destinationPath: preview.destinationPath || "",
+          existingPath: preview.existingPath || "",
+          preview,
+        });
+        return;
+      }
+
+      if (preview.level !== "ok") {
+        console.warn("[Directory rearrange] quest move blocked by preview", {
+          source: activeDrag,
+          moveTarget,
+          preview,
+        });
+        return;
+      }
+
+      moveQuestToFolder?.(activeDrag.id, moveTarget.folderId || null);
       return;
     }
 
@@ -410,6 +448,21 @@ export default function QuestBoardTab({
     if (moveTarget.folderId) {
       setExpandedFolders((old) => ({ ...old, [moveTarget.folderId]: true }));
     }
+  }
+
+  function cancelOverwriteMove() {
+    setPendingOverwriteMove(null);
+  }
+
+  function confirmOverwriteMove() {
+    const move = pendingOverwriteMove;
+    if (!move?.sourceId) {
+      setPendingOverwriteMove(null);
+      return;
+    }
+
+    setPendingOverwriteMove(null);
+    moveQuestToFolder?.(move.sourceId, move.folderId || null);
   }
 
   function cancelDirectoryPress() {
@@ -470,6 +523,85 @@ export default function QuestBoardTab({
         .quest-directory-move-debug-bad {
           border-color: rgba(239, 68, 68, 0.78);
           background: rgba(127, 29, 29, 0.62);
+          color: rgb(254 226 226);
+        }
+        .quest-directory-overwrite-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.58);
+        }
+        .quest-directory-overwrite-modal {
+          width: min(34rem, calc(100vw - 2rem));
+          display: grid;
+          gap: 0.8rem;
+          border-radius: 0.45rem;
+          border: 1px solid rgb(82 82 82);
+          background: rgb(23 23 23);
+          padding: 1rem;
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+        }
+        .quest-directory-overwrite-modal-title {
+          font-size: 1rem;
+          font-weight: 900;
+          color: rgb(245 245 245);
+        }
+        .quest-directory-overwrite-modal-body {
+          display: grid;
+          gap: 0.65rem;
+          font-size: 0.8rem;
+          color: rgb(212 212 212);
+        }
+        .quest-directory-overwrite-modal-body p {
+          margin: 0;
+        }
+        .quest-directory-overwrite-modal-paths {
+          display: grid;
+          gap: 0.45rem;
+        }
+        .quest-directory-overwrite-modal-paths div {
+          display: grid;
+          gap: 0.15rem;
+        }
+        .quest-directory-overwrite-modal-paths span {
+          font-size: 0.68rem;
+          font-weight: 850;
+          color: rgb(163 163 163);
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
+        .quest-directory-overwrite-modal-paths code {
+          overflow: hidden;
+          border-radius: 0.3rem;
+          background: rgba(0, 0, 0, 0.35);
+          padding: 0.3rem 0.45rem;
+          color: rgb(229 229 229);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .quest-directory-overwrite-modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.5rem;
+        }
+        .quest-directory-overwrite-cancel,
+        .quest-directory-overwrite-confirm {
+          border-radius: 0.35rem;
+          border: 1px solid rgb(64 64 64);
+          padding: 0.38rem 0.7rem;
+          font-size: 0.78rem;
+          font-weight: 850;
+        }
+        .quest-directory-overwrite-cancel {
+          background: rgb(38 38 38);
+          color: rgb(229 229 229);
+        }
+        .quest-directory-overwrite-confirm {
+          border-color: rgba(239, 68, 68, 0.72);
+          background: rgba(127, 29, 29, 0.9);
           color: rgb(254 226 226);
         }
       `}</style>
@@ -537,6 +669,41 @@ export default function QuestBoardTab({
           );
         })()}
       </div>
+
+      {pendingOverwriteMove && (
+        <div className="quest-directory-overwrite-modal-backdrop">
+          <div className="quest-directory-overwrite-modal" role="dialog" aria-modal="true">
+            <div className="quest-directory-overwrite-modal-title">Overwrite quest file?</div>
+            <div className="quest-directory-overwrite-modal-body">
+              <p>A quest file already exists at the destination.</p>
+              <div className="quest-directory-overwrite-modal-paths">
+                <div>
+                  <span>Moving</span>
+                  <code>{pendingOverwriteMove.sourcePath || pendingOverwriteMove.sourceId}</code>
+                </div>
+                <div>
+                  <span>Destination</span>
+                  <code>{pendingOverwriteMove.destinationPath || "Unknown destination"}</code>
+                </div>
+                {pendingOverwriteMove.existingPath ? (
+                  <div>
+                    <span>Existing file</span>
+                    <code>{pendingOverwriteMove.existingPath}</code>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="quest-directory-overwrite-modal-actions">
+              <button type="button" className="quest-directory-overwrite-cancel" onClick={cancelOverwriteMove}>
+                Cancel
+              </button>
+              <button type="button" className="quest-directory-overwrite-confirm" onClick={confirmOverwriteMove}>
+                Overwrite
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="scene-contents-panel quest-board-contents-panel">
         <div className="scene-contents-margin quest-board-contents-margin">
