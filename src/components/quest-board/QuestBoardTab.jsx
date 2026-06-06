@@ -90,6 +90,16 @@ export default function QuestBoardTab({
   const dropIndicatorRef = useRef(null);
 
   useEffect(() => {
+    if (dragStateRef.current || pendingPressRef.current) return;
+
+    setDirectorySelection(
+      selectedFolderId
+        ? { kind: "folder", id: selectedFolderId }
+        : { kind: "root", id: "root" }
+    );
+  }, [selectedFolderId]);
+
+  useEffect(() => {
     dragStateRef.current = dragState;
   }, [dragState]);
 
@@ -548,7 +558,18 @@ function QuestFolderNode({
         </div>
 
         <div
-          className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${directorySelection?.kind === "folder" && directorySelection?.id === folder.id ? "quest-directory-folder-selected" : ""}`}
+          className={`quest-directory-item quest-directory-folder-item quest-directory-folder-row ${
+            (
+              directorySelection?.kind === "folder" &&
+              directorySelection?.id === folder.id
+            ) ||
+            (
+              !directorySelection &&
+              selectedFolderId === folder.id
+            )
+              ? "quest-directory-folder-selected"
+              : ""
+          }`}
           data-directory-row-id={folder.id}
           data-directory-row-kind="folder"
           data-directory-parent-id={folder.parentId || "root"}
