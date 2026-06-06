@@ -12,6 +12,13 @@ import {
 } from "lucide-react";
 
 import {
+  getProjectPathBaseName,
+  getProjectPathParent,
+  joinProjectRelativePath,
+  normalizeProjectRelativePath,
+} from "../../utils/projectPathUtils";
+
+import {
   getQuestProgress,
   isQuestComplete,
   isQuestInactive,
@@ -38,31 +45,6 @@ function countFolderContents(folders, quests, folderId) {
   const childFolders = getDirectFolderChildren(folders, folderId);
   const directQuests = getDirectFolderQuests(quests, folderId);
   return childFolders.length + directQuests.length;
-}
-
-function normalizeProjectRelativePath(path) {
-  return String(path || "")
-    .replace(/\\/g, "/")
-    .replace(/^\/+|\/+$/g, "");
-}
-
-function getProjectPathBaseName(path) {
-  const normalized = normalizeProjectRelativePath(path);
-  const parts = normalized.split("/").filter(Boolean);
-  return parts[parts.length - 1] || "";
-}
-
-function joinProjectRelativePath(folderId, fileName) {
-  const cleanFolderId = normalizeProjectRelativePath(folderId);
-  const cleanFileName = getProjectPathBaseName(fileName);
-  return cleanFolderId ? `${cleanFolderId}/${cleanFileName}` : cleanFileName;
-}
-
-function getProjectPathParent(path) {
-  const normalized = normalizeProjectRelativePath(path);
-  const index = normalized.lastIndexOf("/");
-  if (index <= 0) return null;
-  return normalized.slice(0, index);
 }
 
 function isProjectPathDescendant(path, possibleAncestorPath) {

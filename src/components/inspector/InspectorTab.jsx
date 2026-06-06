@@ -13,6 +13,13 @@ import {
   updateQuestTree,
 } from "../../models/appModel";
 
+import {
+  getProjectPathBaseName,
+  getProjectPathParent,
+  joinProjectRelativePath,
+  normalizeProjectRelativePath,
+} from "../../utils/projectPathUtils";
+
 import QuestInspector from "./QuestInspector";
 import TaskInspector from "./TaskInspector";
 import {
@@ -66,14 +73,6 @@ function getInspectorAccentClass(selection) {
   return "";
 }
 
-function getProjectPathBaseName(path) {
-  const normalized = String(path || "")
-    .replace(/\\/g, "/")
-    .replace(/^\/+|\/+$/g, "");
-  const parts = normalized.split("/").filter(Boolean);
-  return parts[parts.length - 1] || "";
-}
-
 function stripQuestFileExtension(fileName) {
   return String(fileName || "")
     .replace(/\.quest\.json$/i, "")
@@ -122,25 +121,6 @@ function getQuestFileBaseNameForQuest(quest) {
 
 function getQuestFilenameForSelection(selection, data) {
   return getQuestFilenameForQuest(getQuestForSelection(selection, data));
-}
-
-function normalizeProjectRelativePath(path) {
-  return String(path || "")
-    .replace(/\\/g, "/")
-    .replace(/^\/+|\/+$/g, "");
-}
-
-function joinProjectRelativePath(folderId, fileName) {
-  const cleanFolderId = normalizeProjectRelativePath(folderId);
-  const cleanFileName = getProjectPathBaseName(fileName);
-  return cleanFolderId ? `${cleanFolderId}/${cleanFileName}` : cleanFileName;
-}
-
-function getProjectPathParent(path) {
-  const normalized = normalizeProjectRelativePath(path);
-  const index = normalized.lastIndexOf("/");
-  if (index <= 0) return null;
-  return normalized.slice(0, index);
 }
 
 function getQuestRenameValidation({ quest, data, name }) {
