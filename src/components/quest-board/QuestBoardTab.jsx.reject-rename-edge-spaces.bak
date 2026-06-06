@@ -588,14 +588,10 @@ export default function QuestBoardTab({
     }
 
     const rawName = String(renameState.name || "");
-    const name = rawName;
+    const name = rawName.trim();
 
-    if (!name.trim()) {
+    if (!name) {
       return { ok: false, message: "Name cannot be empty." };
-    }
-
-    if (name !== name.trim()) {
-      return { ok: false, message: "Name cannot start or end with spaces." };
     }
 
     if (name === "." || name === "..") {
@@ -652,7 +648,7 @@ export default function QuestBoardTab({
     const renameState = pendingFolderRename;
     if (!renameState?.folderId) return;
 
-    const cleanName = String(renameState.name || "");
+    const cleanName = String(renameState.name || "").trim();
 
     setPendingFolderRename(null);
     latestDirectoryDataRef.current.renameQuestFolder?.(renameState.folderId, cleanName);
