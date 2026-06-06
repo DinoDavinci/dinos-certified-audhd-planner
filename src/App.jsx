@@ -48,6 +48,12 @@ import {
   slugifyFilename,
 } from "./utils/fileIO";
 
+import {
+  chooseProjectRootDirectory,
+  getSavedProjectRootPath,
+  scanQuestProjectDirectory,
+} from "./utils/projectDirectoryIO";
+
 import QuestBoardTab from "./components/quest-board/QuestBoardTab";
 import ExportOptionsTab from "./components/export-options/ExportOptionsTab";
 import DebugTab from "./components/debug/DebugTab";
@@ -106,6 +112,8 @@ export default function App() {
   const [expandedKanbanCards, setExpandedKanbanCards] = useState({});
   const [debugDateOverrideEnabled, setDebugDateOverrideEnabled] = useState(false);
   const [debugDateOverrideDate, setDebugDateOverrideDate] = useState(todayString());
+  const [projectRootPath, setProjectRootPath] = useState(() => getSavedProjectRootPath());
+  const [projectLoadSummary, setProjectLoadSummary] = useState("");
 
   function getAppDate() {
     return debugDateOverrideEnabled && debugDateOverrideDate
@@ -220,6 +228,12 @@ export default function App() {
   useEffect(() => {
     runMaintenanceForDate();
   }, [debugDateOverrideEnabled, debugDateOverrideDate]);
+
+  useEffect(() => {
+    if (!projectRootPath) return;
+
+    loadQuestProjectFolder(projectRootPath);
+  }, []);
 
   const allTags = useMemo(() => {
     const set = new Set(DEFAULT_TAGS);
@@ -338,6 +352,69 @@ export default function App() {
       setExpandedFolders((old) => ({ ...old, [nextParentId]: true }));
     }
   }
+
+  async function chooseQuestProjectFolder() {
+    try {
+      const selected = await chooseProjectRootDirectory();
+      if (!selected) return;
+
+      setProjectRootPath(selected);
+      await loadQuestProjectFolder(selected);
+    } catch (error) {
+      console.error("Could not choose quest project folder.", error);
+      window.alert("Could not choose quest project folder.");
+    }
+  }
+
+  async function refreshQuestProjectFolder(rootPath = projectRootPath) {
+    if (!rootPath) {
+      window.alert("Choose a quest project folder first.");
+      return;
+    }
+
+    await loadQuestProjectFolder(rootPath);
+  }
+
+  async function loadQuestProjectFolder(rootPath) {
+    try {
+      const scanned = await scanQuestProjectDirectory(rootPath);
+      const nextActiveQuestId = scanned.quests[0]?.id || null;
+
+      setData((old) => ({
+        ...old,
+        folders: scanned.folders,
+        quests: scanned.quests,
+        activeQuestId: nextActiveQuestId,
+        activeBranchTaskId: null,
+      }));
+
+      setSelection({ type: nextActiveQuestId ? "quest" : "none", id: nextActiveQuestId });
+      setHistory([{ type: nextActiveQuestId ? "quest" : "none", id: nextActiveQuestId }]);
+      setHistoryIndex(0);
+      setFocusHistory([{ questId: nextActiveQuestId, branchTaskId: null }]);
+      setFocusHistoryIndex(0);
+      setSelectedFolderId(null);
+      setExpandedFolders({});
+      setExpanded({});
+      setExpandedKanbanCards({});
+
+      const errorText = scanned.errors.length > 0
+        ? `, ${scanned.errors.length} file error(s)`
+        : "";
+
+      setProjectLoadSummary(
+        `Loaded ${scanned.quests.length} quest(s), ${scanned.folders.length} folder(s)${errorText}.`
+      );
+
+      if (scanned.errors.length > 0) {
+        console.warn("Quest project loaded with errors.", scanned.errors);
+      }
+    } catch (error) {
+      console.error("Could not load quest project folder.", error);
+      window.alert("Could not load quest project folder.");
+    }
+  }
+
 
 
 function createQuestTask(questId, parentId = null) {
@@ -860,6 +937,10 @@ async function importJsonFile(file) {
             makeFocus(quest.id);
             setSelection({ type: "quest", id: quest.id });
           }}
+          projectRootPath={projectRootPath}
+          projectLoadSummary={projectLoadSummary}
+          chooseQuestProjectFolder={chooseQuestProjectFolder}
+          refreshQuestProjectFolder={refreshQuestProjectFolder}
         />
 
         <div
@@ -987,6 +1068,10 @@ function LibraryPanel({
   hasActiveQuest,
   resetToDefaults,
   selectQuest,
+  projectRootPath,
+  projectLoadSummary,
+  chooseQuestProjectFolder,
+  refreshQuestProjectFolder,
 }) {
   const tabs = [
     {
@@ -1018,6 +1103,10 @@ function LibraryPanel({
           moveQuestToFolder={moveQuestToFolder}
           moveQuestFolderToFolder={moveQuestFolderToFolder}
           selectQuest={selectQuest}
+          projectRootPath={projectRootPath}
+          projectLoadSummary={projectLoadSummary}
+          chooseQuestProjectFolder={chooseQuestProjectFolder}
+          refreshQuestProjectFolder={refreshQuestProjectFolder}
         />
       ),
     },
@@ -1500,6 +1589,48 @@ function DarkStyles() {
       }
       .quest-directory-create-button:hover {
         background: white;
+      }
+      .quest-directory-project-row {
+        display: flex;
+        gap: 0.4rem;
+      }
+      .quest-directory-project-button {
+        flex: 1 1 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.35rem;
+        background: rgb(23 23 23);
+        border: 1px solid rgb(64 64 64);
+        padding: 0.28rem 0.45rem;
+        font-size: 0.74rem;
+        font-weight: 800;
+        color: rgb(229 229 229);
+      }
+      .quest-directory-project-button:hover {
+        background: rgb(38 38 38);
+      }
+      .quest-directory-project-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+      .quest-directory-project-status {
+        display: grid;
+        gap: 0.15rem;
+        min-width: 0;
+        overflow: hidden;
+        border-radius: 0.3rem;
+        border: 1px solid rgb(38 38 38);
+        background: rgba(0, 0, 0, 0.22);
+        padding: 0.3rem 0.45rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: rgb(163 163 163);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .quest-directory-project-status span {
+        color: rgb(212 212 212);
       }
       .quest-directory-tree {
         position: relative;
