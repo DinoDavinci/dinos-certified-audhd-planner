@@ -483,7 +483,7 @@ function InspectorRenameModalStyles() {
         align-items: center;
         gap: 0.45rem;
         border-radius: 0.35rem;
-        border: 1px solid rgb(64 64 64);
+        border: none;
         background: rgba(23, 23, 23, 0.78);
         padding: 0.35rem 0.45rem;
         text-align: left;
