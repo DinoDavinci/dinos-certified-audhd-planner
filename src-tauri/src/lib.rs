@@ -32,6 +32,15 @@ struct ProjectScanResult {
   errors: Vec<ProjectScanError>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectMoveResult {
+  moved: bool,
+  collision: bool,
+  source_relative_path: String,
+  destination_relative_path: String,
+}
+
 
 #[tauri::command]
 fn create_quest_project_folder(
@@ -162,6 +171,137 @@ fn create_quest_project_file(
     .map_err(|error| format!("Could not write quest file: {error}"))?;
 
   Ok(target_path.to_string_lossy().to_string())
+}
+
+
+#[tauri::command]
+fn move_quest_project_file(
+  project_root_path: String,
+  source_relative_path: String,
+  target_folder_relative_path: Option<String>,
+  overwrite: bool,
+) -> Result<ProjectMoveResult, String> {
+  if project_root_path.trim().is_empty() {
+    return Err("Project root path is empty.".to_string());
+  }
+
+  if source_relative_path.trim().is_empty() {
+    return Err("Source quest path is empty.".to_string());
+  }
+
+  let root = PathBuf::from(&project_root_path);
+
+  if !root.is_dir() {
+    return Err("Project root path is not a directory.".to_string());
+  }
+
+  let canonical_root = root
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve project root: {error}"))?;
+
+  let mut source_path = root.clone();
+  let normalized_source = normalize_relative_path(&source_relative_path);
+
+  if normalized_source.components().next().is_none() {
+    return Err("Source quest path is invalid.".to_string());
+  }
+
+  source_path.push(normalized_source);
+
+  if !source_path.is_file() {
+    return Err("Source quest file does not exist.".to_string());
+  }
+
+  let source_name = source_path
+    .file_name()
+    .and_then(|value| value.to_str())
+    .ok_or_else(|| "Source quest file has no valid file name.".to_string())?
+    .to_string();
+
+  if !is_quest_file_name(&source_name) {
+    return Err("Source file is not a quest file.".to_string());
+  }
+
+  let canonical_source = source_path
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve source quest file: {error}"))?;
+
+  if !canonical_source.starts_with(&canonical_root) {
+    return Err("Source quest file must be inside the project root.".to_string());
+  }
+
+  let mut target_dir = root.clone();
+
+  if let Some(target_folder) = target_folder_relative_path {
+    let normalized_target_folder = normalize_relative_path(&target_folder);
+
+    if normalized_target_folder.components().next().is_some() {
+      target_dir.push(normalized_target_folder);
+    }
+  }
+
+  if target_dir.exists() && !target_dir.is_dir() {
+    return Err("Target folder path exists but is not a directory.".to_string());
+  }
+
+  fs::create_dir_all(&target_dir)
+    .map_err(|error| format!("Could not create target folder: {error}"))?;
+
+  let canonical_target_dir = target_dir
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve target folder: {error}"))?;
+
+  if !canonical_target_dir.starts_with(&canonical_root) {
+    return Err("Target folder must be inside the project root.".to_string());
+  }
+
+  let destination_path = target_dir.join(&source_name);
+  let destination_relative_path = relative_path_string(&root, &destination_path);
+
+  if destination_path.exists() {
+    let canonical_destination = destination_path
+      .canonicalize()
+      .map_err(|error| format!("Could not resolve destination quest file: {error}"))?;
+
+    if canonical_destination == canonical_source {
+      return Ok(ProjectMoveResult {
+        moved: false,
+        collision: false,
+        source_relative_path: relative_path_string(&root, &source_path),
+        destination_relative_path,
+      });
+    }
+
+    if !canonical_destination.starts_with(&canonical_root) {
+      return Err("Destination quest file must be inside the project root.".to_string());
+    }
+
+    if !destination_path.is_file() {
+      return Err("Destination path exists but is not a file.".to_string());
+    }
+
+    if !overwrite {
+      return Ok(ProjectMoveResult {
+        moved: false,
+        collision: true,
+        source_relative_path: relative_path_string(&root, &source_path),
+        destination_relative_path,
+      });
+    }
+
+    fs::remove_file(&destination_path)
+      .map_err(|error| format!("Could not overwrite destination quest file: {error}"))?;
+  }
+
+  fs::rename(&source_path, &destination_path)
+    .map_err(|error| format!("Could not move quest file: {error}"))?;
+
+  Ok(ProjectMoveResult {
+    moved: true,
+    collision: false,
+    source_relative_path: relative_path_string(&root, &source_path),
+    destination_relative_path,
+  })
 }
 
 #[tauri::command]
@@ -347,6 +487,7 @@ pub fn run() {
       scan_quest_project_files,
       create_quest_project_file,
       create_quest_project_folder,
+      move_quest_project_file,
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
