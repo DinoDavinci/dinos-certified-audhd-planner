@@ -17,9 +17,7 @@ import {
   isQuestComplete,
   isQuestReadyToComplete,
   nextTasksInList,
-  buildFocusBoardFromRoot,
   buildExecutionBoardFromRoot,
-  addQuestCompletionCard,
   getFocusPathInfo,
   updateQuestTree,
   addTaskToTree,
@@ -31,11 +29,9 @@ import {
   runDailyMaintenance,
   selectionKey,
   getTreeContext,
-  renameQuestFolderInList,
   deleteQuestFolderFromList,
   moveQuestToFolderInList,
   isFolderDescendantInList,
-  moveQuestFolderToFolderInList,
 } from "./models/appModel";
 
 import {
