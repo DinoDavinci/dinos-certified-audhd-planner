@@ -50,6 +50,7 @@ import {
 
 import {
   chooseProjectRootDirectory,
+  createQuestFileInProject,
   getSavedProjectRootPath,
   scanQuestProjectDirectory,
 } from "./utils/projectDirectoryIO";
@@ -259,11 +260,23 @@ export default function App() {
       });
   }, [quests, search, tagFilter, hideCompleted, showDisabled]);
 
-  function createQuest(folderId = selectedFolderId) {
+  async function createQuest(folderId = selectedFolderId) {
     const quest = {
       ...makeQuest({ title: "New Quest" }),
       folderId: folderId || null,
     };
+
+    if (projectRootPath) {
+      try {
+        await createQuestFileInProject(projectRootPath, folderId || null, quest);
+        await loadQuestProjectFolder(projectRootPath, { activeQuestId: quest.id });
+        return;
+      } catch (error) {
+        console.error("Could not create quest file.", error);
+        window.alert("Could not create quest file.");
+        return;
+      }
+    }
 
     setData((old) => ({ ...old, quests: [quest, ...old.quests] }));
     setSelection({ type: "quest", id: quest.id });
@@ -375,10 +388,13 @@ export default function App() {
     await loadQuestProjectFolder(rootPath);
   }
 
-  async function loadQuestProjectFolder(rootPath) {
+  async function loadQuestProjectFolder(rootPath, options = {}) {
     try {
       const scanned = await scanQuestProjectDirectory(rootPath);
-      const nextActiveQuestId = scanned.quests[0]?.id || null;
+      const preferredActiveQuestId = options.activeQuestId || null;
+      const nextActiveQuestId = scanned.quests.some((quest) => quest.id === preferredActiveQuestId)
+        ? preferredActiveQuestId
+        : scanned.quests[0]?.id || null;
 
       setData((old) => ({
         ...old,

@@ -1,8 +1,8 @@
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readDir, readTextFile } from "@tauri-apps/plugin-fs";
 
 import { normalizeData } from "../models/appModel";
-import { rawQuestFromQuestPayload } from "./fileIO";
+import { makeQuestFileExport, rawQuestFromQuestPayload, slugifyFilename } from "./fileIO";
 
 export const PROJECT_ROOT_KEY = "quest-planner.projectRootPath";
 
@@ -32,6 +32,27 @@ export async function chooseProjectRootDirectory() {
   return selected;
 }
 
+export async function createQuestFileInProject(projectRootPath, folderId, quest) {
+  if (!projectRootPath) {
+    throw new Error("Project root path is required.");
+  }
+
+  if (!quest) {
+    throw new Error("Quest is required.");
+  }
+
+  const baseName = slugifyFilename(quest.title || "New Quest") || "new-quest";
+  const fileName = `${baseName}.quest.json`;
+  const contents = JSON.stringify(makeQuestFileExport(quest), null, 2);
+
+  return invoke("create_quest_project_file", {
+    projectRootPath,
+    folderRelativePath: folderId || null,
+    fileName,
+    contents,
+  });
+}
+
 export async function scanQuestProjectDirectory(projectRootPath) {
   if (!projectRootPath) {
     return {
@@ -42,112 +63,51 @@ export async function scanQuestProjectDirectory(projectRootPath) {
     };
   }
 
-  const context = {
+  const scanned = await invoke("scan_quest_project_files", {
     projectRootPath,
-    foldersById: new Map(),
-    quests: [],
-    errors: [],
-  };
+  });
 
-  await scanDirectoryIntoProject(context, projectRootPath, "");
+  const folders = (scanned.folders || []).map((folder) => ({
+    id: folder.relativePath,
+    title: baseName(folder.relativePath),
+    parentId: parentPath(folder.relativePath),
+    createdAt: "",
+    updatedAt: "",
+  }));
+
+  const quests = [];
+  const errors = [...(scanned.errors || [])];
+
+  for (const file of scanned.questFiles || []) {
+    try {
+      const parsed = JSON.parse(file.contents);
+      const rawQuest = rawQuestFromQuestPayload(parsed);
+      const normalized = normalizeData({ quests: [rawQuest] });
+      const quest = normalized.quests?.[0];
+
+      if (!quest) throw new Error("No quest found in file.");
+
+      quests.push({
+        ...quest,
+        folderId: parentPath(file.relativePath),
+        projectFilePath: file.absolutePath,
+        projectRelativePath: file.relativePath,
+      });
+    } catch (error) {
+      errors.push({
+        kind: "parse-quest-failed",
+        path: file.relativePath,
+        message: String(error),
+      });
+    }
+  }
 
   return {
     projectRootPath,
-    folders: Array.from(context.foldersById.values()).sort((a, b) =>
-      a.id.localeCompare(b.id)
-    ),
-    quests: context.quests.sort((a, b) =>
-      (a.title || "").localeCompare(b.title || "")
-    ),
-    errors: context.errors,
+    folders: folders.sort((a, b) => a.id.localeCompare(b.id)),
+    quests: quests.sort((a, b) => (a.title || "").localeCompare(b.title || "")),
+    errors,
   };
-}
-
-async function scanDirectoryIntoProject(context, absolutePath, relativePath) {
-  let entries = [];
-
-  try {
-    entries = await readDir(absolutePath);
-  } catch (error) {
-    context.errors.push({
-      kind: "read-directory-failed",
-      path: relativePath || ".",
-      message: String(error),
-    });
-    return;
-  }
-
-  for (const entry of entries) {
-    const name = entry.name || "";
-    if (!name) continue;
-    if (name.startsWith(".")) continue;
-
-    const childRelativePath = joinRelativePath(relativePath, name);
-    const childAbsolutePath = joinAbsolutePath(absolutePath, name);
-
-    if (entry.isDirectory) {
-      addFolder(context, childRelativePath);
-      await scanDirectoryIntoProject(context, childAbsolutePath, childRelativePath);
-      continue;
-    }
-
-    if (!entry.isFile) continue;
-    if (!isQuestFileName(name)) continue;
-
-    await addQuestFile(context, childAbsolutePath, childRelativePath);
-  }
-}
-
-function addFolder(context, folderId) {
-  if (!folderId || context.foldersById.has(folderId)) return;
-
-  context.foldersById.set(folderId, {
-    id: folderId,
-    title: baseName(folderId),
-    parentId: parentPath(folderId),
-    createdAt: "",
-    updatedAt: "",
-  });
-}
-
-async function addQuestFile(context, absolutePath, relativePath) {
-  try {
-    const text = await readTextFile(absolutePath);
-    const parsed = JSON.parse(text);
-    const rawQuest = rawQuestFromQuestPayload(parsed);
-    const normalized = normalizeData({ quests: [rawQuest] });
-    const quest = normalized.quests?.[0];
-
-    if (!quest) {
-      throw new Error("No quest found in file.");
-    }
-
-    context.quests.push({
-      ...quest,
-      folderId: parentPath(relativePath),
-      projectFilePath: absolutePath,
-      projectRelativePath: relativePath,
-    });
-  } catch (error) {
-    context.errors.push({
-      kind: "read-quest-failed",
-      path: relativePath,
-      message: String(error),
-    });
-  }
-}
-
-function isQuestFileName(name) {
-  const lower = name.toLowerCase();
-  return lower.endsWith(".quest.json") || lower.endsWith(".quest");
-}
-
-function joinRelativePath(parent, child) {
-  return parent ? `${parent}/${child}` : child;
-}
-
-function joinAbsolutePath(parent, child) {
-  return `${parent.replace(/[\\/]+$/, "")}/${child}`;
 }
 
 function parentPath(path) {
