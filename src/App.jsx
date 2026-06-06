@@ -105,6 +105,7 @@ function detectStandaloneApp() {
 }
 
 const STANDALONE_PROJECT_SESSION_KEY = "quest-planner-standalone-project-session-v1";
+const WEB_FOLDER_SESSION_KEY = "quest-planner-web-folder-session-v1";
 
 function normalizeSessionRootPath(rootPath) {
   return String(rootPath || "")
@@ -142,6 +143,29 @@ function writeStandaloneProjectSession(rootPath, session) {
   };
 
   localStorage.setItem(STANDALONE_PROJECT_SESSION_KEY, JSON.stringify(sessions));
+}
+
+function readWebFolderSession() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WEB_FOLDER_SESSION_KEY) || "{}");
+    const expandedFolders = parsed?.expandedFolders || parsed;
+    return expandedFolders && typeof expandedFolders === "object" && !Array.isArray(expandedFolders)
+      ? expandedFolders
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeWebFolderSession(expandedFolders) {
+  if (typeof window === "undefined") return;
+
+  localStorage.setItem(WEB_FOLDER_SESSION_KEY, JSON.stringify({
+    expandedFolders: normalizeStandaloneExpandedFolders(expandedFolders || {}),
+    savedAt: new Date().toISOString(),
+  }));
 }
 
 function normalizeStandaloneExpandedFolders(expandedMap) {
@@ -250,7 +274,10 @@ export default function App() {
   const [hideCompleted, setHideCompleted] = useState(false);
   const [showDisabled, setShowDisabled] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState(null);
-  const [expandedFolders, setExpandedFolders] = useState({});
+  const [expandedFolders, setExpandedFolders] = useState(() => {
+    if (detectStandaloneApp()) return {};
+    return restoreStandaloneExpandedFolders(data.folders || [], readWebFolderSession(), {}, []);
+  });
   const [expanded, setExpanded] = useState({});
   const [rightSplit, setRightSplit] = useState(62);
   const [leftPanelWidth, setLeftPanelWidth] = useState(360);
@@ -467,7 +494,9 @@ ${message}`);
       const next = normalizeStandaloneExpandedFolders(rawNext || {});
       expandedFoldersRef.current = next;
 
-      if (isStandaloneApp && projectRootPath && projectSessionReadyRef.current) {
+      if (!isStandaloneApp) {
+        writeWebFolderSession(next);
+      } else if (projectRootPath && projectSessionReadyRef.current) {
         writeStandaloneProjectSession(
           projectRootPath,
           getStandaloneProjectSessionSnapshot(dataRef.current || data)
@@ -579,6 +608,22 @@ ${message}`);
   useEffect(() => {
     expandedFoldersRef.current = expandedFolders;
   }, [expandedFolders]);
+
+  useEffect(() => {
+    if (isStandaloneApp || projectRootPath) return;
+
+    setExpandedFolders((old) => {
+      const next = restoreStandaloneExpandedFolders(
+        data.folders || [],
+        readWebFolderSession(),
+        old || {},
+        []
+      );
+      expandedFoldersRef.current = next;
+      writeWebFolderSession(next);
+      return next;
+    });
+  }, [isStandaloneApp, projectRootPath, data.folders]);
 
   useEffect(() => {
     const interval = setInterval(() => {
