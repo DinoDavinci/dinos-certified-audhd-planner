@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  Save,
+  Target,
 } from "lucide-react";
 
 import {
@@ -35,6 +37,7 @@ export default function InspectorTab(props) {
         <div className="inspector-main-vbox">
           <InspectorRenameModalStyles />
           <InspectorToolbar {...props} />
+          <InspectorIdentityPanel {...props} />
           <InspectorRelations {...props} />
           <div className="scene-contents-panel inspector-contents-panel">
             <div className="scene-contents-margin inspector-contents-margin">
@@ -82,16 +85,39 @@ function getQuestForSelection(selection, data) {
   return (data?.quests || []).find((item) => item.id === selection.id) || null;
 }
 
+function getOwnerQuestForSelection(selection, data) {
+  if (!selection || !data) return null;
+
+  if (selection.type === "quest") {
+    return (data.quests || []).find((item) => item.id === selection.id) || null;
+  }
+
+  if (selection.type === "task") {
+    return (data.quests || []).find((item) => item.id === selection.questId) || null;
+  }
+
+  return null;
+}
+
 function getQuestFilenameForQuest(quest) {
   if (!quest) return "";
 
-  return stripQuestFileExtension(getProjectPathBaseName(
+  const fileName = getProjectPathBaseName(
     quest.projectRelativePath ||
     quest.projectFilePath ||
     quest.id ||
     quest.title ||
     "untitled.quest.json"
-  ));
+  );
+
+  if (!fileName) return "";
+  if (/\.quest\.json$/i.test(fileName) || /\.quest$/i.test(fileName)) return fileName;
+
+  return `${stripQuestFileExtension(fileName)}.quest.json`;
+}
+
+function getQuestFileBaseNameForQuest(quest) {
+  return stripQuestFileExtension(getQuestFilenameForQuest(quest));
 }
 
 function getQuestFilenameForSelection(selection, data) {
@@ -252,19 +278,11 @@ function InspectorToolbar({
   goForward,
   canGoBack,
   canGoForward,
-  renameQuestFile,
+  saveQuestFile,
 }) {
   const goto = getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId);
-  const selectedQuest = getQuestForSelection(selection, data);
-  const questFilename = getQuestFilenameForQuest(selectedQuest);
-  const [renameState, setRenameState] = useState(null);
-  const renameValidation = renameState
-    ? getQuestRenameValidation({
-        quest: renameState.quest,
-        data,
-        name: renameState.name,
-      })
-    : null;
+  const ownerQuest = getOwnerQuestForSelection(selection, data);
+  const canSaveQuestFile = Boolean(ownerQuest?.projectRelativePath && ownerQuest?.projectDirty && saveQuestFile);
 
   function runGoto() {
     if (!goto || goto.disabled) return;
@@ -279,12 +297,74 @@ function InspectorToolbar({
     }
   }
 
+  function runSave() {
+    if (!canSaveQuestFile || !ownerQuest?.id) return;
+    saveQuestFile(ownerQuest.id);
+  }
+
+  const saveTitle = !ownerQuest?.projectRelativePath
+    ? "No project quest file selected"
+    : ownerQuest.projectDirty
+      ? "Save quest file"
+      : "Quest file is clean";
+
+  return (
+    <div className="inspector-toolbar inspector-icon-toolbar">
+      <div className="inspector-toolbar-actions inspector-toolbar-actions-left">
+        <button
+          type="button"
+          onClick={runSave}
+          disabled={!canSaveQuestFile}
+          className={`title-icon-button inspector-save-button ${canSaveQuestFile ? "inspector-save-button-dirty" : "inspector-save-button-clean"}`}
+          title={saveTitle}
+        >
+          <Save size={16} />
+        </button>
+      </div>
+
+      <div className="inspector-toolbar-actions inspector-toolbar-actions-right">
+        {goto && (
+          <button
+            type="button"
+            onClick={runGoto}
+            disabled={goto.disabled}
+            className="title-icon-button disabled:opacity-30"
+            title={goto.title || "Focus selected item"}
+          >
+            <Target size={16} />
+          </button>
+        )}
+        <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30" title="Back"><ArrowLeft size={16} /></button>
+        <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30" title="Forward"><ArrowRight size={16} /></button>
+      </div>
+    </div>
+  );
+}
+
+function InspectorIdentityPanel({
+  selection,
+  data,
+  renameQuestFile,
+}) {
+  const ownerQuest = getOwnerQuestForSelection(selection, data);
+  const questFilename = getQuestFilenameForQuest(ownerQuest);
+  const questFileBaseName = getQuestFileBaseNameForQuest(ownerQuest);
+  const canRenameFile = Boolean(ownerQuest?.projectRelativePath && questFileBaseName && renameQuestFile);
+  const [renameState, setRenameState] = useState(null);
+  const renameValidation = renameState
+    ? getQuestRenameValidation({
+        quest: renameState.quest,
+        data,
+        name: renameState.name,
+      })
+    : null;
+
   function openRenameModal() {
-    if (!selectedQuest || !questFilename) return;
+    if (!canRenameFile) return;
 
     setRenameState({
-      quest: selectedQuest,
-      name: questFilename,
+      quest: ownerQuest,
+      name: questFileBaseName,
     });
   }
 
@@ -299,36 +379,22 @@ function InspectorToolbar({
     setRenameState(null);
   }
 
-  return (
-    <div className="inspector-toolbar">
-      <div className="inspector-toolbar-section">
-        <span className={`inspector-selection-badge ${getInspectorAccentClass(selection)}`}>{getSelectionType(selection)}</span>
-        {questFilename && selectedQuest?.projectRelativePath ? (
-          <button
-            type="button"
-            className="inspector-filename-badge inspector-filename-button"
-            title={`Rename quest file: ${questFilename}.quest.json`}
-            onClick={openRenameModal}
-          >
-            {questFilename}
-          </button>
-        ) : null}
-      </div>
+  if (!selection || selection.type === "none") return null;
 
-      <div className="inspector-toolbar-actions">
-        {goto && (
-          <button
-            onClick={runGoto}
-            disabled={goto.disabled}
-            className="title-secondary-button"
-            title={goto.title}
-          >
-            Focus
-          </button>
-        )}
-        <button onClick={goBack} disabled={!canGoBack} className="title-icon-button disabled:opacity-30"><ArrowLeft size={16} /></button>
-        <button onClick={goForward} disabled={!canGoForward} className="title-icon-button disabled:opacity-30"><ArrowRight size={16} /></button>
-      </div>
+  return (
+    <div className="inspector-identity-panel-wrap">
+      <button
+        type="button"
+        className={`inspector-identity-panel ${canRenameFile ? "inspector-identity-panel-clickable" : ""}`}
+        onClick={openRenameModal}
+        disabled={!canRenameFile}
+        title={canRenameFile ? `Rename quest file: ${questFilename}` : undefined}
+      >
+        <span className={`inspector-selection-badge ${getInspectorAccentClass(selection)}`}>{getSelectionType(selection)}</span>
+        {questFilename && ownerQuest?.projectRelativePath ? (
+          <span className="inspector-identity-filename">{questFilename}</span>
+        ) : null}
+      </button>
 
       {renameState && (
         <div className="inspector-rename-modal-backdrop">
@@ -374,6 +440,66 @@ function InspectorRenameModalStyles() {
   return (
     <style>{`
       .inspector-toolbar { min-width: 0; }
+      .inspector-icon-toolbar {
+        justify-content: space-between;
+      }
+      .inspector-toolbar-actions-left,
+      .inspector-toolbar-actions-right {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .inspector-save-button-clean,
+      .inspector-save-button-clean:disabled {
+        cursor: not-allowed;
+        color: rgb(82 82 82);
+        opacity: 0.45;
+      }
+      .inspector-save-button-dirty {
+        color: rgb(245 245 245);
+        opacity: 1;
+      }
+      .inspector-identity-panel-wrap {
+        min-width: 0;
+      }
+      .inspector-identity-panel {
+        width: 100%;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        border-radius: 0.35rem;
+        border: 1px solid rgb(64 64 64);
+        background: rgba(23, 23, 23, 0.78);
+        padding: 0.35rem 0.45rem;
+        text-align: left;
+      }
+      .inspector-identity-panel:disabled {
+        opacity: 1;
+      }
+      .inspector-identity-panel-clickable {
+        cursor: pointer;
+      }
+      .inspector-identity-panel-clickable:hover {
+        border-color: rgb(115 115 115);
+        background: rgb(38 38 38);
+      }
+      .inspector-identity-panel .inspector-selection-badge {
+        flex: 0 0 4.35rem;
+        min-width: 4.35rem;
+        justify-content: center;
+        text-align: center;
+      }
+      .inspector-identity-filename {
+        min-width: 0;
+        overflow: hidden;
+        color: rgb(212 212 212);
+        font-size: 0.78rem;
+        font-weight: 850;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .inspector-toolbar-section { flex: 1 1 auto; min-width: 0; }
       .inspector-filename-button { cursor: pointer; text-align: left; }
       .inspector-filename-button:hover { border-color: rgb(115 115 115); background: rgb(64 64 64); color: rgb(245 245 245); }

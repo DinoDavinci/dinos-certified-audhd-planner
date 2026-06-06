@@ -1059,6 +1059,43 @@ async function renameQuestFile(questId, nextBaseName) {
   }
 
 
+async function saveQuestFile(questId) {
+    if (!projectRootPath) return;
+
+    const liveData = dataRef.current || data;
+    const quest = (liveData.quests || []).find((item) => item.id === questId);
+
+    if (!quest) return;
+
+    if (!quest.projectRelativePath) {
+      window.alert("Could not save quest file because its project path is missing.");
+      await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
+      return;
+    }
+
+    try {
+      await updateQuestFileInProject(projectRootPath, quest.projectRelativePath, quest);
+
+      setData((old) => {
+        const nextData = {
+          ...old,
+          quests: (old.quests || []).map((item) =>
+            item.id === questId
+              ? { ...item, projectDirty: false }
+              : item
+          ),
+        };
+
+        dataRef.current = nextData;
+        return nextData;
+      });
+    } catch (error) {
+      console.error("Could not save quest file.", error);
+      const message = typeof error === "string" ? error : error?.message || "Unknown error.";
+      window.alert(`Could not save quest file.\n\n${message}`);
+    }
+  }
+
 
 function deleteQuestTask(questId, taskId) {
     setDataWithProjectDirty((old) => ({
@@ -1617,6 +1654,7 @@ async function importJsonFile(file) {
           createQuestTask={createQuestTask}
           deleteQuest={deleteQuest}
           renameQuestFile={renameQuestFile}
+          saveQuestFile={saveQuestFile}
           deleteQuestTask={deleteQuestTask}
           moveQuestTask={moveQuestTask}
           moveQuestTaskToLocation={moveQuestTaskToLocation}
