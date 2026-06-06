@@ -427,6 +427,23 @@ ${message}`);
     });
   }
 
+  function getQuestIdForSelectionState(selectionState = selection) {
+    if (selectionState?.type === "quest") return selectionState.id || null;
+    if (selectionState?.type === "task") return selectionState.questId || null;
+    return null;
+  }
+
+  function setDataWithProjectDirtyAndAutosaveSelection(updater) {
+    const questId = getQuestIdForSelectionState();
+
+    if (!questId) {
+      setDataWithProjectDirty(updater);
+      return;
+    }
+
+    setDataWithProjectDirtyAndAutosaveQuest(questId, updater);
+  }
+
   function getAppDate() {
     return debugDateOverrideEnabled && debugDateOverrideDate
       ? debugDateOverrideDate
@@ -1042,7 +1059,7 @@ ${message}`);
 function createQuestTask(questId, parentId = null) {
     const task = makeTask({ title: "New Task" });
 
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -1172,7 +1189,7 @@ async function saveQuestFile(questId) {
 
 
 function deleteQuestTask(questId, taskId) {
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -1195,7 +1212,7 @@ function deleteQuestTask(questId, taskId) {
 
 
 function moveQuestTask(questId, taskId, direction) {
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -1215,7 +1232,7 @@ function moveQuestTask(questId, taskId, direction) {
 function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement) {
     if (!questId || !sourceTaskId || !targetTaskId) return;
 
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1706,7 +1723,7 @@ async function importJsonFile(file) {
           setBottomRightTab={setBottomRightTab}
           selection={selection}
           data={data}
-          setData={setDataWithProjectDirty}
+          setData={setDataWithProjectDirtyAndAutosaveSelection}
           setSelection={setSelection}
           allTags={allTags}
           activeQuest={activeQuest}
