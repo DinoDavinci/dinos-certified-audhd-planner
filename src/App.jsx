@@ -295,8 +295,13 @@ export default function App() {
   }, [quests, search, tagFilter, hideCompleted, showDisabled]);
 
   async function createQuest(folderId = selectedFolderId) {
+    const title = window.prompt("Quest title:", "New Quest");
+    if (!title || !title.trim()) return;
+
+    const cleanTitle = title.trim();
+
     const quest = {
-      ...makeQuest({ title: "New Quest" }),
+      ...makeQuest({ title: cleanTitle }),
       folderId: folderId || null,
     };
 

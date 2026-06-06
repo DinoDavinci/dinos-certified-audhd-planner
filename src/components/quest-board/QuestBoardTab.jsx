@@ -193,7 +193,7 @@ export default function QuestBoardTab({
   }
 
   function getMoveDebugPreview() {
-    const source = dragState || dragStateRef.current || pendingPressRef.current;
+    const source = dragState || dragStateRef.current;
     const target = dropIndicator || dropIndicatorRef.current;
 
     if (!source) {
