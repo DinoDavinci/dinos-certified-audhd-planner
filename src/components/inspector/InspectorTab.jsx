@@ -411,13 +411,14 @@ function InspectorIdentityPanel({
             <div className="inspector-rename-modal-body">
               <label className="inspector-rename-field">
                 <span>File name</span>
-                <div className={`inspector-rename-input-row ${renameValidation?.ok ? "inspector-rename-input-row-ok" : "inspector-rename-input-row-bad"}`}>
+                <div className="inspector-rename-input-row">
                   <input
+                    className={renameValidation?.ok ? "inspector-rename-input-ok" : "inspector-rename-input-bad"}
                     value={renameState.name}
                     onChange={(event) => setRenameState((old) => old ? { ...old, name: event.target.value } : old)}
                     autoFocus
                   />
-                  <span className="inspector-rename-extension">.quest.json</span>
+                  <span className={`inspector-rename-extension ${renameValidation?.ok ? "inspector-rename-extension-ok" : "inspector-rename-extension-bad"}`}>.quest.json</span>
                 </div>
               </label>
               <div className={`inspector-rename-validation ${renameValidation?.ok ? "inspector-rename-validation-ok" : "inspector-rename-validation-bad"}`}>
@@ -523,12 +524,12 @@ function InspectorRenameModalStyles() {
       .inspector-rename-modal-body { display: grid; gap: 0.5rem; }
       .inspector-rename-field { display: grid; gap: 0.3rem; font-size: 0.74rem; font-weight: 850; color: rgb(212 212 212); }
       .inspector-rename-input-row { display: flex; align-items: stretch; min-width: 0; }
-      .inspector-rename-input-row input { flex: 1 1 auto; min-width: 0; border-radius: 0.35rem 0 0 0.35rem; border: 1px solid rgb(64 64 64); border-right: none; background: rgb(10 10 10); padding: 0.45rem 0.55rem; font-size: 0.85rem; color: rgb(245 245 245); }
+      .inspector-rename-input-row input { flex: 1 1 auto; min-width: 0; border-radius: 0.35rem 0 0 0.35rem; border: 1px solid rgb(64 64 64); border-right: none; outline: none; background: rgb(10 10 10); padding: 0.45rem 0.55rem; font-size: 0.85rem; color: rgb(245 245 245); }
       .inspector-rename-extension { flex: 0 0 auto; display: inline-flex; align-items: center; border-radius: 0 0.35rem 0.35rem 0; border: 1px solid rgb(64 64 64); background: rgb(38 38 38); padding: 0.45rem 0.55rem; font-size: 0.85rem; font-weight: 850; color: rgb(163 163 163); }
-      .inspector-rename-input-row-ok input,
-      .inspector-rename-input-row-ok .inspector-rename-extension { border-color: rgb(34 197 94) !important; }
-      .inspector-rename-input-row-bad input,
-      .inspector-rename-input-row-bad .inspector-rename-extension { border-color: rgb(239 68 68) !important; }
+      .inspector-rename-input-ok,
+      .inspector-rename-extension-ok { border-color: rgb(34 197 94); }
+      .inspector-rename-input-bad,
+      .inspector-rename-extension-bad { border-color: rgb(239 68 68); }
       .inspector-rename-validation { font-size: 0.76rem; font-weight: 850; }
       .inspector-rename-validation-ok { color: rgb(134 239 172); }
       .inspector-rename-validation-bad { color: rgb(252 165 165); }

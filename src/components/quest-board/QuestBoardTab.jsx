@@ -948,16 +948,17 @@ export default function QuestBoardTab({
           width: 100%;
           border-radius: 0.35rem;
           border: 1px solid rgb(64 64 64);
+          outline: none;
           background: rgb(10 10 10);
           padding: 0.45rem 0.55rem;
           font-size: 0.85rem;
           color: rgb(245 245 245);
         }
         .quest-directory-rename-field input.quest-directory-rename-input-ok {
-          border-color: rgb(34 197 94) !important;
+          border-color: rgb(34 197 94);
         }
         .quest-directory-rename-field input.quest-directory-rename-input-bad {
-          border-color: rgb(239 68 68) !important;
+          border-color: rgb(239 68 68);
         }
         .quest-directory-rename-validation {
           font-size: 0.76rem;
