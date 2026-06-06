@@ -65,6 +65,14 @@ export async function createQuestFileInProject(projectRootPath, folderId, quest)
 
 
 
+
+export async function deleteEmptyFolderInProject(projectRootPath, folderId) {
+  return await invoke("delete_empty_quest_project_folder", {
+    projectRootPath,
+    folderRelativePath: folderId,
+  });
+}
+
 export async function renameFolderInProject(projectRootPath, sourceFolderId, newFolderName) {
   return await invoke("rename_quest_project_folder", {
     projectRootPath,

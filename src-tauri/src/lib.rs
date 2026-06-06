@@ -309,6 +309,98 @@ fn check_quest_project_move_destination(
 
 
 
+
+#[tauri::command]
+fn delete_empty_quest_project_folder(
+  project_root_path: String,
+  folder_relative_path: String,
+) -> Result<String, String> {
+  if project_root_path.trim().is_empty() {
+    return Err("Project root path is empty.".to_string());
+  }
+
+  if folder_relative_path.trim().is_empty() {
+    return Err("Folder path is empty.".to_string());
+  }
+
+  let root = PathBuf::from(&project_root_path);
+
+  if !root.is_dir() {
+    return Err("Project root path is not a directory.".to_string());
+  }
+
+  let canonical_root = root
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve project root: {error}"))?;
+
+  let normalized_folder_path = normalize_relative_path_string(&folder_relative_path);
+
+  if normalized_folder_path.is_empty() {
+    return Err("Folder path is invalid.".to_string());
+  }
+
+  let folder_path = resolve_project_folder_path(&root, &normalized_folder_path)
+    .ok_or_else(|| {
+      format!(
+        "Folder does not exist. Requested: '{}' under project root '{}'",
+        normalized_folder_path,
+        root.to_string_lossy()
+      )
+    })?;
+
+  if !folder_path.is_dir() {
+    return Err(format!(
+      "Resolved path exists but is not a folder: {}",
+      folder_path.to_string_lossy()
+    ));
+  }
+
+  let canonical_folder = folder_path
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve folder: {error}"))?;
+
+  if !canonical_folder.starts_with(&canonical_root) {
+    return Err("Folder must be inside the project root.".to_string());
+  }
+
+  if canonical_folder == canonical_root {
+    return Err("Project root cannot be deleted.".to_string());
+  }
+
+  let parent_relative_path = folder_path
+    .parent()
+    .map(|parent| relative_path_string(&root, parent))
+    .unwrap_or_default();
+
+  let entries = fs::read_dir(&folder_path)
+    .map_err(|error| format!("Could not inspect folder before deletion: {error}"))?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|error| format!("Could not inspect folder contents before deletion: {error}"))?;
+
+  if !entries.is_empty() {
+    let names = entries
+      .iter()
+      .take(8)
+      .filter_map(|entry| entry.file_name().to_str().map(|value| value.to_string()))
+      .collect::<Vec<_>>()
+      .join(", ");
+
+    let suffix = if entries.len() > 8 { ", ..." } else { "" };
+
+    return Err(format!(
+      "Folder is not empty. Found {} item(s): {}{}",
+      entries.len(),
+      names,
+      suffix
+    ));
+  }
+
+  fs::remove_dir(&folder_path)
+    .map_err(|error| format!("Could not delete empty quest folder after empty check: {error}"))?;
+
+  Ok(parent_relative_path)
+}
+
 #[tauri::command]
 fn rename_quest_project_folder(
   project_root_path: String,
@@ -840,6 +932,58 @@ fn normalize_relative_path(path: &str) -> PathBuf {
   normalized
 }
 
+fn normalize_relative_path_string(path: &str) -> String {
+  normalize_relative_path(path)
+    .to_string_lossy()
+    .replace('\\', "/")
+}
+
+fn resolve_project_folder_path(root: &Path, relative_path: &str) -> Option<PathBuf> {
+  let normalized_target = normalize_relative_path_string(relative_path);
+
+  if normalized_target.is_empty() {
+    return None;
+  }
+
+  let direct_path = root.join(normalize_relative_path(&normalized_target));
+
+  if direct_path.is_dir() {
+    return Some(direct_path);
+  }
+
+  let mut stack = vec![root.to_path_buf()];
+
+  while let Some(current) = stack.pop() {
+    let entries = match fs::read_dir(&current) {
+      Ok(entries) => entries,
+      Err(_) => continue,
+    };
+
+    for entry_result in entries {
+      let entry = match entry_result {
+        Ok(entry) => entry,
+        Err(_) => continue,
+      };
+
+      let path = entry.path();
+
+      if !path.is_dir() {
+        continue;
+      }
+
+      let candidate_relative = normalize_relative_path_string(&relative_path_string(root, &path));
+
+      if candidate_relative == normalized_target {
+        return Some(path);
+      }
+
+      stack.push(path);
+    }
+  }
+
+  None
+}
+
 
 fn next_available_folder_path(parent_dir: &Path, preferred_folder_name: &str) -> PathBuf {
   let mut candidate = parent_dir.join(preferred_folder_name);
@@ -932,6 +1076,7 @@ pub fn run() {
       create_quest_project_folder,
       check_quest_project_move_destination,
       move_quest_project_file,
+      delete_empty_quest_project_folder,
       rename_quest_project_folder,
       move_quest_project_folder,
       write_quest_project_file,

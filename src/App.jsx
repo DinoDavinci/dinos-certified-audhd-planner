@@ -53,6 +53,7 @@ import {
   chooseProjectRootDirectory,
   createFolderInProject,
   createQuestFileInProject,
+  deleteEmptyFolderInProject,
   getSavedProjectRootPath,
   moveFolderInProject,
   moveQuestFileInProject,
@@ -394,10 +395,13 @@ export default function App() {
     }));
   }
 
-  function deleteQuestFolder(folderId) {
-    const folders = data.folders || [];
+  async function deleteQuestFolder(folderId) {
+    const liveData = dataRef.current || data;
+    const folders = liveData.folders || [];
+    const quests = liveData.quests || [];
+
     const hasChildren = folders.some((folder) => folder.parentId === folderId);
-    const hasQuests = (data.quests || []).some((quest) => quest.folderId === folderId);
+    const hasQuests = quests.some((quest) => quest.folderId === folderId);
 
     if (hasChildren || hasQuests) {
       window.alert("This folder is not empty. Move or remove its contents first.");
@@ -406,6 +410,25 @@ export default function App() {
 
     const confirmed = window.confirm("Delete this empty folder?");
     if (!confirmed) return;
+
+    if (projectRootPath) {
+      try {
+        const parentFolderId = await deleteEmptyFolderInProject(projectRootPath, folderId);
+        await loadQuestProjectFolder(projectRootPath, {
+          activeFolderId: parentFolderId || null,
+          expandedFolderIds: [parentFolderId].filter(Boolean),
+        });
+        return;
+      } catch (error) {
+        console.error("Could not delete quest folder.", error);
+        const message = typeof error === "string"
+          ? error
+          : error?.message || "Unknown error.";
+        window.alert(`Could not delete quest folder.\n\n${message}`);
+        await loadQuestProjectFolder(projectRootPath, { activeFolderId: folderId });
+        return;
+      }
+    }
 
     setData((old) => ({
       ...old,
