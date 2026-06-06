@@ -355,27 +355,18 @@ export default function App() {
 
   async function moveQuestToFolder(questId, folderId) {
     if (projectRootPath) {
+      const quest = (data.quests || []).find((item) => item.id === questId);
+
+      if (!quest?.projectRelativePath) {
+        window.alert("Could not move quest file because its project path is missing.");
+        return;
+      }
+
+      if ((quest.folderId || null) === (folderId || null)) {
+        return;
+      }
+
       try {
-        const scanned = await scanQuestProjectDirectory(projectRootPath);
-        const quest =
-          scanned.quests.find((item) => item.id === questId) ||
-          (data.quests || []).find((item) => item.id === questId);
-
-        if (!quest?.projectRelativePath) {
-          console.warn("Could not move quest file because its project path is missing.", {
-            questId,
-            folderId,
-            quest,
-          });
-          window.alert("Could not move quest file because its project path is missing.");
-          await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
-          return;
-        }
-
-        if ((quest.folderId || null) === (folderId || null)) {
-          return;
-        }
-
         let result = await moveQuestFileInProject(
           projectRootPath,
           quest.projectRelativePath,
@@ -408,7 +399,6 @@ export default function App() {
       } catch (error) {
         console.error("Could not move quest file.", error);
         window.alert("Could not move quest file.");
-        await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
         return;
       }
     }
