@@ -73,11 +73,46 @@ export async function deleteEmptyFolderInProject(projectRootPath, folderId) {
   });
 }
 
+export async function deleteQuestFileInProject(projectRootPath, questRelativePath) {
+  if (!projectRootPath) {
+    throw new Error("Project root path is required.");
+  }
+
+  if (!questRelativePath) {
+    throw new Error("Quest relative path is required.");
+  }
+
+  return await invoke("delete_quest_project_file", {
+    projectRootPath,
+    questRelativePath,
+  });
+}
+
 export async function renameFolderInProject(projectRootPath, sourceFolderId, newFolderName) {
   return await invoke("rename_quest_project_folder", {
     projectRootPath,
     sourceRelativePath: sourceFolderId,
     newFolderName,
+  });
+}
+
+export async function renameQuestFileInProject(projectRootPath, sourceRelativePath, newFileName) {
+  if (!projectRootPath) {
+    throw new Error("Project root path is required.");
+  }
+
+  if (!sourceRelativePath) {
+    throw new Error("Source quest path is required.");
+  }
+
+  if (!newFileName) {
+    throw new Error("New quest file name is required.");
+  }
+
+  return await invoke("rename_quest_project_file", {
+    projectRootPath,
+    sourceRelativePath,
+    newFileName,
   });
 }
 

@@ -54,9 +54,11 @@ import {
   createFolderInProject,
   createQuestFileInProject,
   deleteEmptyFolderInProject,
+  deleteQuestFileInProject,
   getSavedProjectRootPath,
   moveFolderInProject,
   moveQuestFileInProject,
+  renameQuestFileInProject,
   renameFolderInProject,
   scanQuestProjectDirectory,
   updateQuestFileInProject,
@@ -919,7 +921,57 @@ function createQuestTask(questId, parentId = null) {
   }
 
 
-function deleteQuest(questId) {
+async function deleteQuest(questId) {
+    if (projectRootPath) {
+      const liveData = dataRef.current || data;
+      const quest = (liveData.quests || []).find((item) => item.id === questId);
+
+      if (!quest) return;
+
+      if (!quest.projectRelativePath) {
+        console.warn("Could not delete quest file because its project path is missing.", {
+          questId,
+          quest,
+        });
+        window.alert("Could not delete quest file because its project path is missing.");
+        await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Delete this quest file?
+
+${quest.projectRelativePath}
+
+This removes the file from the project folder.`
+      );
+
+      if (!confirmed) return;
+
+      try {
+        const parentFolderId = await deleteQuestFileInProject(
+          projectRootPath,
+          quest.projectRelativePath
+        );
+
+        await loadQuestProjectFolder(projectRootPath, {
+          activeFolderId: parentFolderId || quest.folderId || null,
+          expandedFolderIds: [parentFolderId || quest.folderId].filter(Boolean),
+        });
+        return;
+      } catch (error) {
+        console.error("Could not delete quest file.", error);
+        const message = typeof error === "string"
+          ? error
+          : error?.message || "Unknown error.";
+        window.alert(`Could not delete quest file.
+
+${message}`);
+        await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
+        return;
+      }
+    }
+
     setData((old) => {
       const quests = old.quests.filter((quest) => quest.id !== questId);
       return {
@@ -932,6 +984,34 @@ function deleteQuest(questId) {
 
     setSelection({ type: "none" });
   }
+
+
+async function renameQuestFile(questId, nextBaseName) {
+    const cleanBaseName = String(nextBaseName || "").trim();
+    if (!projectRootPath || !cleanBaseName) return;
+    const liveData = dataRef.current || data;
+    const quest = (liveData.quests || []).find((item) => item.id === questId);
+    if (!quest) return;
+    if (!quest.projectRelativePath) {
+      window.alert("Could not rename quest file because its project path is missing.");
+      await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
+      return;
+    }
+    try {
+      await updateQuestFileInProject(projectRootPath, quest.projectRelativePath, quest);
+      const renamedPath = await renameQuestFileInProject(projectRootPath, quest.projectRelativePath, `${cleanBaseName}.quest.json`);
+      await loadQuestProjectFolder(projectRootPath, {
+        activeQuestPath: renamedPath,
+        expandedFolderIds: [getProjectPathParent(renamedPath)].filter(Boolean),
+      });
+    } catch (error) {
+      console.error("Could not rename quest file.", error);
+      const message = typeof error === "string" ? error : error?.message || "Unknown error.";
+      window.alert(`Could not rename quest file.\n\n${message}`);
+      await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
+    }
+  }
+
 
 
 function deleteQuestTask(questId, taskId) {
@@ -1490,6 +1570,7 @@ async function importJsonFile(file) {
           restoreQuest={restoreQuest}
           createQuestTask={createQuestTask}
           deleteQuest={deleteQuest}
+          renameQuestFile={renameQuestFile}
           deleteQuestTask={deleteQuestTask}
           moveQuestTask={moveQuestTask}
           moveQuestTaskToLocation={moveQuestTaskToLocation}
@@ -2628,6 +2709,7 @@ function DarkStyles() {
         align-items: center;
         justify-content: space-between;
         gap: 0.5rem;
+        min-width: 0;
         min-height: 1.7rem;
         padding: 0;
       }
@@ -2638,7 +2720,15 @@ function DarkStyles() {
         gap: 0.35rem;
         min-width: 0;
       }
-      .inspector-selection-badge {
+      .inspector-toolbar-section {
+        flex: 1 1 auto;
+        overflow: hidden;
+      }
+      .inspector-toolbar-actions {
+        flex: 0 0 auto;
+      }
+      .inspector-selection-badge,
+      .inspector-filename-badge {
         display: inline-flex;
         align-items: center;
         border-radius: 0.35rem;
@@ -2648,6 +2738,19 @@ function DarkStyles() {
         font-size: 0.75rem;
         font-weight: 850;
         color: rgb(229 229 229);
+      }
+      .inspector-selection-badge {
+        flex: 0 0 auto;
+      }
+      .inspector-filename-badge {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: none;
+        background: rgb(24 24 27);
+        color: rgb(163 163 163);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .inspector-selection-badge.inspector-title-quest {
         border-color: rgb(21 128 61);
