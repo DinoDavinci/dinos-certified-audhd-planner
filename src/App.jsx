@@ -280,6 +280,7 @@ export default function App() {
   const [projectRootPath, setProjectRootPath] = useState(() => getSavedProjectRootPath());
   const [projectLoadSummary, setProjectLoadSummary] = useState("");
   const dataRef = useRef(data);
+  const projectSaveQueueRef = useRef({});
 
   function stripProjectTransientQuestFields(quest) {
     const {
@@ -324,6 +325,105 @@ export default function App() {
     setData((old) => {
       const next = typeof updater === "function" ? updater(old) : updater;
       return markChangedProjectQuestsDirty(old, next);
+    });
+  }
+
+  async function writeQuestFileSnapshotNow(questSnapshot, options = {}) {
+    const { silent = false } = options;
+
+    if (!projectRootPath || !questSnapshot) return false;
+
+    if (!questSnapshot.projectRelativePath) {
+      if (!silent) {
+        window.alert("Could not save quest file because its project path is missing.");
+        await loadQuestProjectFolder(projectRootPath, { activeQuestId: questSnapshot.id });
+      }
+      return false;
+    }
+
+    try {
+      await updateQuestFileInProject(
+        projectRootPath,
+        questSnapshot.projectRelativePath,
+        questSnapshot
+      );
+
+      setData((old) => {
+        const nextData = {
+          ...old,
+          quests: (old.quests || []).map((item) => {
+            if (item.id !== questSnapshot.id) return item;
+
+            // Only clear the dirty flag if the current in-memory quest still
+            // matches the exact snapshot that was saved. If the user changed
+            // the quest again while the save was in flight, keep it dirty.
+            if (hasPersistentQuestChange(questSnapshot, item)) return item;
+
+            return { ...item, projectDirty: false };
+          }),
+        };
+
+        dataRef.current = nextData;
+        return nextData;
+      });
+
+      return true;
+    } catch (error) {
+      console.error(silent ? "Could not autosave quest file." : "Could not save quest file.", error);
+
+      if (!silent) {
+        const message = typeof error === "string" ? error : error?.message || "Unknown error.";
+        window.alert(`Could not save quest file.
+
+${message}`);
+      }
+
+      return false;
+    }
+  }
+
+  function queueQuestFileSnapshotSave(questSnapshot, options = {}) {
+    if (!projectRootPath || !questSnapshot?.id || !questSnapshot?.projectRelativePath) {
+      return Promise.resolve(false);
+    }
+
+    const key = questSnapshot.id;
+    const previous = projectSaveQueueRef.current[key] || Promise.resolve();
+
+    const next = previous
+      .catch(() => false)
+      .then(() => writeQuestFileSnapshotNow(questSnapshot, options));
+
+    projectSaveQueueRef.current[key] = next;
+
+    next.finally(() => {
+      if (projectSaveQueueRef.current[key] === next) {
+        delete projectSaveQueueRef.current[key];
+      }
+    });
+
+    return next;
+  }
+
+  function setDataWithProjectDirtyAndAutosaveQuest(questId, updater) {
+    setData((old) => {
+      const rawNext = typeof updater === "function" ? updater(old) : updater;
+      const next = markChangedProjectQuestsDirty(old, rawNext);
+      const questToAutosave = (next.quests || []).find((quest) =>
+        quest.id === questId &&
+        quest.projectRelativePath &&
+        quest.projectDirty
+      );
+
+      dataRef.current = next;
+
+      if (questToAutosave) {
+        window.setTimeout(() => {
+          queueQuestFileSnapshotSave(questToAutosave, { silent: true });
+        }, 0);
+      }
+
+      return next;
     });
   }
 
@@ -1067,33 +1167,7 @@ async function saveQuestFile(questId) {
 
     if (!quest) return;
 
-    if (!quest.projectRelativePath) {
-      window.alert("Could not save quest file because its project path is missing.");
-      await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
-      return;
-    }
-
-    try {
-      await updateQuestFileInProject(projectRootPath, quest.projectRelativePath, quest);
-
-      setData((old) => {
-        const nextData = {
-          ...old,
-          quests: (old.quests || []).map((item) =>
-            item.id === questId
-              ? { ...item, projectDirty: false }
-              : item
-          ),
-        };
-
-        dataRef.current = nextData;
-        return nextData;
-      });
-    } catch (error) {
-      console.error("Could not save quest file.", error);
-      const message = typeof error === "string" ? error : error?.message || "Unknown error.";
-      window.alert(`Could not save quest file.\n\n${message}`);
-    }
+    await queueQuestFileSnapshotSave(quest, { silent: false });
   }
 
 
@@ -1189,7 +1263,7 @@ function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement)
 
 
 function toggleTask(questId, taskId) {
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1266,7 +1340,7 @@ function toggleTask(questId, taskId) {
 
   
 function uncompleteTask(questId, taskId) {
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1314,7 +1388,7 @@ function uncompleteTask(questId, taskId) {
 
   
 function completeQuest(questId) {
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1335,7 +1409,7 @@ function completeQuest(questId) {
 
   
 function restoreQuest(questId) {
-    setDataWithProjectDirty((old) => ({
+    setDataWithProjectDirtyAndAutosaveQuest(questId, (old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
