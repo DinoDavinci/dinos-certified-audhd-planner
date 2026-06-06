@@ -49,12 +49,14 @@ import {
 } from "./utils/fileIO";
 
 import {
+  checkQuestMoveDestinationInProject,
   chooseProjectRootDirectory,
   createFolderInProject,
   createQuestFileInProject,
   getSavedProjectRootPath,
   moveQuestFileInProject,
   scanQuestProjectDirectory,
+  updateQuestFileInProject,
 } from "./utils/projectDirectoryIO";
 
 import QuestBoardTab from "./components/quest-board/QuestBoardTab";
@@ -70,6 +72,34 @@ const RIGHT_DOCK_SPLIT_RESERVE = "0.575rem";
 
 function isQuestCompletionRow(row) {
   return row?.kind === "questCompletion" || row?.kind === "rootTask";
+}
+
+function getProjectPathBaseName(path) {
+  const normalized = String(path || "").replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts[parts.length - 1] || "";
+}
+
+function joinProjectRelativePath(folderId, fileName) {
+  const cleanFileName = getProjectPathBaseName(fileName);
+  const cleanFolderId = String(folderId || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+
+  return cleanFolderId ? `${cleanFolderId}/${cleanFileName}` : cleanFileName;
+}
+
+function normalizeProjectRelativePath(path) {
+  return String(path || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+}
+
+function getProjectPathParent(path) {
+  const normalized = normalizeProjectRelativePath(path);
+  const index = normalized.lastIndexOf("/");
+  if (index <= 0) return null;
+  return normalized.slice(0, index);
 }
 
 export default function App() {
@@ -117,6 +147,7 @@ export default function App() {
   const [debugDateOverrideDate, setDebugDateOverrideDate] = useState(todayString());
   const [projectRootPath, setProjectRootPath] = useState(() => getSavedProjectRootPath());
   const [projectLoadSummary, setProjectLoadSummary] = useState("");
+  const dataRef = useRef(data);
 
   function getAppDate() {
     return debugDateOverrideEnabled && debugDateOverrideDate
@@ -211,6 +242,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    dataRef.current = data;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
 
@@ -270,8 +302,8 @@ export default function App() {
 
     if (projectRootPath) {
       try {
-        await createQuestFileInProject(projectRootPath, folderId || null, quest);
-        await loadQuestProjectFolder(projectRootPath, { activeQuestId: quest.id });
+        const createdPath = await createQuestFileInProject(projectRootPath, folderId || null, quest);
+        await loadQuestProjectFolder(projectRootPath, { activeQuestPath: createdPath });
         return;
       } catch (error) {
         console.error("Could not create quest file.", error);
@@ -356,49 +388,82 @@ export default function App() {
   async function moveQuestToFolder(questId, folderId) {
     if (projectRootPath) {
       try {
-        const scanned = await scanQuestProjectDirectory(projectRootPath);
-        const quest =
-          scanned.quests.find((item) => item.id === questId) ||
-          (data.quests || []).find((item) => item.id === questId);
+        const liveData = dataRef.current || data;
+        const currentQuest = (liveData.quests || []).find((item) => item.id === questId);
 
-        if (!quest?.projectRelativePath) {
-          console.warn("Could not move quest file because its project path is missing.", {
+        if (!currentQuest?.projectRelativePath) {
+          console.warn("Could not move quest file because its project path is missing before save.", {
             questId,
             folderId,
-            quest,
+            currentQuest,
           });
           window.alert("Could not move quest file because its project path is missing.");
           await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
           return;
         }
 
-        if ((quest.folderId || null) === (folderId || null)) {
+        if ((currentQuest.folderId || null) === (folderId || null)) {
           return;
+        }
+
+        // Save current in-memory progress/title/task state to disk before moving.
+        await updateQuestFileInProject(
+          projectRootPath,
+          currentQuest.projectRelativePath,
+          currentQuest
+        );
+
+        const sourceFileName = getProjectPathBaseName(currentQuest.projectRelativePath);
+        const destinationRelativePath = joinProjectRelativePath(folderId || null, sourceFileName);
+        const normalizedDestinationPath = normalizeProjectRelativePath(destinationRelativePath);
+
+        // Ask the backend directly whether the destination path exists. This is more reliable
+        // than trying to infer collision from the scanned quest list.
+        const preflight = await checkQuestMoveDestinationInProject(
+          projectRootPath,
+          currentQuest.projectRelativePath,
+          folderId || null
+        );
+
+        let overwrite = false;
+
+        if (preflight?.exists && !preflight?.sameSource) {
+          const confirmed = window.confirm(
+            `A quest file already exists at the destination:\n\n${preflight.destinationRelativePath || normalizedDestinationPath}\n\nOverwrite it?`
+          );
+
+          if (!confirmed) return;
+
+          overwrite = true;
         }
 
         let result = await moveQuestFileInProject(
           projectRootPath,
-          quest.projectRelativePath,
+          currentQuest.projectRelativePath,
           folderId || null,
-          false
+          overwrite
         );
 
+        // Belt-and-suspenders: Rust can still return collision if the file appeared
+        // between preflight and move, or if a platform-specific edge case occurs.
         if (result?.collision) {
           const confirmed = window.confirm(
-            `A quest file already exists at the destination:\n\n${result.destinationRelativePath}\n\nOverwrite it?`
+            `A quest file already exists at the destination:\n\n${result.destinationRelativePath || normalizedDestinationPath}\n\nOverwrite it?`
           );
 
           if (!confirmed) return;
 
           result = await moveQuestFileInProject(
             projectRootPath,
-            quest.projectRelativePath,
+            currentQuest.projectRelativePath,
             folderId || null,
             true
           );
         }
 
-        await loadQuestProjectFolder(projectRootPath, { activeQuestId: questId });
+        await loadQuestProjectFolder(projectRootPath, {
+          activeQuestId: result?.destinationRelativePath || normalizedDestinationPath,
+        });
 
         if (folderId) {
           setExpandedFolders((old) => ({ ...old, [folderId]: true }));
@@ -470,9 +535,17 @@ export default function App() {
     try {
       const scanned = await scanQuestProjectDirectory(rootPath);
       const preferredActiveQuestId = options.activeQuestId || null;
-      const nextActiveQuestId = scanned.quests.some((quest) => quest.id === preferredActiveQuestId)
-        ? preferredActiveQuestId
-        : scanned.quests[0]?.id || null;
+      const preferredActiveQuestPath = options.activeQuestPath || null;
+      const pathMatchedQuest = preferredActiveQuestPath
+        ? scanned.quests.find((quest) =>
+            quest.projectFilePath === preferredActiveQuestPath ||
+            quest.projectRelativePath === preferredActiveQuestPath
+          )
+        : null;
+      const nextActiveQuestId = pathMatchedQuest?.id ||
+        (scanned.quests.some((quest) => quest.id === preferredActiveQuestId)
+          ? preferredActiveQuestId
+          : scanned.quests[0]?.id || null);
 
       setData((old) => ({
         ...old,

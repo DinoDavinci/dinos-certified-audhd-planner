@@ -40,6 +40,24 @@ function countFolderContents(folders, quests, folderId) {
   return childFolders.length + directQuests.length;
 }
 
+function normalizeProjectRelativePath(path) {
+  return String(path || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+}
+
+function getProjectPathBaseName(path) {
+  const normalized = normalizeProjectRelativePath(path);
+  const parts = normalized.split("/").filter(Boolean);
+  return parts[parts.length - 1] || "";
+}
+
+function joinProjectRelativePath(folderId, fileName) {
+  const cleanFolderId = normalizeProjectRelativePath(folderId);
+  const cleanFileName = getProjectPathBaseName(fileName);
+  return cleanFolderId ? `${cleanFolderId}/${cleanFileName}` : cleanFileName;
+}
+
 const DIRECTORY_DRAG_HOLD_MS = 180;
 const FORCE_DIRECTORY_REARRANGE_MODE = false;
 
@@ -173,6 +191,88 @@ export default function QuestBoardTab({
     setDropIndicator(null);
   }
 
+  function getMoveDebugPreview() {
+    const source = dragState || dragStateRef.current || pendingPressRef.current;
+    const target = dropIndicator || dropIndicatorRef.current;
+
+    if (!source) {
+      return {
+        level: "idle",
+        text: "Move debug: no drag",
+        detail: "Hold a quest row, then hover a target.",
+      };
+    }
+
+    const moveTarget = resolveDirectoryMoveTarget(target);
+
+    if (!moveTarget.ok) {
+      return {
+        level: "bad",
+        text: `Move debug: illegal (${moveTarget.reason || "unknown"})`,
+        detail: `source=${source.kind}:${source.id || "(missing)"} target=${target?.id || "(none)"}`,
+      };
+    }
+
+    if (source.kind === "folder") {
+      return {
+        level: "ok",
+        text: "Move debug: folder move preview",
+        detail: `source=${source.id} destinationFolder=${moveTarget.folderId || "root"} placement=${moveTarget.placement || ""}`,
+      };
+    }
+
+    if (source.kind !== "quest") {
+      return {
+        level: "bad",
+        text: `Move debug: illegal source (${source.kind || "missing"})`,
+        detail: `source=${source.id || "(missing)"}`,
+      };
+    }
+
+    const quest = (quests || []).find((item) => item.id === source.id);
+
+    if (!quest) {
+      return {
+        level: "bad",
+        text: "Move debug: source quest not found",
+        detail: `source=${source.id || "(missing)"}`,
+      };
+    }
+
+    const sourcePath = normalizeProjectRelativePath(quest.projectRelativePath || quest.id);
+    const fileName = getProjectPathBaseName(sourcePath);
+    const destinationPath = joinProjectRelativePath(moveTarget.folderId || null, fileName);
+    const sourceFolder = quest.folderId || null;
+    const destinationFolder = moveTarget.folderId || null;
+
+    if ((sourceFolder || null) === (destinationFolder || null)) {
+      return {
+        level: "bad",
+        text: "Move debug: same folder / no-op",
+        detail: `source=${sourcePath} destination=${destinationPath}`,
+      };
+    }
+
+    const collisionQuest = (quests || []).find((item) => {
+      const itemPath = normalizeProjectRelativePath(item.projectRelativePath || item.id);
+      return item.id !== quest.id && itemPath === destinationPath;
+    });
+
+    if (collisionQuest) {
+      return {
+        level: "bad",
+        text: "Move debug: overwrite risk",
+        detail: `source=${sourcePath} destination=${destinationPath} existing=${normalizeProjectRelativePath(collisionQuest.projectRelativePath || collisionQuest.id)}`,
+      };
+    }
+
+    return {
+      level: "ok",
+      text: "Move debug: legal quest move",
+      detail: `source=${sourcePath} destination=${destinationPath}`,
+    };
+  }
+
   function beginDirectoryPress(event, source) {
     if (!source?.id || !source?.kind) return;
     if (event.button !== 0) return;
@@ -294,7 +394,13 @@ export default function QuestBoardTab({
     if (activeDrag.kind === "root") return;
 
     if (activeDrag.kind === "quest") {
-      moveQuestToFolder?.(activeDrag.id, moveTarget.folderId || null);
+      const preview = getMoveDebugPreview();
+      console.warn("[Directory rearrange] quest move disabled for debugging", {
+        source: activeDrag,
+        moveTarget,
+        preview,
+      });
+      return;
     }
 
     if (activeDrag.kind === "folder") {
@@ -333,6 +439,40 @@ export default function QuestBoardTab({
 
   return (
     <div className={`tab-scene-margin library-scene quest-board-root ${interactionClassName}`}>
+      <style>{`
+        .quest-directory-move-debug {
+          display: grid;
+          gap: 0.15rem;
+          border-radius: 0.3rem;
+          border: 1px solid rgb(64 64 64);
+          padding: 0.3rem 0.45rem;
+          font-size: 0.68rem;
+          font-weight: 750;
+          line-height: 1.25;
+          overflow: hidden;
+        }
+        .quest-directory-move-debug strong,
+        .quest-directory-move-debug span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .quest-directory-move-debug-idle {
+          background: rgba(64, 64, 64, 0.35);
+          color: rgb(212 212 212);
+        }
+        .quest-directory-move-debug-ok {
+          border-color: rgba(34, 197, 94, 0.75);
+          background: rgba(22, 101, 52, 0.55);
+          color: rgb(220 252 231);
+        }
+        .quest-directory-move-debug-bad {
+          border-color: rgba(239, 68, 68, 0.78);
+          background: rgba(127, 29, 29, 0.62);
+          color: rgb(254 226 226);
+        }
+      `}</style>
       <div className="quest-board-toolbar">
         <div className="space-y-2">
           <div className="relative">
@@ -383,6 +523,19 @@ export default function QuestBoardTab({
           {projectRootPath ? projectRootPath : "No project folder selected"}
           {projectLoadSummary ? <span>{projectLoadSummary}</span> : null}
         </div>
+
+        {(() => {
+          const preview = getMoveDebugPreview();
+          return (
+            <div
+              className={`quest-directory-move-debug quest-directory-move-debug-${preview.level}`}
+              title={preview.detail}
+            >
+              <strong>{preview.text}</strong>
+              <span>{preview.detail}</span>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="scene-contents-panel quest-board-contents-panel">

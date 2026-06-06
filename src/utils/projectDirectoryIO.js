@@ -72,6 +72,50 @@ export async function moveQuestFileInProject(projectRootPath, sourceRelativePath
   });
 }
 
+export async function checkQuestMoveDestinationInProject(projectRootPath, sourceRelativePath, targetFolderId) {
+  return await invoke("check_quest_project_move_destination", {
+    projectRootPath,
+    sourceRelativePath,
+    targetFolderRelativePath: targetFolderId || null,
+  });
+}
+
+export async function updateQuestFileInProject(projectRootPath, questRelativePath, quest) {
+  if (!projectRootPath) {
+    throw new Error("Project root path is required.");
+  }
+
+  if (!questRelativePath) {
+    throw new Error("Quest relative path is required.");
+  }
+
+  if (!quest) {
+    throw new Error("Quest is required.");
+  }
+
+  const {
+    projectFilePath,
+    projectRelativePath,
+    sourceQuestId,
+    ...questForExport
+  } = quest;
+
+  const contents = JSON.stringify(
+    makeQuestFileExport({
+      ...questForExport,
+      id: sourceQuestId || quest.id,
+    }),
+    null,
+    2
+  );
+
+  return await invoke("write_quest_project_file", {
+    projectRootPath,
+    questRelativePath,
+    contents,
+  });
+}
+
 export async function scanQuestProjectDirectory(projectRootPath) {
   if (!projectRootPath) {
     return {
@@ -108,6 +152,8 @@ export async function scanQuestProjectDirectory(projectRootPath) {
 
       quests.push({
         ...quest,
+        id: file.relativePath,
+        sourceQuestId: quest.id || "",
         folderId: parentPath(file.relativePath),
         projectFilePath: file.absolutePath,
         projectRelativePath: file.relativePath,
