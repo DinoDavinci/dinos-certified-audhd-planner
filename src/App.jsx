@@ -54,6 +54,7 @@ import {
   createFolderInProject,
   createQuestFileInProject,
   getSavedProjectRootPath,
+  moveFolderInProject,
   moveQuestFileInProject,
   scanQuestProjectDirectory,
   updateQuestFileInProject,
@@ -489,9 +490,10 @@ export default function App() {
     }));
   }
 
-  function moveQuestFolderToFolder(folderId, parentId) {
+  async function moveQuestFolderToFolder(folderId, parentId) {
     if (!folderId) return;
 
+    const liveData = dataRef.current || data;
     const nextParentId = parentId || null;
 
     if (folderId === nextParentId) {
@@ -499,9 +501,26 @@ export default function App() {
       return;
     }
 
-    if (nextParentId && isFolderDescendantInList(data.folders || [], nextParentId, folderId)) {
+    if (nextParentId && isFolderDescendantInList(liveData.folders || [], nextParentId, folderId)) {
       window.alert("A folder cannot be moved into one of its own child folders.");
       return;
+    }
+
+    if (projectRootPath) {
+      try {
+        const movedFolderId = await moveFolderInProject(projectRootPath, folderId, nextParentId);
+        await loadQuestProjectFolder(projectRootPath, {
+          activeFolderId: movedFolderId || null,
+          expandedFolderIds: [nextParentId, movedFolderId].filter(Boolean),
+        });
+
+        return;
+      } catch (error) {
+        console.error("Could not move quest folder.", error);
+        window.alert("Could not move quest folder.");
+        await loadQuestProjectFolder(projectRootPath);
+        return;
+      }
     }
 
     setData((old) => ({
@@ -552,21 +571,31 @@ export default function App() {
           ? preferredActiveQuestId
           : scanned.quests[0]?.id || null);
 
-      setData((old) => ({
-        ...old,
+      const nextData = {
+        ...dataRef.current,
         folders: scanned.folders,
         quests: scanned.quests,
         activeQuestId: nextActiveQuestId,
         activeBranchTaskId: null,
-      }));
+      };
+
+      dataRef.current = nextData;
+      setData(nextData);
+
+      const nextSelectedFolderId = options.activeFolderId || null;
+      const nextExpandedFolders = {};
+
+      for (const folderId of options.expandedFolderIds || []) {
+        if (folderId) nextExpandedFolders[folderId] = true;
+      }
 
       setSelection({ type: nextActiveQuestId ? "quest" : "none", id: nextActiveQuestId });
       setHistory([{ type: nextActiveQuestId ? "quest" : "none", id: nextActiveQuestId }]);
       setHistoryIndex(0);
       setFocusHistory([{ questId: nextActiveQuestId, branchTaskId: null }]);
       setFocusHistoryIndex(0);
-      setSelectedFolderId(null);
-      setExpandedFolders({});
+      setSelectedFolderId(nextSelectedFolderId);
+      setExpandedFolders(nextExpandedFolders);
       setExpanded({});
       setExpandedKanbanCards({});
 

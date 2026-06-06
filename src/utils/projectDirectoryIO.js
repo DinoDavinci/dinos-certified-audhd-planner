@@ -63,6 +63,15 @@ export async function createQuestFileInProject(projectRootPath, folderId, quest)
 }
 
 
+
+export async function moveFolderInProject(projectRootPath, sourceFolderId, targetParentFolderId) {
+  return await invoke("move_quest_project_folder", {
+    projectRootPath,
+    sourceRelativePath: sourceFolderId,
+    targetParentRelativePath: targetParentFolderId || null,
+  });
+}
+
 export async function moveQuestFileInProject(projectRootPath, sourceRelativePath, targetFolderId, overwrite = false) {
   return await invoke("move_quest_project_file", {
     projectRootPath,

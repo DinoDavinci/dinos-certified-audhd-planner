@@ -307,6 +307,97 @@ fn check_quest_project_move_destination(
   }
 }
 
+
+#[tauri::command]
+fn move_quest_project_folder(
+  project_root_path: String,
+  source_relative_path: String,
+  target_parent_relative_path: Option<String>,
+) -> Result<String, String> {
+  if project_root_path.trim().is_empty() {
+    return Err("Project root path is empty.".to_string());
+  }
+
+  if source_relative_path.trim().is_empty() {
+    return Err("Source folder path is empty.".to_string());
+  }
+
+  let root = PathBuf::from(&project_root_path);
+
+  if !root.is_dir() {
+    return Err("Project root path is not a directory.".to_string());
+  }
+
+  let canonical_root = root
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve project root: {error}"))?;
+
+  let mut source_path = root.clone();
+  let normalized_source = normalize_relative_path(&source_relative_path);
+
+  if normalized_source.components().next().is_none() {
+    return Err("Source folder path is invalid.".to_string());
+  }
+
+  source_path.push(normalized_source);
+
+  if !source_path.is_dir() {
+    return Err("Source folder does not exist.".to_string());
+  }
+
+  let canonical_source = source_path
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve source folder: {error}"))?;
+
+  if !canonical_source.starts_with(&canonical_root) {
+    return Err("Source folder must be inside the project root.".to_string());
+  }
+
+  let folder_name = source_path
+    .file_name()
+    .and_then(|value| value.to_str())
+    .ok_or_else(|| "Source folder has no valid folder name.".to_string())?
+    .to_string();
+
+  let mut target_parent = root.clone();
+
+  if let Some(parent) = target_parent_relative_path {
+    let normalized_parent = normalize_relative_path(&parent);
+
+    if normalized_parent.components().next().is_some() {
+      target_parent.push(normalized_parent);
+    }
+  }
+
+  if !target_parent.is_dir() {
+    return Err("Target parent folder does not exist.".to_string());
+  }
+
+  let canonical_target_parent = target_parent
+    .canonicalize()
+    .map_err(|error| format!("Could not resolve target parent folder: {error}"))?;
+
+  if !canonical_target_parent.starts_with(&canonical_root) {
+    return Err("Target parent folder must be inside the project root.".to_string());
+  }
+
+  if canonical_target_parent == canonical_source || canonical_target_parent.starts_with(&canonical_source) {
+    return Err("A folder cannot be moved into itself or one of its child folders.".to_string());
+  }
+
+  let destination_path = target_parent.join(&folder_name);
+  let destination_relative_path = relative_path_string(&root, &destination_path);
+
+  if destination_path.exists() {
+    return Err("Destination folder already exists. Folder merge is not supported.".to_string());
+  }
+
+  fs::rename(&source_path, &destination_path)
+    .map_err(|error| format!("Could not move quest folder: {error}"))?;
+
+  Ok(destination_relative_path)
+}
+
 #[tauri::command]
 fn move_quest_project_file(
   project_root_path: String,
@@ -760,6 +851,7 @@ pub fn run() {
       create_quest_project_folder,
       check_quest_project_move_destination,
       move_quest_project_file,
+      move_quest_project_folder,
       write_quest_project_file,
     ])
     .setup(|app| {

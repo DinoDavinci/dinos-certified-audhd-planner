@@ -58,6 +58,24 @@ function joinProjectRelativePath(folderId, fileName) {
   return cleanFolderId ? `${cleanFolderId}/${cleanFileName}` : cleanFileName;
 }
 
+function getProjectPathParent(path) {
+  const normalized = normalizeProjectRelativePath(path);
+  const index = normalized.lastIndexOf("/");
+  if (index <= 0) return null;
+  return normalized.slice(0, index);
+}
+
+function isProjectPathDescendant(path, possibleAncestorPath) {
+  const normalizedPath = normalizeProjectRelativePath(path);
+  const normalizedAncestor = normalizeProjectRelativePath(possibleAncestorPath);
+
+  return Boolean(
+    normalizedPath &&
+    normalizedAncestor &&
+    normalizedPath.startsWith(`${normalizedAncestor}/`)
+  );
+}
+
 const DIRECTORY_DRAG_HOLD_MS = 180;
 const FORCE_DIRECTORY_REARRANGE_MODE = false;
 
@@ -107,6 +125,23 @@ export default function QuestBoardTab({
   const pendingPressRef = useRef(null);
   const dragHoldTimerRef = useRef(null);
   const dropIndicatorRef = useRef(null);
+  const latestDirectoryDataRef = useRef({
+    folders,
+    quests,
+    moveQuestToFolder,
+    moveQuestFolderToFolder,
+    setExpandedFolders,
+  });
+
+  useEffect(() => {
+    latestDirectoryDataRef.current = {
+      folders,
+      quests,
+      moveQuestToFolder,
+      moveQuestFolderToFolder,
+      setExpandedFolders,
+    };
+  }, [folders, quests, moveQuestToFolder, moveQuestFolderToFolder, setExpandedFolders]);
 
   useEffect(() => {
     if (dragStateRef.current || pendingPressRef.current) return;
@@ -193,8 +228,11 @@ export default function QuestBoardTab({
   }
 
   function getMoveDebugPreview() {
-    const source = dragState || dragStateRef.current;
-    const target = dropIndicator || dropIndicatorRef.current;
+    const source = dragStateRef.current || dragState;
+    const target = dropIndicatorRef.current || dropIndicator;
+    const latest = latestDirectoryDataRef.current;
+    const latestFolders = latest.folders || [];
+    const latestQuests = latest.quests || [];
 
     if (!source) {
       return {
@@ -217,11 +255,72 @@ export default function QuestBoardTab({
     }
 
     if (source.kind === "folder") {
+      const folder = latestFolders.find((item) => item.id === source.id);
+
+      if (!folder) {
+        return {
+          level: "bad",
+          kind: "missing-folder-source",
+          text: "Move debug: source folder not found",
+          detail: `source=${source.id || "(missing)"}`,
+        };
+      }
+
+      const sourcePath = normalizeProjectRelativePath(folder.id);
+      const sourceParent = getProjectPathParent(sourcePath);
+      const folderName = getProjectPathBaseName(sourcePath);
+      const destinationParent = normalizeProjectRelativePath(moveTarget.folderId || null);
+      const destinationPath = joinProjectRelativePath(destinationParent || null, folderName);
+
+      if ((sourceParent || null) === (destinationParent || null)) {
+        return {
+          level: "bad",
+          kind: "same-folder",
+          text: "Move debug: same parent / no-op",
+          detail: `source=${sourcePath} destination=${destinationPath}`,
+        };
+      }
+
+      if (destinationParent && destinationParent === sourcePath) {
+        return {
+          level: "bad",
+          kind: "folder-into-self",
+          text: "Move debug: folder into itself",
+          detail: `source=${sourcePath} destinationParent=${destinationParent}`,
+        };
+      }
+
+      if (destinationParent && isProjectPathDescendant(destinationParent, sourcePath)) {
+        return {
+          level: "bad",
+          kind: "folder-into-child",
+          text: "Move debug: folder into child",
+          detail: `source=${sourcePath} destinationParent=${destinationParent}`,
+        };
+      }
+
+      const mergeTarget = latestFolders.find((item) =>
+        normalizeProjectRelativePath(item.id) === normalizeProjectRelativePath(destinationPath)
+      );
+
+      if (mergeTarget) {
+        return {
+          level: "bad",
+          kind: "folder-merge-risk",
+          text: "Move debug: folder merge rejected",
+          detail: `source=${sourcePath} destination=${destinationPath}`,
+          sourcePath,
+          destinationPath,
+        };
+      }
+
       return {
         level: "ok",
-        kind: "folder-move",
-        text: "Move debug: folder move preview",
-        detail: `source=${source.id} destinationFolder=${moveTarget.folderId || "root"} placement=${moveTarget.placement || ""}`,
+        kind: "legal-folder-move",
+        text: "Move debug: legal folder move",
+        detail: `source=${sourcePath} destination=${destinationPath}`,
+        sourcePath,
+        destinationPath,
       };
     }
 
@@ -234,7 +333,7 @@ export default function QuestBoardTab({
       };
     }
 
-    const quest = (quests || []).find((item) => item.id === source.id);
+    const quest = latestQuests.find((item) => item.id === source.id);
 
     if (!quest) {
       return {
@@ -260,7 +359,7 @@ export default function QuestBoardTab({
       };
     }
 
-    const collisionQuest = (quests || []).find((item) => {
+    const collisionQuest = latestQuests.find((item) => {
       const itemPath = normalizeProjectRelativePath(item.projectRelativePath || item.id);
       return item.id !== quest.id && itemPath === destinationPath;
     });
@@ -407,6 +506,11 @@ export default function QuestBoardTab({
     if (!activeDrag?.id || !moveTarget?.ok) return;
     if (activeDrag.kind === "root") return;
 
+    const latest = latestDirectoryDataRef.current;
+    const latestMoveQuestToFolder = latest.moveQuestToFolder;
+    const latestMoveQuestFolderToFolder = latest.moveQuestFolderToFolder;
+    const latestSetExpandedFolders = latest.setExpandedFolders;
+
     if (activeDrag.kind === "quest") {
       const preview = getMoveDebugPreview();
 
@@ -437,16 +541,33 @@ export default function QuestBoardTab({
         return;
       }
 
-      moveQuestToFolder?.(activeDrag.id, moveTarget.folderId || null);
+      latestMoveQuestToFolder?.(activeDrag.id, moveTarget.folderId || null);
       return;
     }
 
     if (activeDrag.kind === "folder") {
-      moveQuestFolderToFolder?.(activeDrag.id, moveTarget.folderId || null);
+      const preview = getMoveDebugPreview();
+
+      console.warn("[Directory rearrange] folder move preview", {
+        source: activeDrag,
+        moveTarget,
+        preview,
+      });
+
+      if (preview.level !== "ok") {
+        console.warn("[Directory rearrange] folder move blocked by preview", {
+          source: activeDrag,
+          moveTarget,
+          preview,
+        });
+        return;
+      }
+
+      latestMoveQuestFolderToFolder?.(activeDrag.id, moveTarget.folderId || null);
     }
 
     if (moveTarget.folderId) {
-      setExpandedFolders((old) => ({ ...old, [moveTarget.folderId]: true }));
+      latestSetExpandedFolders?.((old) => ({ ...old, [moveTarget.folderId]: true }));
     }
   }
 
@@ -462,7 +583,7 @@ export default function QuestBoardTab({
     }
 
     setPendingOverwriteMove(null);
-    moveQuestToFolder?.(move.sourceId, move.folderId || null);
+    latestDirectoryDataRef.current.moveQuestToFolder?.(move.sourceId, move.folderId || null);
   }
 
   function cancelDirectoryPress() {
