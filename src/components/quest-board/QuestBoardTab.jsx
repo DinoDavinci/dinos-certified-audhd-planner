@@ -133,9 +133,6 @@ export default function QuestBoardTab({
   moveQuestFolderToFolder,
   selectQuest,
   projectRootPath = "",
-  projectLoadSummary = "",
-  chooseQuestProjectFolder,
-  refreshQuestProjectFolder,
   showQuestBoardDebug = false,
 }) {
   const [interactionMode, setInteractionMode] = useState(

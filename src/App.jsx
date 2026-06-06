@@ -84,6 +84,26 @@ import { DOCK_IDS, PANEL_IDS } from "./layout/panelLayout";
 
 const RIGHT_DOCK_SPLIT_RESERVE = "0.575rem";
 
+
+function detectStandaloneApp() {
+  if (typeof window === "undefined") return false;
+
+  const hasTauriGlobal = Boolean(
+    window.__TAURI_INTERNALS__ ||
+    window.__TAURI__ ||
+    window.__TAURI_IPC__
+  );
+
+  if (hasTauriGlobal) return true;
+
+  const protocol = window.location?.protocol || "";
+  const hostname = window.location?.hostname || "";
+
+  return protocol === "tauri:" ||
+    hostname === "tauri.localhost" ||
+    hostname.endsWith(".tauri.localhost");
+}
+
 function isQuestCompletionRow(row) {
   return row?.kind === "questCompletion" || row?.kind === "rootTask";
 }
@@ -133,6 +153,7 @@ export default function App() {
   const [debugDateOverrideDate, setDebugDateOverrideDate] = useState(todayString());
   const [showQuestBoardDebug, setShowQuestBoardDebug] = useState(false);
   const [projectRootPath, setProjectRootPath] = useState(() => getSavedProjectRootPath());
+  const [isStandaloneApp, setIsStandaloneApp] = useState(() => detectStandaloneApp());
   const [projectLoadSummary, setProjectLoadSummary] = useState("");
   const dataRef = useRef(data);
   const projectSaveQueueRef = useRef({});
@@ -436,6 +457,10 @@ ${message}`);
     if (!projectRootPath) return;
 
     loadQuestProjectFolder(projectRootPath);
+  }, []);
+
+  useEffect(() => {
+    setIsStandaloneApp(detectStandaloneApp());
   }, []);
 
   const allTags = useMemo(() => {
@@ -1544,6 +1569,7 @@ async function importJsonFile(file) {
           chooseQuestProjectFolder={chooseQuestProjectFolder}
           refreshQuestProjectFolder={refreshQuestProjectFolder}
           showQuestBoardDebug={showQuestBoardDebug}
+          isStandaloneApp={isStandaloneApp}
         />
 
         <div
@@ -1633,6 +1659,7 @@ async function importJsonFile(file) {
           currentAppDate={getAppDate()}
           showQuestBoardDebug={showQuestBoardDebug}
           setShowQuestBoardDebug={setShowQuestBoardDebug}
+          isStandaloneApp={isStandaloneApp}
         />
       </div>
 
@@ -1680,6 +1707,7 @@ function LibraryPanel({
   chooseQuestProjectFolder,
   refreshQuestProjectFolder,
   showQuestBoardDebug,
+  isStandaloneApp,
 }) {
   const tabs = [
     {
@@ -1711,6 +1739,7 @@ function LibraryPanel({
           moveQuestToFolder={moveQuestToFolder}
           moveQuestFolderToFolder={moveQuestFolderToFolder}
           selectQuest={selectQuest}
+          projectRootPath={projectRootPath}
           showQuestBoardDebug={showQuestBoardDebug}
         />
       ),
@@ -1726,6 +1755,7 @@ function LibraryPanel({
           importQuestFile={importQuestFile}
           hasActiveQuest={hasActiveQuest}
           resetToDefaults={resetToDefaults}
+          isStandaloneApp={isStandaloneApp}
           projectRootPath={projectRootPath}
           projectLoadSummary={projectLoadSummary}
           chooseQuestProjectFolder={chooseQuestProjectFolder}

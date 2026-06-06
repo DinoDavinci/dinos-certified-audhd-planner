@@ -258,11 +258,13 @@ function InspectorToolbar({
   goForward,
   canGoBack,
   canGoForward,
+  isStandaloneApp = false,
   saveQuestFile,
 }) {
   const goto = getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId);
   const ownerQuest = getOwnerQuestForSelection(selection, data);
   const isProjectQuestFile = Boolean(ownerQuest?.projectRelativePath);
+  const showStandaloneSaveButton = Boolean(isStandaloneApp);
   const canSaveQuestFile = Boolean(isProjectQuestFile && ownerQuest?.projectDirty && saveQuestFile);
 
   function runGoto() {
@@ -292,7 +294,7 @@ function InspectorToolbar({
   return (
     <div className="inspector-toolbar inspector-icon-toolbar">
       <div className="inspector-toolbar-actions inspector-toolbar-actions-left">
-        {isProjectQuestFile ? (
+        {showStandaloneSaveButton ? (
           <button
             type="button"
             onClick={runSave}
@@ -331,6 +333,7 @@ function InspectorToolbar({
 function InspectorIdentityPanel({
   selection,
   data,
+  isStandaloneApp = false,
   renameQuestFile,
 }) {
   const ownerQuest = getOwnerQuestForSelection(selection, data);
@@ -367,6 +370,7 @@ function InspectorIdentityPanel({
   }
 
   if (!selection || selection.type === "none") return null;
+  if (!isStandaloneApp) return null;
   if (!ownerQuest?.projectRelativePath) return null;
 
   return (
