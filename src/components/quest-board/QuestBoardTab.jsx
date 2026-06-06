@@ -1300,22 +1300,27 @@ function QuestFolderNode({
   const childFolders = getDirectFolderChildren(folders, folder.id);
   const directQuests = getDirectFolderQuests(quests, folder.id);
   const count = countFolderContents(folders, quests, folder.id);
+  const hasContents = count > 0;
 
   return (
-    <div className="quest-directory-folder quest-directory-branch-node quest-directory-folder-branch-node">
+    <div className={`quest-directory-folder quest-directory-branch-node quest-directory-folder-branch-node ${hasContents ? "" : "quest-directory-folder-no-disclosure"}`}>
       <div className="quest-directory-row-wrap">
         <div className="quest-directory-disclosure-gutter">
-          <button
-            type="button"
-            className="tree-disclosure"
-            onClick={(event) => {
-              event.stopPropagation();
-              setExpandedFolders({ ...expandedFolders, [folder.id]: !open });
-            }}
-            title={open ? "Collapse folder" : "Expand folder"}
-          >
-            {open ? <ChevronDown size={16} style={{ flexShrink: 0 }} /> : <ChevronRight size={16} style={{ flexShrink: 0 }} />}
-          </button>
+          {hasContents ? (
+            <button
+              type="button"
+              className="tree-disclosure"
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpandedFolders({ ...expandedFolders, [folder.id]: !open });
+              }}
+              title={open ? "Collapse folder" : "Expand folder"}
+            >
+              {open ? <ChevronDown size={16} style={{ flexShrink: 0 }} /> : <ChevronRight size={16} style={{ flexShrink: 0 }} />}
+            </button>
+          ) : (
+            <div className="tree-disclosure-spacer" aria-hidden="true" />
+          )}
         </div>
 
         <div
@@ -1397,7 +1402,7 @@ function QuestFolderNode({
       </div>
       </div>
 
-      {open && (
+      {hasContents && open && (
         <div className="quest-directory-children">
           {childFolders.map((child, index) => (
             <QuestFolderNode

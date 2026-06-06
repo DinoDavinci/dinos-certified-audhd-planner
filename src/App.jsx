@@ -139,6 +139,7 @@ export default function App() {
 
   function stripProjectTransientQuestFields(quest) {
     const {
+      folderId,
       projectDirty,
       projectFilePath,
       projectRelativePath,
@@ -200,7 +201,7 @@ export default function App() {
       await updateQuestFileInProject(
         projectRootPath,
         questSnapshot.projectRelativePath,
-        questSnapshot
+        stripProjectTransientQuestFields(questSnapshot)
       );
 
       setData((old) => {
@@ -671,7 +672,7 @@ ${message}`);
         await updateQuestFileInProject(
           projectRootPath,
           currentQuest.projectRelativePath,
-          currentQuest
+          stripProjectTransientQuestFields(currentQuest)
         );
 
         const sourceFileName = getProjectPathBaseName(currentQuest.projectRelativePath);
@@ -1016,7 +1017,7 @@ async function renameQuestFile(questId, nextBaseName) {
       return;
     }
     try {
-      await updateQuestFileInProject(projectRootPath, quest.projectRelativePath, quest);
+      await updateQuestFileInProject(projectRootPath, quest.projectRelativePath, stripProjectTransientQuestFields(quest));
       const renamedPath = await renameQuestFileInProject(projectRootPath, quest.projectRelativePath, `${cleanBaseName}.quest.json`);
       await loadQuestProjectFolder(projectRootPath, {
         activeQuestPath: renamedPath,
@@ -1312,7 +1313,7 @@ function restoreQuest(questId) {
     try {
       const date = todayString();
       const filename = `${slugifyFilename(quest.title)}-${date}.quest.json`;
-      await downloadJsonFile(makeQuestFileExport(quest), filename);
+      await downloadJsonFile(makeQuestFileExport(stripProjectTransientQuestFields(quest)), filename);
     } catch (error) {
       console.error("Could not export quest file.", error);
       window.alert("Could not export quest file.");
@@ -1334,7 +1335,7 @@ function restoreQuest(questId) {
         const existing = (old.quests || []).some((quest) => quest.id === importedQuest.id);
         const questForFolder = {
           ...importedQuest,
-          folderId: selectedFolderId || importedQuest.folderId || null,
+          folderId: selectedFolderId || null,
         };
 
         const quests = existing
@@ -2448,6 +2449,14 @@ function DarkStyles() {
           + 0px
         );
       }
+      .quest-directory-folder-no-disclosure::before {
+        width: calc(
+          var(--quest-directory-elbow-width)
+          + var(--quest-directory-row-gutter)
+          + var(--quest-directory-row-gap)
+          + 0px
+        );
+      }
       .quest-directory-quest-muted {
         opacity: 0.68;
       }
@@ -3162,7 +3171,7 @@ function DarkStyles() {
         padding-left: 0.55rem;
         display: grid;
         gap: 0.15rem;
-        width: calc(100% - 1.35rem);
+        width: auto;
         min-width: 0;
       }
       .tree-row-wrap.tree-node-child::after {
