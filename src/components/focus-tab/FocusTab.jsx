@@ -128,11 +128,7 @@ export default function FocusTab({ quest, focusBoard, focusPathInfo, goFocusBack
 
 function FocusToolbar({ goFocusBack, goFocusForward, canFocusGoBack = false, canFocusGoForward = false }) {
   return (
-    <div className="focus-toolbar">
-      <div className="focus-toolbar-section">
-        <span className="inspector-selection-badge">Focus</span>
-      </div>
-
+    <div className="focus-toolbar" style={{ justifyContent: "flex-end" }}>
       <div className="focus-toolbar-actions">
         <button
           type="button"

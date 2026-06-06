@@ -282,7 +282,8 @@ function InspectorToolbar({
 }) {
   const goto = getInspectorGoto(selection, data, activeQuestId, activeBranchTaskId);
   const ownerQuest = getOwnerQuestForSelection(selection, data);
-  const canSaveQuestFile = Boolean(ownerQuest?.projectRelativePath && ownerQuest?.projectDirty && saveQuestFile);
+  const isProjectQuestFile = Boolean(ownerQuest?.projectRelativePath);
+  const canSaveQuestFile = Boolean(isProjectQuestFile && ownerQuest?.projectDirty && saveQuestFile);
 
   function runGoto() {
     if (!goto || goto.disabled) return;
@@ -311,15 +312,21 @@ function InspectorToolbar({
   return (
     <div className="inspector-toolbar inspector-icon-toolbar">
       <div className="inspector-toolbar-actions inspector-toolbar-actions-left">
-        <button
-          type="button"
-          onClick={runSave}
-          disabled={!canSaveQuestFile}
-          className={`title-icon-button inspector-save-button ${canSaveQuestFile ? "inspector-save-button-dirty" : "inspector-save-button-clean"}`}
-          title={saveTitle}
-        >
-          <Save size={16} />
-        </button>
+        {isProjectQuestFile ? (
+          <button
+            type="button"
+            onClick={runSave}
+            disabled={!canSaveQuestFile}
+            className={`title-icon-button inspector-save-button ${canSaveQuestFile ? "inspector-save-button-dirty" : "inspector-save-button-clean"}`}
+            title={saveTitle}
+          >
+            <Save size={16} />
+          </button>
+        ) : (
+          <span className={`inspector-selection-badge inspector-toolbar-web-badge ${getInspectorAccentClass(selection)}`}>
+            {getSelectionType(selection)}
+          </span>
+        )}
       </div>
 
       <div className="inspector-toolbar-actions inspector-toolbar-actions-right">
@@ -380,6 +387,7 @@ function InspectorIdentityPanel({
   }
 
   if (!selection || selection.type === "none") return null;
+  if (!ownerQuest?.projectRelativePath) return null;
 
   return (
     <div className="inspector-identity-panel-wrap">
@@ -448,6 +456,12 @@ function InspectorRenameModalStyles() {
         display: flex;
         align-items: center;
         gap: 0.35rem;
+      }
+      .inspector-toolbar-web-badge {
+        flex: 0 0 4.35rem;
+        min-width: 4.35rem;
+        justify-content: center;
+        text-align: center;
       }
       .inspector-save-button-clean,
       .inspector-save-button-clean:disabled {
