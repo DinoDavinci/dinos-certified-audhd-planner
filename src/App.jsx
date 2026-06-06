@@ -56,6 +56,7 @@ import {
   getSavedProjectRootPath,
   moveFolderInProject,
   moveQuestFileInProject,
+  renameFolderInProject,
   scanQuestProjectDirectory,
   updateQuestFileInProject,
 } from "./utils/projectDirectoryIO";
@@ -357,16 +358,39 @@ export default function App() {
     if (parentId) setExpandedFolders((old) => ({ ...old, [parentId]: true }));
   }
 
-  function renameQuestFolder(folderId) {
-    const folder = (data.folders || []).find((item) => item.id === folderId);
+  async function renameQuestFolder(folderId, nextTitle = null) {
+    const liveData = dataRef.current || data;
+    const folder = (liveData.folders || []).find((item) => item.id === folderId);
     if (!folder) return;
 
-    const title = window.prompt("Rename folder:", folder.title || "Untitled Folder");
+    const title = nextTitle == null
+      ? window.prompt("Rename folder:", folder.title || "Untitled Folder")
+      : nextTitle;
+
     if (!title || !title.trim()) return;
+
+    const cleanTitle = title.trim();
+
+    if (projectRootPath) {
+      try {
+        const renamedFolderId = await renameFolderInProject(projectRootPath, folderId, cleanTitle);
+        const parentId = getProjectPathParent(renamedFolderId);
+        await loadQuestProjectFolder(projectRootPath, {
+          activeFolderId: renamedFolderId || null,
+          expandedFolderIds: [parentId, renamedFolderId].filter(Boolean),
+        });
+        return;
+      } catch (error) {
+        console.error("Could not rename quest folder.", error);
+        window.alert("Could not rename quest folder.");
+        await loadQuestProjectFolder(projectRootPath, { activeFolderId: folderId });
+        return;
+      }
+    }
 
     setData((old) => ({
       ...old,
-      folders: renameQuestFolderInList(old.folders || [], folderId, title.trim()),
+      folders: renameQuestFolderInList(old.folders || [], folderId, cleanTitle),
     }));
   }
 

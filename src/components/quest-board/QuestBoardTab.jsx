@@ -120,6 +120,7 @@ export default function QuestBoardTab({
   const [dragState, setDragState] = useState(null);
   const [directorySelection, setDirectorySelection] = useState(null);
   const [pendingOverwriteMove, setPendingOverwriteMove] = useState(null);
+  const [pendingFolderRename, setPendingFolderRename] = useState(null);
   const directoryContentRef = useRef(null);
   const dragStateRef = useRef(null);
   const pendingPressRef = useRef(null);
@@ -128,6 +129,7 @@ export default function QuestBoardTab({
   const latestDirectoryDataRef = useRef({
     folders,
     quests,
+    renameQuestFolder,
     moveQuestToFolder,
     moveQuestFolderToFolder,
     setExpandedFolders,
@@ -137,11 +139,12 @@ export default function QuestBoardTab({
     latestDirectoryDataRef.current = {
       folders,
       quests,
+      renameQuestFolder,
       moveQuestToFolder,
       moveQuestFolderToFolder,
       setExpandedFolders,
     };
-  }, [folders, quests, moveQuestToFolder, moveQuestFolderToFolder, setExpandedFolders]);
+  }, [folders, quests, renameQuestFolder, moveQuestToFolder, moveQuestFolderToFolder, setExpandedFolders]);
 
   useEffect(() => {
     if (dragStateRef.current || pendingPressRef.current) return;
@@ -571,6 +574,86 @@ export default function QuestBoardTab({
     }
   }
 
+  function getFolderRenameValidation(renameState = pendingFolderRename) {
+    if (!renameState) {
+      return { ok: false, message: "No folder selected." };
+    }
+
+    const latest = latestDirectoryDataRef.current;
+    const latestFolders = latest.folders || [];
+    const folder = latestFolders.find((item) => item.id === renameState.folderId);
+
+    if (!folder) {
+      return { ok: false, message: "Folder no longer exists." };
+    }
+
+    const rawName = String(renameState.name || "");
+    const name = rawName.trim();
+
+    if (!name) {
+      return { ok: false, message: "Name cannot be empty." };
+    }
+
+    if (name === "." || name === "..") {
+      return { ok: false, message: "Name cannot be . or ..." };
+    }
+
+    if (/[\\/:*?"<>|]/.test(name)) {
+      return { ok: false, message: "Name contains an invalid filename character." };
+    }
+
+    if (name.startsWith(".") || name.endsWith(".")) {
+      return { ok: false, message: "Name cannot start or end with a period." };
+    }
+
+    const parentId = folder.parentId || getProjectPathParent(folder.id);
+    const destinationPath = joinProjectRelativePath(parentId || null, name);
+    const normalizedDestinationPath = normalizeProjectRelativePath(destinationPath);
+    const normalizedSourcePath = normalizeProjectRelativePath(folder.id);
+
+    if (normalizedDestinationPath === normalizedSourcePath) {
+      return { ok: true, message: "Name is valid.", destinationPath: normalizedDestinationPath };
+    }
+
+    const existingFolder = latestFolders.find((item) =>
+      normalizeProjectRelativePath(item.id) === normalizedDestinationPath
+    );
+
+    if (existingFolder) {
+      return { ok: false, message: "A folder with that name already exists." };
+    }
+
+    return { ok: true, message: "Name is valid.", destinationPath: normalizedDestinationPath };
+  }
+
+  function openFolderRenameModal(folder) {
+    if (!folder?.id) return;
+
+    setPendingFolderRename({
+      folderId: folder.id,
+      originalName: getProjectPathBaseName(folder.id) || folder.title || "Untitled Folder",
+      name: getProjectPathBaseName(folder.id) || folder.title || "Untitled Folder",
+    });
+  }
+
+  function cancelFolderRename() {
+    setPendingFolderRename(null);
+  }
+
+  function confirmFolderRename() {
+    const validation = getFolderRenameValidation();
+
+    if (!validation.ok) return;
+
+    const renameState = pendingFolderRename;
+    if (!renameState?.folderId) return;
+
+    const cleanName = String(renameState.name || "").trim();
+
+    setPendingFolderRename(null);
+    latestDirectoryDataRef.current.renameQuestFolder?.(renameState.folderId, cleanName);
+  }
+
   function cancelOverwriteMove() {
     setPendingOverwriteMove(null);
   }
@@ -725,6 +808,85 @@ export default function QuestBoardTab({
           background: rgba(127, 29, 29, 0.9);
           color: rgb(254 226 226);
         }
+        .quest-directory-rename-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.58);
+        }
+        .quest-directory-rename-modal {
+          width: min(30rem, calc(100vw - 2rem));
+          display: grid;
+          gap: 0.8rem;
+          border-radius: 0.45rem;
+          border: 1px solid rgb(82 82 82);
+          background: rgb(23 23 23);
+          padding: 1rem;
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+        }
+        .quest-directory-rename-modal-title {
+          font-size: 1rem;
+          font-weight: 900;
+          color: rgb(245 245 245);
+        }
+        .quest-directory-rename-modal-body {
+          display: grid;
+          gap: 0.5rem;
+        }
+        .quest-directory-rename-field {
+          display: grid;
+          gap: 0.3rem;
+          font-size: 0.74rem;
+          font-weight: 850;
+          color: rgb(212 212 212);
+        }
+        .quest-directory-rename-field input {
+          width: 100%;
+          border-radius: 0.35rem;
+          border: 1px solid rgb(64 64 64);
+          background: rgb(10 10 10);
+          padding: 0.45rem 0.55rem;
+          font-size: 0.85rem;
+          color: rgb(245 245 245);
+        }
+        .quest-directory-rename-validation {
+          font-size: 0.76rem;
+          font-weight: 850;
+        }
+        .quest-directory-rename-validation-ok {
+          color: rgb(134 239 172);
+        }
+        .quest-directory-rename-validation-bad {
+          color: rgb(252 165 165);
+        }
+        .quest-directory-rename-modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.5rem;
+        }
+        .quest-directory-rename-cancel,
+        .quest-directory-rename-confirm {
+          border-radius: 0.35rem;
+          border: 1px solid rgb(64 64 64);
+          padding: 0.38rem 0.7rem;
+          font-size: 0.78rem;
+          font-weight: 850;
+        }
+        .quest-directory-rename-cancel {
+          background: rgb(38 38 38);
+          color: rgb(229 229 229);
+        }
+        .quest-directory-rename-confirm {
+          background: rgb(229 229 229);
+          color: rgb(23 23 23);
+        }
+        .quest-directory-rename-confirm:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
       `}</style>
       <div className="quest-board-toolbar">
         <div className="space-y-2">
@@ -826,6 +988,43 @@ export default function QuestBoardTab({
         </div>
       )}
 
+      {pendingFolderRename && (() => {
+        const validation = getFolderRenameValidation();
+        return (
+          <div className="quest-directory-rename-modal-backdrop">
+            <div className="quest-directory-rename-modal" role="dialog" aria-modal="true">
+              <div className="quest-directory-rename-modal-title">Rename folder</div>
+              <div className="quest-directory-rename-modal-body">
+                <label className="quest-directory-rename-field">
+                  <span>Folder name</span>
+                  <input
+                    value={pendingFolderRename.name}
+                    onChange={(event) => setPendingFolderRename((old) => old ? { ...old, name: event.target.value } : old)}
+                    autoFocus
+                  />
+                </label>
+                <div className={`quest-directory-rename-validation ${validation.ok ? "quest-directory-rename-validation-ok" : "quest-directory-rename-validation-bad"}`}>
+                  {validation.message}
+                </div>
+              </div>
+              <div className="quest-directory-rename-modal-actions">
+                <button type="button" className="quest-directory-rename-cancel" onClick={cancelFolderRename}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="quest-directory-rename-confirm"
+                  onClick={confirmFolderRename}
+                  disabled={!validation.ok}
+                >
+                  Rename
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="scene-contents-panel quest-board-contents-panel">
         <div className="scene-contents-margin quest-board-contents-margin">
           <div
@@ -845,6 +1044,7 @@ export default function QuestBoardTab({
               dueBadge={dueBadge}
               selectQuest={selectQuest}
               renameQuestFolder={renameQuestFolder}
+              openFolderRenameModal={openFolderRenameModal}
               deleteQuestFolder={deleteQuestFolder}
               moveQuestToFolder={moveQuestToFolder}
               moveQuestFolderToFolder={moveQuestFolderToFolder}
@@ -870,6 +1070,7 @@ function InboxSection({
   dueBadge,
   selectQuest,
   renameQuestFolder,
+  openFolderRenameModal,
   deleteQuestFolder,
   moveQuestToFolder,
   moveQuestFolderToFolder,
@@ -926,6 +1127,7 @@ function InboxSection({
             dueBadge={dueBadge}
             selectQuest={selectQuest}
             renameQuestFolder={renameQuestFolder}
+            openFolderRenameModal={openFolderRenameModal}
             deleteQuestFolder={deleteQuestFolder}
             moveQuestToFolder={moveQuestToFolder}
             moveQuestFolderToFolder={moveQuestFolderToFolder}
@@ -968,6 +1170,7 @@ function QuestFolderNode({
   dueBadge,
   selectQuest,
   renameQuestFolder,
+  openFolderRenameModal,
   deleteQuestFolder,
   moveQuestToFolder,
   moveQuestFolderToFolder,
@@ -1046,7 +1249,7 @@ function QuestFolderNode({
             }}
             onClick={(event) => {
               event.stopPropagation();
-              renameQuestFolder(folder.id);
+              openFolderRenameModal?.(folder);
             }}
             title="Rename folder"
           >
@@ -1088,6 +1291,7 @@ function QuestFolderNode({
               dueBadge={dueBadge}
               selectQuest={selectQuest}
               renameQuestFolder={renameQuestFolder}
+              openFolderRenameModal={openFolderRenameModal}
               deleteQuestFolder={deleteQuestFolder}
               moveQuestToFolder={moveQuestToFolder}
               moveQuestFolderToFolder={moveQuestFolderToFolder}
