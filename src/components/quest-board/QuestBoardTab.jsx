@@ -21,7 +21,7 @@ import {
 function getDirectFolderChildren(folders, parentId) {
   return (folders || [])
     .filter((folder) => (folder.parentId || null) === (parentId || null))
-    .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    .sort((a, b) => getProjectPathBaseName(a.id).localeCompare(getProjectPathBaseName(b.id)));
 }
 
 function getDirectFolderQuests(quests, folderId) {
@@ -272,7 +272,7 @@ export default function QuestBoardTab({
       const sourcePath = normalizeProjectRelativePath(folder.id);
       const sourceParent = getProjectPathParent(sourcePath);
       const folderName = getProjectPathBaseName(sourcePath);
-      const destinationParent = normalizeProjectRelativePath(moveTarget.folderId || null);
+      const destinationParent = moveTarget.folderId ? normalizeProjectRelativePath(moveTarget.folderId) : "";
       const destinationPath = joinProjectRelativePath(destinationParent || null, folderName);
 
       if ((sourceParent || null) === (destinationParent || null)) {
@@ -280,7 +280,7 @@ export default function QuestBoardTab({
           level: "bad",
           kind: "same-folder",
           text: "Move debug: same parent / no-op",
-          detail: `source=${sourcePath} destination=${destinationPath}`,
+          detail: `source=${sourcePath} target=${moveTarget.folderId || "root"} destination=${destinationPath}`,
         };
       }
 
@@ -311,7 +311,7 @@ export default function QuestBoardTab({
           level: "bad",
           kind: "folder-merge-risk",
           text: "Move debug: folder merge rejected",
-          detail: `source=${sourcePath} destination=${destinationPath}`,
+          detail: `source=${sourcePath} target=${moveTarget.folderId || "root"} destination=${destinationPath}`,
           sourcePath,
           destinationPath,
         };
@@ -321,7 +321,7 @@ export default function QuestBoardTab({
         level: "ok",
         kind: "legal-folder-move",
         text: "Move debug: legal folder move",
-        detail: `source=${sourcePath} destination=${destinationPath}`,
+        detail: `source=${sourcePath} target=${moveTarget.folderId || "root"} destination=${destinationPath}`,
         sourcePath,
         destinationPath,
       };
@@ -470,11 +470,11 @@ export default function QuestBoardTab({
 
     const placement = releaseTarget.placement || releaseTarget.zone;
 
-    if (releaseTarget.targetKind === "root") {
+    if (releaseTarget.targetKind === "root" || releaseTarget.id === "root") {
       return {
         ok: true,
         folderId: null,
-        placement,
+        placement: "inside-root",
         reason: "target-root",
       };
     }
@@ -635,8 +635,8 @@ export default function QuestBoardTab({
 
     setPendingFolderRename({
       folderId: folder.id,
-      originalName: getProjectPathBaseName(folder.id) || folder.title || "Untitled Folder",
-      name: getProjectPathBaseName(folder.id) || folder.title || "Untitled Folder",
+      originalName: getProjectPathBaseName(folder.id) || "Untitled Folder",
+      name: getProjectPathBaseName(folder.id) || "Untitled Folder",
     });
   }
 
@@ -1094,7 +1094,7 @@ function InboxSection({
         data-directory-row-kind="root"
         data-directory-parent-id=""
         data-directory-can-contain="true"
-        onMouseMove={(event) => updateDropIndicator?.(event, "root")}
+        onMouseMove={(event) => updateDropIndicator?.(event, "root", "inside-root")}
         onPointerDown={(event) => beginDirectoryPress?.(event, {
           kind: "root",
           id: "root",
@@ -1228,7 +1228,7 @@ function QuestFolderNode({
           onPointerDown={(event) => beginDirectoryPress?.(event, {
             kind: "folder",
             id: folder.id,
-            title: folder.title || "Untitled Folder",
+            title: getProjectPathBaseName(folder.id) || "Untitled Folder",
             selectDirectory: () => setSelectedFolderId(folder.id),
             select: () => setSelectedFolderId(folder.id),
           })}
@@ -1240,7 +1240,7 @@ function QuestFolderNode({
             title="Select folder"
           >
           {open ? <FolderOpen size={16} /> : <Folder size={16} />}
-          <span className="quest-directory-folder-title">{folder.title || "Untitled Folder"}</span>
+          <span className="quest-directory-folder-title">{getProjectPathBaseName(folder.id) || "Untitled Folder"}</span>
           <span className="quest-directory-folder-count">{count}</span>
         </button>
 
@@ -1354,6 +1354,27 @@ function getDirectoryDropIndicator(event, directoryContentElement, id, forcedZon
 function getDirectoryDropIndicatorFromPoint(event, directoryContentElement) {
   if (!directoryContentElement) return null;
 
+  const rootRow = directoryContentElement.querySelector('[data-directory-row-id="root"]');
+
+  if (rootRow) {
+    const rootRect = rootRow.getBoundingClientRect();
+    const pointerIsInsideRoot =
+      event.clientX >= rootRect.left &&
+      event.clientX <= rootRect.right &&
+      event.clientY >= rootRect.top &&
+      event.clientY <= rootRect.bottom;
+
+    if (pointerIsInsideRoot) {
+      return getDirectoryDropIndicatorForElement(
+        event,
+        directoryContentElement,
+        rootRow,
+        "root",
+        "inside-root"
+      );
+    }
+  }
+
   const hitElement = document.elementFromPoint(event.clientX, event.clientY);
   if (!hitElement || !directoryContentElement.contains(hitElement)) return null;
 
@@ -1385,11 +1406,11 @@ function getDirectoryDropIndicatorForElement(event, directoryContentElement, row
 
   const contentRect = directoryContentElement.getBoundingClientRect();
   const rowElements = Array.from(directoryContentElement.querySelectorAll("[data-directory-row-id]"));
-  const sourceRow = findDirectoryRowById(rowElements, id);
-  const targetRow = sourceRow || rowElement;
-  const rowRect = targetRow.getBoundingClientRect();
 
   if (forcedZone === "subtree-after") {
+    const sourceRow = findDirectoryRowById(rowElements, id);
+    const targetRow = sourceRow || rowElement;
+    const rowRect = targetRow.getBoundingClientRect();
     const colliderRect = rowElement.getBoundingClientRect();
 
     return {
@@ -1405,8 +1426,17 @@ function getDirectoryDropIndicatorForElement(event, directoryContentElement, row
     };
   }
 
+  const targetRow = rowElement;
+  const rowRect = targetRow.getBoundingClientRect();
+
   let zone = forcedZone || getDirectoryDropZoneFromElement(event, rowElement);
   const canContain = targetRow.dataset.directoryCanContain === "true";
+
+  const requestedRootInside = zone === "inside-root";
+
+  if (requestedRootInside) {
+    zone = "inside";
+  }
 
   if (zone === "inside" && !canContain) {
     zone = "after";
@@ -1421,7 +1451,7 @@ function getDirectoryDropIndicatorForElement(event, directoryContentElement, row
       left: rowRect.left - contentRect.left,
       width: rowRect.width,
       height: rowRect.height,
-      placement: "inside",
+      placement: requestedRootInside ? "inside-root" : "inside",
       targetKind: targetRow.dataset.directoryRowKind || "",
       targetParentId: targetRow.dataset.directoryParentId || "",
     };

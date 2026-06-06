@@ -105,6 +105,133 @@ function getProjectPathParent(path) {
   return normalized.slice(0, index);
 }
 
+function makeVirtualFolderId(parentId, name) {
+  const cleanName = String(name || "").trim();
+  const cleanParentId = normalizeProjectRelativePath(parentId || null);
+
+  return cleanParentId ? `${cleanParentId}/${cleanName}` : cleanName;
+}
+
+function getVirtualFolderName(folderId) {
+  return getProjectPathBaseName(folderId);
+}
+
+function isValidVirtualFolderName(name) {
+  const value = String(name || "");
+  return Boolean(
+    value.trim() &&
+    value === value.trim() &&
+    value !== "." &&
+    value !== ".." &&
+    !/[\\/:*?"<>|]/.test(value) &&
+    !value.startsWith(".") &&
+    !value.endsWith(".")
+  );
+}
+
+function getInvalidVirtualFolderNameMessage(name) {
+  const value = String(name || "");
+
+  if (!value.trim()) return "Folder name cannot be empty.";
+  if (value !== value.trim()) return "Folder name cannot start or end with spaces.";
+  if (value === "." || value === "..") return "Folder name cannot be . or ...";
+  if (/[\\/:*?"<>|]/.test(value)) return "Folder name contains an invalid filename character.";
+  if (value.startsWith(".") || value.endsWith(".")) return "Folder name cannot start or end with a period.";
+
+  return "";
+}
+
+function renameVirtualFolderPath(folders, quests, folderId, nextName) {
+  const oldId = normalizeProjectRelativePath(folderId);
+  const parentId = getProjectPathParent(oldId);
+  const nextId = makeVirtualFolderId(parentId, nextName);
+
+  if (!oldId || !nextId || oldId === nextId) {
+    return { folders, quests, nextFolderId: oldId || nextId };
+  }
+
+  function remapFolderId(value) {
+    const normalized = normalizeProjectRelativePath(value);
+
+    if (normalized === oldId) return nextId;
+    if (normalized.startsWith(`${oldId}/`)) return `${nextId}/${normalized.slice(oldId.length + 1)}`;
+
+    return value || null;
+  }
+
+  return {
+    folders: (folders || []).map((folder) => ({
+      ...folder,
+      id: remapFolderId(folder.id),
+      parentId: folder.parentId ? remapFolderId(folder.parentId) : null,
+      title: undefined,
+      updatedAt: new Date().toISOString(),
+    })),
+    quests: (quests || []).map((quest) => ({
+      ...quest,
+      folderId: quest.folderId ? remapFolderId(quest.folderId) : null,
+    })),
+    nextFolderId: nextId,
+  };
+}
+
+function moveVirtualFolderPath(folders, quests, folderId, nextParentId) {
+  const oldId = normalizeProjectRelativePath(folderId);
+  const cleanNextParentId = normalizeProjectRelativePath(nextParentId || null);
+  const folderName = getProjectPathBaseName(oldId);
+  const nextId = makeVirtualFolderId(cleanNextParentId || null, folderName);
+
+  if (!oldId || !nextId || oldId === nextId) {
+    return { moved: false, reason: "same-parent/no-op", folders, quests, nextFolderId: oldId || nextId };
+  }
+
+  if (cleanNextParentId && (cleanNextParentId === oldId || cleanNextParentId.startsWith(`${oldId}/`))) {
+    return { moved: false, reason: "folder-into-self-or-child", folders, quests, nextFolderId: oldId };
+  }
+
+  const collision = (folders || []).some((folder) =>
+    normalizeProjectRelativePath(folder.id) !== oldId &&
+    normalizeProjectRelativePath(folder.id) === nextId
+  );
+
+  if (collision) {
+    return { moved: false, reason: "folder-merge-risk", folders, quests, nextFolderId: oldId };
+  }
+
+  function remapFolderId(value) {
+    const normalized = normalizeProjectRelativePath(value);
+
+    if (normalized === oldId) return nextId;
+    if (normalized.startsWith(`${oldId}/`)) return `${nextId}/${normalized.slice(oldId.length + 1)}`;
+
+    return value || null;
+  }
+
+  return {
+    moved: true,
+    reason: "moved",
+    folders: (folders || []).map((folder) => {
+      const normalizedId = normalizeProjectRelativePath(folder.id);
+      const isMovedRoot = normalizedId === oldId;
+
+      return {
+        ...folder,
+        id: remapFolderId(folder.id),
+        parentId: isMovedRoot
+          ? (cleanNextParentId || null)
+          : (folder.parentId ? remapFolderId(folder.parentId) : null),
+        title: undefined,
+        updatedAt: new Date().toISOString(),
+      };
+    }),
+    quests: (quests || []).map((quest) => ({
+      ...quest,
+      folderId: quest.folderId ? remapFolderId(quest.folderId) : null,
+    })),
+    nextFolderId: nextId,
+  };
+}
+
 export default function App() {
   const [data, setData] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -345,10 +472,30 @@ export default function App() {
       }
     }
 
-    const folder = makeQuestFolder({
-      title: cleanTitle,
-      parentId: parentId || null,
-    });
+    const nextFolderId = makeVirtualFolderId(parentId || null, cleanTitle);
+
+    if (!isValidVirtualFolderName(cleanTitle)) {
+      window.alert(getInvalidVirtualFolderNameMessage(cleanTitle));
+      return;
+    }
+
+    const existingSibling = (dataRef.current?.folders || data.folders || []).some((folder) =>
+      normalizeProjectRelativePath(folder.id) === normalizeProjectRelativePath(nextFolderId)
+    );
+
+    if (existingSibling) {
+      window.alert("A folder with that name already exists.");
+      return;
+    }
+
+    const folder = {
+      ...makeQuestFolder({
+        title: cleanTitle,
+        parentId: parentId || null,
+      }),
+      id: nextFolderId,
+      title: undefined,
+    };
 
     setData((old) => ({
       ...old,
@@ -365,7 +512,7 @@ export default function App() {
     if (!folder) return;
 
     const title = nextTitle == null
-      ? window.prompt("Rename folder:", folder.title || "Untitled Folder")
+      ? window.prompt("Rename folder:", getVirtualFolderName(folder.id) || "Untitled Folder")
       : nextTitle;
 
     if (!title || !title.trim()) return;
@@ -389,10 +536,51 @@ export default function App() {
       }
     }
 
-    setData((old) => ({
-      ...old,
-      folders: renameQuestFolderInList(old.folders || [], folderId, cleanTitle),
-    }));
+    if (!isValidVirtualFolderName(cleanTitle)) {
+      window.alert(getInvalidVirtualFolderNameMessage(cleanTitle));
+      return;
+    }
+
+    const parentId = getProjectPathParent(folderId);
+    const nextFolderId = makeVirtualFolderId(parentId || null, cleanTitle);
+
+    const existingSibling = (liveData.folders || []).some((item) =>
+      normalizeProjectRelativePath(item.id) !== normalizeProjectRelativePath(folderId) &&
+      normalizeProjectRelativePath(item.id) === normalizeProjectRelativePath(nextFolderId)
+    );
+
+    if (existingSibling) {
+      window.alert("A folder with that name already exists.");
+      return;
+    }
+
+    const renameResult = renameVirtualFolderPath(liveData.folders || [], liveData.quests || [], folderId, cleanTitle);
+
+    const nextData = {
+      ...liveData,
+      folders: renameResult.folders,
+      quests: renameResult.quests,
+    };
+
+    dataRef.current = nextData;
+    setData(nextData);
+    setSelectedFolderId(renameResult.nextFolderId || null);
+
+    setExpandedFolders((old) => {
+      const next = {};
+      for (const [key, value] of Object.entries(old || {})) {
+        const normalized = normalizeProjectRelativePath(key);
+        if (normalized === normalizeProjectRelativePath(folderId)) {
+          next[renameResult.nextFolderId] = value;
+        } else if (normalized.startsWith(`${normalizeProjectRelativePath(folderId)}/`)) {
+          next[`${renameResult.nextFolderId}/${normalized.slice(normalizeProjectRelativePath(folderId).length + 1)}`] = value;
+        } else {
+          next[key] = value;
+        }
+      }
+      next[renameResult.nextFolderId] = true;
+      return next;
+    });
   }
 
   async function deleteQuestFolder(folderId) {
@@ -570,14 +758,52 @@ export default function App() {
       }
     }
 
-    setData((old) => ({
-      ...old,
-      folders: moveQuestFolderToFolderInList(old.folders || [], folderId, nextParentId),
-    }));
+    const moveResult = moveVirtualFolderPath(
+      liveData.folders || [],
+      liveData.quests || [],
+      folderId,
+      nextParentId
+    );
 
-    if (nextParentId) {
-      setExpandedFolders((old) => ({ ...old, [nextParentId]: true }));
+    if (!moveResult.moved) {
+      if (moveResult.reason === "folder-merge-risk") {
+        window.alert("A folder with that name already exists at the destination.");
+      }
+      return;
     }
+
+    const nextData = {
+      ...liveData,
+      folders: moveResult.folders,
+      quests: moveResult.quests,
+    };
+
+    dataRef.current = nextData;
+    setData(nextData);
+    setSelectedFolderId(moveResult.nextFolderId || null);
+
+    setExpandedFolders((old) => {
+      const next = {};
+      const oldPrefix = normalizeProjectRelativePath(folderId);
+      const newPrefix = normalizeProjectRelativePath(moveResult.nextFolderId);
+
+      for (const [key, value] of Object.entries(old || {})) {
+        const normalized = normalizeProjectRelativePath(key);
+
+        if (normalized === oldPrefix) {
+          next[newPrefix] = value;
+        } else if (normalized.startsWith(`${oldPrefix}/`)) {
+          next[`${newPrefix}/${normalized.slice(oldPrefix.length + 1)}`] = value;
+        } else {
+          next[key] = value;
+        }
+      }
+
+      if (nextParentId) next[nextParentId] = true;
+      if (moveResult.nextFolderId) next[moveResult.nextFolderId] = true;
+
+      return next;
+    });
   }
 
   async function chooseQuestProjectFolder() {
