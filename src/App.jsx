@@ -273,6 +273,7 @@ export default function App() {
   const [expandedKanbanCards, setExpandedKanbanCards] = useState({});
   const [debugDateOverrideEnabled, setDebugDateOverrideEnabled] = useState(false);
   const [debugDateOverrideDate, setDebugDateOverrideDate] = useState(todayString());
+  const [showQuestBoardDebug, setShowQuestBoardDebug] = useState(false);
   const [projectRootPath, setProjectRootPath] = useState(() => getSavedProjectRootPath());
   const [projectLoadSummary, setProjectLoadSummary] = useState("");
   const dataRef = useRef(data);
@@ -1665,6 +1666,7 @@ async function importJsonFile(file) {
           projectLoadSummary={projectLoadSummary}
           chooseQuestProjectFolder={chooseQuestProjectFolder}
           refreshQuestProjectFolder={refreshQuestProjectFolder}
+          showQuestBoardDebug={showQuestBoardDebug}
         />
 
         <div
@@ -1752,6 +1754,8 @@ async function importJsonFile(file) {
           debugDateOverrideDate={debugDateOverrideDate}
           setDebugDateOverrideDate={setDebugDateOverrideDate}
           currentAppDate={getAppDate()}
+          showQuestBoardDebug={showQuestBoardDebug}
+          setShowQuestBoardDebug={setShowQuestBoardDebug}
         />
       </div>
 
@@ -1798,6 +1802,7 @@ function LibraryPanel({
   projectLoadSummary,
   chooseQuestProjectFolder,
   refreshQuestProjectFolder,
+  showQuestBoardDebug,
 }) {
   const tabs = [
     {
@@ -1833,6 +1838,7 @@ function LibraryPanel({
           projectLoadSummary={projectLoadSummary}
           chooseQuestProjectFolder={chooseQuestProjectFolder}
           refreshQuestProjectFolder={refreshQuestProjectFolder}
+          showQuestBoardDebug={showQuestBoardDebug}
         />
       ),
     },
@@ -1965,6 +1971,8 @@ function RightPanel(props) {
     debugDateOverrideDate,
     setDebugDateOverrideDate,
     currentAppDate,
+    showQuestBoardDebug,
+    setShowQuestBoardDebug,
   } = props;
 
   const treeContext = getTreeContext(selection, data, activeQuest);
@@ -2012,6 +2020,8 @@ function RightPanel(props) {
           setDebugDateOverrideDate,
           currentAppDate,
           runMaintenanceNow,
+          showQuestBoardDebug,
+          setShowQuestBoardDebug,
         }}
       />
 

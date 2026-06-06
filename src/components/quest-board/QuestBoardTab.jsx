@@ -154,6 +154,7 @@ export default function QuestBoardTab({
   projectLoadSummary = "",
   chooseQuestProjectFolder,
   refreshQuestProjectFolder,
+  showQuestBoardDebug = false,
 }) {
   const [interactionMode, setInteractionMode] = useState(
     FORCE_DIRECTORY_REARRANGE_MODE ? "rearrange" : "normal"
@@ -952,6 +953,12 @@ export default function QuestBoardTab({
           font-size: 0.85rem;
           color: rgb(245 245 245);
         }
+        .quest-directory-rename-field input.quest-directory-rename-input-ok {
+          border-color: rgb(34 197 94) !important;
+        }
+        .quest-directory-rename-field input.quest-directory-rename-input-bad {
+          border-color: rgb(239 68 68) !important;
+        }
         .quest-directory-rename-validation {
           font-size: 0.76rem;
           font-weight: 850;
@@ -1039,7 +1046,7 @@ export default function QuestBoardTab({
           {projectLoadSummary ? <span>{projectLoadSummary}</span> : null}
         </div>
 
-        {(() => {
+        {showQuestBoardDebug && (() => {
           const preview = getMoveDebugPreview();
           return (
             <div
@@ -1052,7 +1059,7 @@ export default function QuestBoardTab({
           );
         })()}
 
-        {(() => {
+        {showQuestBoardDebug && (() => {
           const preview = getHoveredDirectoryPathPreview();
           return (
             <div
@@ -1111,6 +1118,7 @@ export default function QuestBoardTab({
                 <label className="quest-directory-rename-field">
                   <span>Folder name</span>
                   <input
+                    className={validation.ok ? "quest-directory-rename-input-ok" : "quest-directory-rename-input-bad"}
                     value={pendingFolderRename.name}
                     onChange={(event) => setPendingFolderRename((old) => old ? { ...old, name: event.target.value } : old)}
                     autoFocus

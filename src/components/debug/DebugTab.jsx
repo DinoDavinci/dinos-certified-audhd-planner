@@ -7,6 +7,8 @@ export default function DebugTab({
   setDebugDateOverrideDate,
   currentAppDate,
   runMaintenanceNow,
+  showQuestBoardDebug = false,
+  setShowQuestBoardDebug,
 }) {
   return (
     <div className="export-options-root">
@@ -34,6 +36,21 @@ export default function DebugTab({
             <div className="mt-2 text-xs text-neutral-400">
               Current app date: {currentAppDate || "real date"}
             </div>
+          </div>
+
+
+
+          <div className="rounded border border-neutral-800 bg-neutral-950 p-3">
+            <div className="mb-2 text-sm font-semibold text-neutral-200">Quest Board debug</div>
+
+            <label className="flex items-center gap-2 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                checked={Boolean(showQuestBoardDebug)}
+                onChange={(event) => setShowQuestBoardDebug?.(event.target.checked)}
+              />
+              Show drag and hover path badges
+            </label>
           </div>
 
           <button
