@@ -1228,7 +1228,7 @@ function InboxSection({
           onClick={() => setSelectedFolderId(null)}
           title="Select root"
         >
-          <FolderOpen size={16} />
+          <FolderOpen size={16} style={{ flexShrink: 0 }} />
           <span className="quest-directory-folder-title">root</span>
           <span className="quest-directory-folder-count">{count}</span>
         </button>
@@ -1323,7 +1323,7 @@ function QuestFolderNode({
             }}
             title={open ? "Collapse folder" : "Expand folder"}
           >
-            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {open ? <ChevronDown size={16} style={{ flexShrink: 0 }} /> : <ChevronRight size={16} style={{ flexShrink: 0 }} />}
           </button>
         </div>
 
@@ -1367,7 +1367,7 @@ function QuestFolderNode({
             onClick={() => setSelectedFolderId(folder.id)}
             title="Select folder"
           >
-          {open ? <FolderOpen size={16} /> : <Folder size={16} />}
+          {open ? <FolderOpen size={16} style={{ flexShrink: 0 }} /> : <Folder size={16} style={{ flexShrink: 0 }} />}
           <span className="quest-directory-folder-title">{getProjectPathBaseName(folder.id) || "Untitled Folder"}</span>
           <span className="quest-directory-folder-count">{count}</span>
         </button>
@@ -1688,7 +1688,7 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
           <div className="quest-directory-quest-main">
             <FileText
               size={16}
-              style={dirty ? { color: "rgb(250 204 21)" } : undefined}
+              style={dirty ? { color: "rgb(250 204 21)", flexShrink: 0 } : { flexShrink: 0 }}
             />
             <span className="quest-directory-quest-title">{quest.title || "Untitled Quest"}</span>
           </div>
