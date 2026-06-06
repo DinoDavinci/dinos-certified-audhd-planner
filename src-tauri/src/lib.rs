@@ -688,24 +688,16 @@ fn next_available_folder_path(parent_dir: &Path, preferred_folder_name: &str) ->
 }
 
 fn next_available_file_path(target_dir: &Path, preferred_file_name: &str) -> PathBuf {
-  let preferred = PathBuf::from(preferred_file_name);
-  let stem = preferred
-    .file_stem()
-    .and_then(|value| value.to_str())
-    .unwrap_or("New Quest");
-  let extension = preferred
-    .extension()
-    .and_then(|value| value.to_str())
-    .unwrap_or("json");
+  let (stem, extension) = split_quest_file_name(preferred_file_name);
 
-  let mut candidate = target_dir.join(preferred_file_name);
+  let mut candidate = target_dir.join(format!("{stem}{extension}"));
 
   if !candidate.exists() {
     return candidate;
   }
 
   for index in 2..10_000 {
-    let file_name = format!("{stem} {index}.{extension}");
+    let file_name = format!("{stem}({index}){extension}");
     candidate = target_dir.join(file_name);
 
     if !candidate.exists() {
@@ -713,7 +705,41 @@ fn next_available_file_path(target_dir: &Path, preferred_file_name: &str) -> Pat
     }
   }
 
-  target_dir.join(format!("{stem}-copy.{extension}"))
+  target_dir.join(format!("{stem}-copy{extension}"))
+}
+
+fn split_quest_file_name(file_name: &str) -> (String, String) {
+  let lower = file_name.to_lowercase();
+
+  if lower.ends_with(".quest.json") {
+    let stem = &file_name[..file_name.len() - ".quest.json".len()];
+    return (
+      if stem.is_empty() { "new-quest" } else { stem }.to_string(),
+      ".quest.json".to_string(),
+    );
+  }
+
+  if lower.ends_with(".quest") {
+    let stem = &file_name[..file_name.len() - ".quest".len()];
+    return (
+      if stem.is_empty() { "new-quest" } else { stem }.to_string(),
+      ".quest".to_string(),
+    );
+  }
+
+  let preferred = PathBuf::from(file_name);
+  let stem = preferred
+    .file_stem()
+    .and_then(|value| value.to_str())
+    .unwrap_or("new-quest")
+    .to_string();
+  let extension = preferred
+    .extension()
+    .and_then(|value| value.to_str())
+    .map(|value| format!(".{value}"))
+    .unwrap_or_else(|| ".quest.json".to_string());
+
+  (stem, extension)
 }
 
 fn relative_path_string(root: &Path, path: &Path) -> String {
