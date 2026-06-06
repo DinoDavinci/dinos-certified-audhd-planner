@@ -104,6 +104,113 @@ function detectStandaloneApp() {
     hostname.endsWith(".tauri.localhost");
 }
 
+const STANDALONE_PROJECT_SESSION_KEY = "quest-planner-standalone-project-session-v1";
+
+function normalizeSessionRootPath(rootPath) {
+  return String(rootPath || "")
+    .replace(/\\/g, "/")
+    .replace(/\/+$/g, "");
+}
+
+function readStandaloneProjectSessionMap() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STANDALONE_PROJECT_SESSION_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function readStandaloneProjectSession(rootPath) {
+  const key = normalizeSessionRootPath(rootPath);
+  if (!key) return null;
+
+  const session = readStandaloneProjectSessionMap()[key];
+  return session && typeof session === "object" ? session : null;
+}
+
+function writeStandaloneProjectSession(rootPath, session) {
+  const key = normalizeSessionRootPath(rootPath);
+  if (!key || typeof window === "undefined") return;
+
+  const sessions = readStandaloneProjectSessionMap();
+  sessions[key] = {
+    ...session,
+    savedAt: new Date().toISOString(),
+  };
+
+  localStorage.setItem(STANDALONE_PROJECT_SESSION_KEY, JSON.stringify(sessions));
+}
+
+function normalizeStandaloneExpandedFolders(expandedMap) {
+  const normalized = {};
+
+  for (const [folderId, isOpen] of Object.entries(expandedMap || {})) {
+    const key = normalizeProjectRelativePath(folderId);
+    if (!key) continue;
+    normalized[key] = Boolean(isOpen);
+  }
+
+  return normalized;
+}
+
+function restoreStandaloneExpandedFolders(scannedFolders, savedExpandedMap, currentExpandedMap, explicitExpandedFolderIds = []) {
+  const scannedFolderIds = new Map();
+
+  for (const folder of scannedFolders || []) {
+    const normalized = normalizeProjectRelativePath(folder?.id);
+    if (normalized) scannedFolderIds.set(normalized, folder.id);
+  }
+
+  const savedNormalized = normalizeStandaloneExpandedFolders(savedExpandedMap || {});
+  const currentNormalized = normalizeStandaloneExpandedFolders(currentExpandedMap || {});
+  const restored = {};
+
+  // Materialize an entry for every scanned folder. This is important because
+  // QuestBoardTab treats missing expansion entries as open for backward
+  // compatibility. A partial map therefore cannot represent a collapsed folder
+  // reliably after a restart.
+  for (const [normalizedFolderId, scannedFolderId] of scannedFolderIds.entries()) {
+    if (Object.prototype.hasOwnProperty.call(savedNormalized, normalizedFolderId)) {
+      restored[scannedFolderId] = savedNormalized[normalizedFolderId];
+    } else if (Object.prototype.hasOwnProperty.call(currentNormalized, normalizedFolderId)) {
+      restored[scannedFolderId] = currentNormalized[normalizedFolderId];
+    } else {
+      restored[scannedFolderId] = true;
+    }
+  }
+
+  for (const folderId of explicitExpandedFolderIds || []) {
+    const normalized = normalizeProjectRelativePath(folderId);
+    const scannedId = scannedFolderIds.get(normalized);
+    if (scannedId) restored[scannedId] = true;
+  }
+
+  return restored;
+}
+
+function taskIdExistsInTaskTree(tasks, taskId) {
+  if (!taskId) return false;
+
+  for (const task of tasks || []) {
+    if (task?.id === taskId) return true;
+    if (taskIdExistsInTaskTree(task?.children || [], taskId)) return true;
+  }
+
+  return false;
+}
+
+function taskIdExistsInQuest(quest, taskId) {
+  if (!quest || !taskId) return false;
+
+  const rootTask = quest.rootTask || null;
+  if (rootTask?.id === taskId) return true;
+
+  return taskIdExistsInTaskTree(rootTask?.children || [], taskId);
+}
+
 function isQuestCompletionRow(row) {
   return row?.kind === "questCompletion" || row?.kind === "rootTask";
 }
@@ -156,6 +263,8 @@ export default function App() {
   const [isStandaloneApp, setIsStandaloneApp] = useState(() => detectStandaloneApp());
   const [projectLoadSummary, setProjectLoadSummary] = useState("");
   const dataRef = useRef(data);
+  const expandedFoldersRef = useRef(expandedFolders);
+  const projectSessionReadyRef = useRef(false);
   const projectSaveQueueRef = useRef({});
 
   function stripProjectTransientQuestFields(quest) {
@@ -338,6 +447,37 @@ ${message}`);
     setDataWithProjectDirtyAndAutosaveQuest(questId, updater);
   }
 
+
+  function getStandaloneProjectSessionSnapshot(dataSnapshot = dataRef.current || data) {
+    const activeQuest = (dataSnapshot?.quests || []).find((quest) => quest.id === dataSnapshot?.activeQuestId) || null;
+
+    return {
+      activeQuestPath: activeQuest?.projectRelativePath || "",
+      activeQuestId: activeQuest?.id || dataSnapshot?.activeQuestId || null,
+      activeBranchTaskId: dataSnapshot?.activeBranchTaskId || null,
+      selectedFolderId: selectedFolderId || null,
+      expandedFolders: normalizeStandaloneExpandedFolders(expandedFoldersRef.current || expandedFolders || {}),
+    };
+  }
+
+
+  function setProjectExpandedFolders(updater) {
+    setExpandedFolders((old) => {
+      const rawNext = typeof updater === "function" ? updater(old) : updater;
+      const next = normalizeStandaloneExpandedFolders(rawNext || {});
+      expandedFoldersRef.current = next;
+
+      if (isStandaloneApp && projectRootPath && projectSessionReadyRef.current) {
+        writeStandaloneProjectSession(
+          projectRootPath,
+          getStandaloneProjectSessionSnapshot(dataRef.current || data)
+        );
+      }
+
+      return next;
+    });
+  }
+
   function getAppDate() {
     return debugDateOverrideEnabled && debugDateOverrideDate
       ? debugDateOverrideDate
@@ -435,6 +575,11 @@ ${message}`);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
 
+
+  useEffect(() => {
+    expandedFoldersRef.current = expandedFolders;
+  }, [expandedFolders]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const today = getAppDate();
@@ -462,6 +607,30 @@ ${message}`);
   useEffect(() => {
     setIsStandaloneApp(detectStandaloneApp());
   }, []);
+
+
+  useEffect(() => {
+    if (!isStandaloneApp || !projectRootPath || !projectSessionReadyRef.current) return;
+
+    const liveData = dataRef.current || data;
+    const activeProjectQuest = (liveData.quests || []).find((quest) =>
+      quest.id === liveData.activeQuestId && quest.projectRelativePath
+    );
+
+    if (!activeProjectQuest) return;
+
+    writeStandaloneProjectSession(
+      projectRootPath,
+      getStandaloneProjectSessionSnapshot(liveData)
+    );
+  }, [
+    isStandaloneApp,
+    projectRootPath,
+    data.activeQuestId,
+    data.activeBranchTaskId,
+    selectedFolderId,
+    expandedFolders,
+  ]);
 
   const allTags = useMemo(() => {
     const set = new Set(DEFAULT_TAGS);
@@ -525,8 +694,8 @@ ${message}`);
         const createdFolderId = await createFolderInProject(projectRootPath, parentId || null, cleanTitle);
         await loadQuestProjectFolder(projectRootPath);
         setSelectedFolderId(createdFolderId || null);
-        if (parentId) setExpandedFolders((old) => ({ ...old, [parentId]: true }));
-        if (createdFolderId) setExpandedFolders((old) => ({ ...old, [createdFolderId]: true }));
+        if (parentId) setProjectExpandedFolders((old) => ({ ...old, [parentId]: true }));
+        if (createdFolderId) setProjectExpandedFolders((old) => ({ ...old, [createdFolderId]: true }));
         return;
       } catch (error) {
         console.error("Could not create quest folder.", error);
@@ -566,7 +735,7 @@ ${message}`);
     }));
 
     setSelectedFolderId(folder.id);
-    if (parentId) setExpandedFolders((old) => ({ ...old, [parentId]: true }));
+    if (parentId) setProjectExpandedFolders((old) => ({ ...old, [parentId]: true }));
   }
 
   async function renameQuestFolder(folderId, nextTitle = null) {
@@ -629,7 +798,7 @@ ${message}`);
     setData(nextData);
     setSelectedFolderId(renameResult.nextFolderId || null);
 
-    setExpandedFolders((old) => {
+    setProjectExpandedFolders((old) => {
       const next = {};
       for (const [key, value] of Object.entries(old || {})) {
         const normalized = normalizeProjectRelativePath(key);
@@ -770,7 +939,7 @@ ${message}`);
         });
 
         if (folderId) {
-          setExpandedFolders((old) => ({ ...old, [folderId]: true }));
+          setProjectExpandedFolders((old) => ({ ...old, [folderId]: true }));
         }
 
         return;
@@ -845,7 +1014,7 @@ ${message}`);
     setData(nextData);
     setSelectedFolderId(moveResult.nextFolderId || null);
 
-    setExpandedFolders((old) => {
+    setProjectExpandedFolders((old) => {
       const next = {};
       const oldPrefix = normalizeProjectRelativePath(folderId);
       const newPrefix = normalizeProjectRelativePath(moveResult.nextFolderId);
@@ -874,6 +1043,7 @@ ${message}`);
       const selected = await chooseProjectRootDirectory();
       if (!selected) return;
 
+      projectSessionReadyRef.current = false;
       setProjectRootPath(selected);
       await loadQuestProjectFolder(selected);
     } catch (error) {
@@ -894,8 +1064,17 @@ ${message}`);
   async function loadQuestProjectFolder(rootPath, options = {}) {
     try {
       const scanned = await scanQuestProjectDirectory(rootPath);
-      const preferredActiveQuestId = options.activeQuestId || null;
-      const preferredActiveQuestPath = options.activeQuestPath || null;
+      const savedSession = options.ignoreSavedSession
+        ? null
+        : readStandaloneProjectSession(rootPath);
+      const hasExplicitActiveTarget = Boolean(
+        options.activeQuestId ||
+        options.activeQuestPath ||
+        Object.prototype.hasOwnProperty.call(options, "activeFolderId") ||
+        (options.expandedFolderIds || []).length > 0
+      );
+      const preferredActiveQuestId = options.activeQuestId || (!hasExplicitActiveTarget ? savedSession?.activeQuestId : null) || null;
+      const preferredActiveQuestPath = options.activeQuestPath || (!hasExplicitActiveTarget ? savedSession?.activeQuestPath : null) || null;
       const pathMatchedQuest = preferredActiveQuestPath
         ? scanned.quests.find((quest) =>
             quest.projectFilePath === preferredActiveQuestPath ||
@@ -906,32 +1085,57 @@ ${message}`);
         (scanned.quests.some((quest) => quest.id === preferredActiveQuestId)
           ? preferredActiveQuestId
           : scanned.quests[0]?.id || null);
+      const nextActiveQuest = scanned.quests.find((quest) => quest.id === nextActiveQuestId) || null;
+      const savedBranchTaskId = !hasExplicitActiveTarget ? savedSession?.activeBranchTaskId || null : null;
+      const nextActiveBranchTaskId = taskIdExistsInQuest(nextActiveQuest, savedBranchTaskId)
+        ? savedBranchTaskId
+        : null;
+      const scannedFolderIds = new Map((scanned.folders || []).map((folder) => [normalizeProjectRelativePath(folder.id), folder.id]));
+      const requestedSelectedFolderId = Object.prototype.hasOwnProperty.call(options, "activeFolderId")
+        ? options.activeFolderId || null
+        : savedSession?.selectedFolderId || null;
+      const normalizedRequestedSelectedFolderId = normalizeProjectRelativePath(requestedSelectedFolderId);
+      const nextSelectedFolderId = normalizedRequestedSelectedFolderId && scannedFolderIds.has(normalizedRequestedSelectedFolderId)
+        ? scannedFolderIds.get(normalizedRequestedSelectedFolderId)
+        : null;
+      const currentExpandedFolders = hasExplicitActiveTarget ? {} : expandedFoldersRef.current || {};
+      const savedExpandedFolders = hasExplicitActiveTarget ? {} : savedSession?.expandedFolders || {};
+      const nextExpandedFolders = restoreStandaloneExpandedFolders(
+        scanned.folders || [],
+        savedExpandedFolders,
+        currentExpandedFolders,
+        options.expandedFolderIds || []
+      );
 
       const nextData = {
         ...dataRef.current,
         folders: scanned.folders,
         quests: scanned.quests,
         activeQuestId: nextActiveQuestId,
-        activeBranchTaskId: null,
+        activeBranchTaskId: nextActiveBranchTaskId,
       };
 
       dataRef.current = nextData;
       setData(nextData);
 
-      const nextSelectedFolderId = options.activeFolderId || null;
-      const nextExpandedFolders = {};
-
-      for (const folderId of options.expandedFolderIds || []) {
-        if (folderId) nextExpandedFolders[folderId] = true;
-      }
-
       setSelection({ type: nextActiveQuestId ? "quest" : "none", id: nextActiveQuestId });
       setHistory([{ type: nextActiveQuestId ? "quest" : "none", id: nextActiveQuestId }]);
       setHistoryIndex(0);
-      setFocusHistory([{ questId: nextActiveQuestId, branchTaskId: null }]);
+      setFocusHistory([{ questId: nextActiveQuestId, branchTaskId: nextActiveBranchTaskId }]);
       setFocusHistoryIndex(0);
       setSelectedFolderId(nextSelectedFolderId);
+      expandedFoldersRef.current = nextExpandedFolders;
       setExpandedFolders(nextExpandedFolders);
+      projectSessionReadyRef.current = true;
+      if (isStandaloneApp && rootPath) {
+        writeStandaloneProjectSession(rootPath, {
+          activeQuestPath: nextActiveQuest?.projectRelativePath || "",
+          activeQuestId: nextActiveQuest?.id || nextActiveQuestId || null,
+          activeBranchTaskId: nextActiveBranchTaskId || null,
+          selectedFolderId: nextSelectedFolderId || null,
+          expandedFolders: normalizeStandaloneExpandedFolders(nextExpandedFolders),
+        });
+      }
       setExpanded({});
       setExpandedKanbanCards({});
 
@@ -1403,7 +1607,7 @@ function restoreQuest(questId) {
       setFocusHistory([{ questId: importedQuest.id, branchTaskId: null }]);
       setFocusHistoryIndex(0);
       setSelectedFolderId(selectedFolderId || null);
-      setExpandedFolders((old) => selectedFolderId ? { ...old, [selectedFolderId]: true } : old);
+      setProjectExpandedFolders((old) => selectedFolderId ? { ...old, [selectedFolderId]: true } : old);
       setExpanded({});
       setExpandedKanbanCards({});
     } catch (error) {
@@ -1429,7 +1633,7 @@ async function importJsonFile(file) {
       setFocusHistory([{ questId: importedFocusQuestId, branchTaskId: imported.activeBranchTaskId || null }]);
       setFocusHistoryIndex(0);
       setSelectedFolderId(null);
-      setExpandedFolders({});
+      setProjectExpandedFolders({});
       setExpanded({});
       setExpandedKanbanCards({});
       localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
@@ -1457,7 +1661,7 @@ async function importJsonFile(file) {
     setFocusHistory([{ questId: resetFocusQuestId, branchTaskId: null }]);
     setFocusHistoryIndex(0);
     setSelectedFolderId(null);
-    setExpandedFolders({});
+    setProjectExpandedFolders({});
     setExpanded({});
     setExpandedKanbanCards({});
   }
@@ -1546,7 +1750,7 @@ async function importJsonFile(file) {
           selectedFolderId={selectedFolderId}
           setSelectedFolderId={setSelectedFolderId}
           expandedFolders={expandedFolders}
-          setExpandedFolders={setExpandedFolders}
+          setExpandedFolders={setProjectExpandedFolders}
           dueBadge={dueBadge}
           createQuest={createQuest}
           createQuestFolder={createQuestFolder}

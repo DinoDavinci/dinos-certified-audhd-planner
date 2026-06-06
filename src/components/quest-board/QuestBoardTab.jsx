@@ -1270,7 +1270,12 @@ function QuestFolderNode({
   setHoveredDirectoryItem,
   depth = 0,
 }) {
-  const open = expandedFolders[folder.id] ?? true;
+  const normalizedFolderId = normalizeProjectRelativePath(folder.id);
+  const open = Object.prototype.hasOwnProperty.call(expandedFolders || {}, folder.id)
+    ? Boolean(expandedFolders[folder.id])
+    : Object.prototype.hasOwnProperty.call(expandedFolders || {}, normalizedFolderId)
+      ? Boolean(expandedFolders[normalizedFolderId])
+      : true;
   const childFolders = getDirectFolderChildren(folders, folder.id);
   const directQuests = getDirectFolderQuests(quests, folder.id);
   const count = countFolderContents(folders, quests, folder.id);
@@ -1286,7 +1291,11 @@ function QuestFolderNode({
               className="tree-disclosure"
               onClick={(event) => {
                 event.stopPropagation();
-                setExpandedFolders({ ...expandedFolders, [folder.id]: !open });
+                setExpandedFolders((old) => ({
+                  ...(old || {}),
+                  [folder.id]: !open,
+                  [normalizedFolderId]: !open,
+                }));
               }}
               title={open ? "Collapse folder" : "Expand folder"}
             >
