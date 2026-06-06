@@ -1006,29 +1006,6 @@ export default function QuestBoardTab({
           <button onClick={() => createQuestFolder(selectedFolderId)} className="quest-directory-create-button"><Plus size={16} /> Folder</button>
         </div>
 
-        <div className="quest-directory-project-row">
-          <button
-            type="button"
-            className="quest-directory-project-button"
-            onClick={chooseQuestProjectFolder}
-          >
-            Choose Project
-          </button>
-          <button
-            type="button"
-            className="quest-directory-project-button"
-            onClick={() => refreshQuestProjectFolder?.()}
-            disabled={!projectRootPath}
-          >
-            Refresh
-          </button>
-        </div>
-
-        <div className="quest-directory-project-status" title={projectRootPath || "No project folder selected"}>
-          {projectRootPath ? projectRootPath : "No project folder selected"}
-          {projectLoadSummary ? <span>{projectLoadSummary}</span> : null}
-        </div>
-
         {showQuestBoardDebug && (() => {
           const preview = getMoveDebugPreview();
           return (

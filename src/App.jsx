@@ -150,6 +150,23 @@ export default function App() {
     return persistentQuest;
   }
 
+  function stripProjectExportData(dataForExport) {
+    return {
+      ...dataForExport,
+      quests: (dataForExport?.quests || []).map((quest) => {
+        const {
+          projectDirty,
+          projectFilePath,
+          projectRelativePath,
+          sourceQuestId,
+          ...exportQuest
+        } = quest || {};
+
+        return exportQuest;
+      }),
+    };
+  }
+
   function hasPersistentQuestChange(before, after) {
     return JSON.stringify(stripProjectTransientQuestFields(before)) !==
       JSON.stringify(stripProjectTransientQuestFields(after));
@@ -1300,7 +1317,8 @@ function restoreQuest(questId) {
   async function exportJson() {
     try {
       const date = todayString();
-      await downloadJsonFile(makeAllDataExport(data), `quest-planner-${date}.json`);
+      const exportData = projectRootPath ? stripProjectExportData(data) : data;
+      await downloadJsonFile(makeAllDataExport(exportData), `quest-planner-${date}.json`);
     } catch (error) {
       console.error("Could not export planner data.", error);
       window.alert("Could not export planner data.");
@@ -1693,10 +1711,6 @@ function LibraryPanel({
           moveQuestToFolder={moveQuestToFolder}
           moveQuestFolderToFolder={moveQuestFolderToFolder}
           selectQuest={selectQuest}
-          projectRootPath={projectRootPath}
-          projectLoadSummary={projectLoadSummary}
-          chooseQuestProjectFolder={chooseQuestProjectFolder}
-          refreshQuestProjectFolder={refreshQuestProjectFolder}
           showQuestBoardDebug={showQuestBoardDebug}
         />
       ),
@@ -1712,6 +1726,10 @@ function LibraryPanel({
           importQuestFile={importQuestFile}
           hasActiveQuest={hasActiveQuest}
           resetToDefaults={resetToDefaults}
+          projectRootPath={projectRootPath}
+          projectLoadSummary={projectLoadSummary}
+          chooseQuestProjectFolder={chooseQuestProjectFolder}
+          refreshQuestProjectFolder={refreshQuestProjectFolder}
         />
       ),
     },
