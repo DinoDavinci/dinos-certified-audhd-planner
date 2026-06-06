@@ -281,6 +281,52 @@ export default function App() {
   const [projectLoadSummary, setProjectLoadSummary] = useState("");
   const dataRef = useRef(data);
 
+  function stripProjectTransientQuestFields(quest) {
+    const {
+      projectDirty,
+      projectFilePath,
+      projectRelativePath,
+      sourceQuestId,
+      ...persistentQuest
+    } = quest || {};
+
+    return persistentQuest;
+  }
+
+  function hasPersistentQuestChange(before, after) {
+    return JSON.stringify(stripProjectTransientQuestFields(before)) !==
+      JSON.stringify(stripProjectTransientQuestFields(after));
+  }
+
+  function markChangedProjectQuestsDirty(oldData, nextData) {
+    if (!projectRootPath || !nextData) return nextData;
+
+    const previousQuestsById = new Map((oldData?.quests || []).map((quest) => [quest.id, quest]));
+
+    return {
+      ...nextData,
+      quests: (nextData.quests || []).map((quest) => {
+        if (!quest?.projectRelativePath) return quest;
+
+        const previousQuest = previousQuestsById.get(quest.id);
+        if (!previousQuest) return quest;
+        if (!hasPersistentQuestChange(previousQuest, quest)) return quest;
+
+        return {
+          ...quest,
+          projectDirty: true,
+        };
+      }),
+    };
+  }
+
+  function setDataWithProjectDirty(updater) {
+    setData((old) => {
+      const next = typeof updater === "function" ? updater(old) : updater;
+      return markChangedProjectQuestsDirty(old, next);
+    });
+  }
+
   function getAppDate() {
     return debugDateOverrideEnabled && debugDateOverrideDate
       ? debugDateOverrideDate
@@ -288,7 +334,7 @@ export default function App() {
   }
 
   function runMaintenanceForDate(date = getAppDate()) {
-    setData((old) => runDailyMaintenance(old, date));
+    setDataWithProjectDirty((old) => runDailyMaintenance(old, date));
     localStorage.setItem(LAST_TICK_KEY, date);
   }
 
@@ -337,7 +383,7 @@ export default function App() {
       branchTaskId: target.branchTaskId || null,
     };
 
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       activeQuestId: nextTarget.questId,
       activeBranchTaskId: nextTarget.branchTaskId,
@@ -384,7 +430,7 @@ export default function App() {
       const lastTick = localStorage.getItem(LAST_TICK_KEY);
 
       if (lastTick !== today) {
-        setData((old) => runDailyMaintenance(old, today));
+        setDataWithProjectDirty((old) => runDailyMaintenance(old, today));
         localStorage.setItem(LAST_TICK_KEY, today);
       }
     }, 60000);
@@ -449,7 +495,7 @@ export default function App() {
       }
     }
 
-    setData((old) => ({ ...old, quests: [quest, ...old.quests] }));
+    setDataWithProjectDirty((old) => ({ ...old, quests: [quest, ...old.quests] }));
     setSelection({ type: "quest", id: quest.id });
   }
 
@@ -499,7 +545,7 @@ export default function App() {
       title: undefined,
     };
 
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       folders: [...(old.folders || []), folder],
     }));
@@ -620,7 +666,7 @@ export default function App() {
       }
     }
 
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       folders: deleteQuestFolderFromList(old.folders || [], folderId),
     }));
@@ -721,7 +767,7 @@ export default function App() {
       }
     }
 
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: moveQuestToFolderInList(old.quests || [], questId, folderId),
     }));
@@ -896,7 +942,7 @@ export default function App() {
 function createQuestTask(questId, parentId = null) {
     const task = makeTask({ title: "New Task" });
 
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -972,7 +1018,7 @@ ${message}`);
       }
     }
 
-    setData((old) => {
+    setDataWithProjectDirty((old) => {
       const quests = old.quests.filter((quest) => quest.id !== questId);
       return {
         ...old,
@@ -1015,7 +1061,7 @@ async function renameQuestFile(questId, nextBaseName) {
 
 
 function deleteQuestTask(questId, taskId) {
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -1038,7 +1084,7 @@ function deleteQuestTask(questId, taskId) {
 
 
 function moveQuestTask(questId, taskId, direction) {
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -1058,7 +1104,7 @@ function moveQuestTask(questId, taskId, direction) {
 function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement) {
     if (!questId || !sourceTaskId || !targetTaskId) return;
 
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1106,7 +1152,7 @@ function moveQuestTaskToLocation(questId, sourceTaskId, targetTaskId, placement)
 
 
 function toggleTask(questId, taskId) {
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1183,7 +1229,7 @@ function toggleTask(questId, taskId) {
 
   
 function uncompleteTask(questId, taskId) {
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1231,7 +1277,7 @@ function uncompleteTask(questId, taskId) {
 
   
 function completeQuest(questId) {
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) => {
         if (quest.id !== questId) return quest;
@@ -1252,7 +1298,7 @@ function completeQuest(questId) {
 
   
 function restoreQuest(questId) {
-    setData((old) => ({
+    setDataWithProjectDirty((old) => ({
       ...old,
       quests: old.quests.map((quest) =>
         quest.id === questId
@@ -1301,7 +1347,7 @@ function restoreQuest(questId) {
 
       if (!importedQuest) throw new Error("No quest found in file.");
 
-      setData((old) => {
+      setDataWithProjectDirty((old) => {
         const existing = (old.quests || []).some((quest) => quest.id === importedQuest.id);
         const questForFolder = {
           ...importedQuest,
@@ -1549,7 +1595,7 @@ async function importJsonFile(file) {
           setBottomRightTab={setBottomRightTab}
           selection={selection}
           data={data}
-          setData={setData}
+          setData={setDataWithProjectDirty}
           setSelection={setSelection}
           allTags={allTags}
           activeQuest={activeQuest}

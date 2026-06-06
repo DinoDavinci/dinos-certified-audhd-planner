@@ -1657,6 +1657,7 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
   const progress = getQuestProgress(quest);
   const complete = isQuestComplete(quest);
   const inactive = isQuestInactive(quest);
+  const dirty = Boolean(quest?.projectDirty);
 
   return (
     <div className="quest-directory-quest-card quest-directory-branch-node quest-directory-quest-branch-node">
@@ -1685,7 +1686,10 @@ function QuestDirectoryCard({ quest, activeQuestId, dueBadge, selectQuest, moveQ
       >
         <div className="quest-directory-quest-header">
           <div className="quest-directory-quest-main">
-            <FileText size={16} />
+            <FileText
+              size={16}
+              style={dirty ? { color: "rgb(250 204 21)" } : undefined}
+            />
             <span className="quest-directory-quest-title">{quest.title || "Untitled Quest"}</span>
           </div>
 

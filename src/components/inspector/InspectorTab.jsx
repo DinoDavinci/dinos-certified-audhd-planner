@@ -303,21 +303,15 @@ function InspectorToolbar({
     <div className="inspector-toolbar">
       <div className="inspector-toolbar-section">
         <span className={`inspector-selection-badge ${getInspectorAccentClass(selection)}`}>{getSelectionType(selection)}</span>
-        {questFilename ? (
-          selectedQuest?.projectRelativePath ? (
-            <button
-              type="button"
-              className="inspector-filename-badge inspector-filename-button"
-              title={`Rename quest file: ${questFilename}.quest.json`}
-              onClick={openRenameModal}
-            >
-              {questFilename}
-            </button>
-          ) : (
-            <span className="inspector-filename-badge" title={questFilename}>
-              {questFilename}
-            </span>
-          )
+        {questFilename && selectedQuest?.projectRelativePath ? (
+          <button
+            type="button"
+            className="inspector-filename-badge inspector-filename-button"
+            title={`Rename quest file: ${questFilename}.quest.json`}
+            onClick={openRenameModal}
+          >
+            {questFilename}
+          </button>
         ) : null}
       </div>
 

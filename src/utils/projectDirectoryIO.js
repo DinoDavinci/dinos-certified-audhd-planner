@@ -155,6 +155,7 @@ export async function updateQuestFileInProject(projectRootPath, questRelativePat
   }
 
   const {
+    projectDirty,
     projectFilePath,
     projectRelativePath,
     sourceQuestId,
